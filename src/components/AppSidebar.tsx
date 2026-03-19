@@ -37,7 +37,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
-  const { signOut } = useAuth();
+  const { signOut, calendarConnected } = useAuth();
   const {
     tasks,
     projects,
