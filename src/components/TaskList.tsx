@@ -36,7 +36,7 @@ export function TaskList() {
       case 'inbox':
         title = 'Caixa de Entrada';
         Icon = Inbox;
-        filtered = tasks.filter((t) => !t.completed && t.projectId === 'inbox');
+        filtered = tasks.filter((t) => !t.completed && t.projectId === projects.find(p => p.isInbox)?.id);
         break;
 
       case 'today':
