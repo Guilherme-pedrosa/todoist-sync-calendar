@@ -14,8 +14,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { Input } from '@/components/ui/input';
-import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
 import {
   Collapsible,
   CollapsibleContent,
