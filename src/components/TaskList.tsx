@@ -87,12 +87,7 @@ export function TaskList() {
       case 'project': {
         const project = projects.find((p) => p.id === activeProjectId);
         title = project?.name || 'Projeto';
-        Icon = () => (
-          <span
-            className="h-3 w-3 rounded-full inline-block"
-            style={{ backgroundColor: project?.color }}
-          />
-        );
+        Icon = Inbox;
         filtered = tasks.filter((t) => !t.completed && t.projectId === activeProjectId);
         break;
       }
