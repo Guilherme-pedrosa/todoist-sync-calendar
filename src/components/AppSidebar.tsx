@@ -6,18 +6,14 @@ import {
   CalendarRange,
   CheckCircle2,
   Plus,
-  Hash,
   ChevronDown,
   ChevronRight,
-  Folder,
   Tag,
   LogOut,
-  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
 import { useTaskStore } from '@/store/taskStore';
-import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import {
