@@ -32,9 +32,147 @@ interface TaskState {
   toggleSidebar: () => void;
 }
 
+interface GoogleCalendarEvent {
+  id: string;
+  summary?: string;
+  description?: string;
+  start?: {
+    date?: string;
+    dateTime?: string;
+  };
+}
+
+const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
+
+function mapDbTaskToTask(t: any): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description || undefined,
+    completed: t.completed,
+    completedAt: t.completed_at || undefined,
+    priority: t.priority as Priority,
+    dueDate: t.due_date || undefined,
+    dueTime: t.due_time ? t.due_time.slice(0, 5) : undefined,
+    projectId: t.project_id || undefined,
+    parentId: t.parent_id || undefined,
+    labels: (t.task_labels || []).map((tl: any) => tl.label_id),
+    recurrence: t.recurrence_type
+      ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
+      : undefined,
+    googleCalendarEventId: t.google_calendar_event_id || undefined,
+    createdAt: t.created_at,
+  };
+}
+
+function getCalendarDateAndTime(event: GoogleCalendarEvent): { dueDate?: string; dueTime?: string } {
+  if (event.start?.dateTime) {
+    const [date, timeWithOffset] = event.start.dateTime.split('T');
+    return { dueDate: date, dueTime: timeWithOffset?.slice(0, 5) };
+  }
+
+  if (event.start?.date) {
+    return { dueDate: event.start.date };
+  }
+
+  return {};
+}
+
 async function getUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
   return data.user?.id ?? null;
+}
+
+async function syncTodayGoogleCalendarEvents(
+  userId: string,
+  currentTasks: Task[],
+  inboxProjectId?: string
+): Promise<Task[]> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    return currentTasks;
+  }
+
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const params = new URLSearchParams({
+    action: 'list-events',
+    timeMin: startOfDay.toISOString(),
+    timeMax: endOfDay.toISOString(),
+  });
+
+  try {
+    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null);
+      if (errorPayload?.code === 'NO_TOKEN' || errorPayload?.code === 'TOKEN_EXPIRED') {
+        return currentTasks;
+      }
+      console.error('Erro ao buscar eventos do Google Calendar:', errorPayload ?? response.statusText);
+      return currentTasks;
+    }
+
+    const payload = await response.json();
+    const events: GoogleCalendarEvent[] = Array.isArray(payload?.items) ? payload.items : [];
+
+    if (events.length === 0) {
+      return currentTasks;
+    }
+
+    const existingGoogleEventIds = new Set(
+      currentTasks.map((task) => task.googleCalendarEventId).filter(Boolean) as string[]
+    );
+
+    const tasksToInsert = events
+      .filter((event) => event.id && !existingGoogleEventIds.has(event.id))
+      .map((event) => {
+        const { dueDate, dueTime } = getCalendarDateAndTime(event);
+        return {
+          user_id: userId,
+          title: event.summary?.trim() || 'Evento do Google Calendar',
+          description: event.description || null,
+          due_date: dueDate || null,
+          due_time: dueTime ? `${dueTime}:00` : null,
+          priority: 4,
+          project_id: inboxProjectId || null,
+          google_calendar_event_id: event.id,
+        };
+      });
+
+    if (tasksToInsert.length === 0) {
+      return currentTasks;
+    }
+
+    const { data: insertedRows, error: insertError } = await supabase
+      .from('tasks')
+      .insert(tasksToInsert)
+      .select('*, task_labels(label_id)');
+
+    if (insertError || !insertedRows) {
+      console.error('Erro ao salvar eventos do Google Calendar:', insertError?.message);
+      return currentTasks;
+    }
+
+    const syncedTasks = insertedRows.map(mapDbTaskToTask);
+    return [...syncedTasks, ...currentTasks];
+  } catch (error) {
+    console.error('Falha na sincronização com Google Calendar:', error);
+    return currentTasks;
+  }
 }
 
 export const useTaskStore = create<TaskState>()((set, get) => ({
@@ -70,26 +208,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       color: l.color,
     }));
 
-    const tasks: Task[] = (tasksRes.data || []).map((t: any) => ({
-      id: t.id,
-      title: t.title,
-      description: t.description || undefined,
-      completed: t.completed,
-      completedAt: t.completed_at || undefined,
-      priority: t.priority as Priority,
-      dueDate: t.due_date || undefined,
-      dueTime: t.due_time ? t.due_time.slice(0, 5) : undefined,
-      projectId: t.project_id || undefined,
-      parentId: t.parent_id || undefined,
-      labels: (t.task_labels || []).map((tl: any) => tl.label_id),
-      recurrence: t.recurrence_type
-        ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
-        : undefined,
-      googleCalendarEventId: t.google_calendar_event_id || undefined,
-      createdAt: t.created_at,
-    }));
+    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
+    const inboxProjectId = projects.find((p) => p.isInbox)?.id;
+    const syncedTasks = await syncTodayGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
-    set({ projects, labels, tasks, loading: false });
+    set({ projects, labels, tasks: syncedTasks, loading: false });
   },
 
   addTask: async (taskData) => {
