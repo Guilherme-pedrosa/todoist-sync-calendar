@@ -37,14 +37,15 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
     activeView === 'today' ? new Date() : undefined
   );
   const [dueTime, setDueTime] = useState('');
-  const [projectId, setProjectId] = useState(defaultProjectId || activeProjectId || 'inbox');
+  const inboxProject = projects.find(p => p.isInbox);
+  const [projectId, setProjectId] = useState(defaultProjectId || activeProjectId || inboxProject?.id || '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceType | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) return;
 
-    addTask({
+    await addTask({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,

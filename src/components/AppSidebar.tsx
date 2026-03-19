@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Inbox,
   CalendarDays,
@@ -10,6 +11,7 @@ import {
   ChevronRight,
   Folder,
   Tag,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -32,6 +34,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
+  const { signOut } = useAuth();
   const {
     tasks,
     projects,
@@ -57,8 +60,9 @@ export function AppSidebar() {
   const todayCount = tasks.filter(
     (t) => !t.completed && t.dueDate === today
   ).length;
+  const inboxProject = projects.find((p) => p.isInbox);
   const inboxCount = tasks.filter(
-    (t) => !t.completed && t.projectId === 'inbox'
+    (t) => !t.completed && t.projectId === inboxProject?.id
   ).length;
 
   const handleAddProject = () => {
@@ -248,12 +252,19 @@ export function AppSidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-sidebar-border">
+      <div className="px-5 py-4 border-t border-sidebar-border space-y-3">
         <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
           <CalendarDays className="h-3.5 w-3.5" />
           <span>Google Calendar</span>
-          <span className="ml-auto px-1.5 py-0.5 rounded bg-sidebar-accent text-[10px]">Em breve</span>
+          <span className="ml-auto px-1.5 py-0.5 rounded bg-sidebar-accent text-[10px]">Conectado</span>
         </div>
+        <button
+          onClick={signOut}
+          className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          <span>Sair</span>
+        </button>
       </div>
     </aside>
   );

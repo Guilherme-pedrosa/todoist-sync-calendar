@@ -4,7 +4,7 @@ export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface Recurrence {
   type: RecurrenceType;
-  interval: number; // every N days/weeks/months/years
+  interval: number;
 }
 
 export interface Task {
@@ -13,20 +13,22 @@ export interface Task {
   description?: string;
   completed: boolean;
   priority: Priority;
-  dueDate?: string; // ISO date string
-  dueTime?: string; // HH:mm
-  projectId: string;
-  parentId?: string; // for subtasks
+  dueDate?: string;
+  dueTime?: string;
+  projectId?: string;
+  parentId?: string;
   labels: string[];
   recurrence?: Recurrence;
   createdAt: string;
   completedAt?: string;
+  googleCalendarEventId?: string;
 }
 
 export interface Project {
   id: string;
   name: string;
   color: string;
+  isInbox?: boolean;
   icon?: string;
 }
 
