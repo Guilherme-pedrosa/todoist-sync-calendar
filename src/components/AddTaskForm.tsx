@@ -45,7 +45,7 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
   const handleSubmit = async () => {
     if (!title.trim()) return;
 
-    addTask({
+    await addTask({
       title: title.trim(),
       description: description.trim() || undefined,
       priority,
