@@ -56,6 +56,33 @@ export function AppSidebar() {
   const [showNewLabel, setShowNewLabel] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
+  const todayCount = tasks.filter(
+    (t) => !t.completed && t.dueDate === today
+  ).length;
+  const inboxProject = projects.find((p) => p.isInbox);
+  const inboxCount = tasks.filter(
+    (t) => !t.completed && t.projectId === inboxProject?.id
+  ).length;
+
+  const handleAddProject = () => {
+    if (newProjectName.trim()) {
+      const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
+      addProject({ name: newProjectName.trim(), color });
+      setNewProjectName('');
+      setShowNewProject(false);
+    }
+  };
+
+  const handleAddLabel = () => {
+    if (newLabelName.trim()) {
+      const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
+      addLabel({ name: newLabelName.trim(), color });
+      setNewLabelName('');
+      setShowNewLabel(false);
+    }
+  };
+
+  const navItems = [
     {
       icon: Inbox,
       label: 'Caixa de Entrada',
