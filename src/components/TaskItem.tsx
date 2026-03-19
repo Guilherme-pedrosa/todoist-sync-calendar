@@ -40,13 +40,17 @@ function formatDueDate(dateStr: string) {
 }
 
 export function TaskItem({ task }: TaskItemProps) {
-  const { toggleTask, deleteTask, projects, labels: allLabels } = useTaskStore();
+  const toggleTask = useTaskStore((s) => s.toggleTask);
+  const deleteTask = useTaskStore((s) => s.deleteTask);
+  const projects = useTaskStore((s) => s.projects);
+  const allLabels = useTaskStore((s) => s.labels);
+  const tasks = useTaskStore((s) => s.tasks);
   const [isHovered, setIsHovered] = useState(false);
 
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
   const isOverdue = task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) && !task.completed;
-  const subtasks = useTaskStore((s) => s.tasks.filter((t) => t.parentId === task.id));
+  const subtasks = tasks.filter((t) => t.parentId === task.id);
 
   return (
     <div
