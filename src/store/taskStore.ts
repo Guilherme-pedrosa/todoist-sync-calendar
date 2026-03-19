@@ -88,6 +88,16 @@ async function syncTodayGoogleCalendarEvents(
   currentTasks: Task[],
   inboxProjectId?: string
 ): Promise<Task[]> {
+  const { data: tokenRows, error: tokenError } = await supabase
+    .from('google_tokens')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (tokenError || !tokenRows?.length) {
+    return currentTasks;
+  }
+
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
 

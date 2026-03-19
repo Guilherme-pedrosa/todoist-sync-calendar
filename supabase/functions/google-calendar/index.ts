@@ -7,69 +7,168 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+type JsonBody = Record<string, unknown>;
+
+const jsonResponse = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const parseJsonBody = async (req: Request): Promise<JsonBody> => {
+  if (req.method === "GET" || req.method === "OPTIONS") return {};
+
+  try {
+    return (await req.json()) as JsonBody;
+  } catch {
+    return {};
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      return jsonResponse({ error: "Configuração do servidor inválida" }, 500);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Get user from auth header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!authHeader?.startsWith("Bearer ")) {
+      return jsonResponse({ error: "Não autorizado" }, 401);
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(token);
+
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Usuário inválido" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Usuário inválido" }, 401);
     }
 
     const url = new URL(req.url);
-    const action = url.searchParams.get("action");
+    const body = await parseJsonBody(req);
+    const action = (url.searchParams.get("action") || String(body.action || "")).trim();
 
-    // Get Google token for user
+    const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID");
+    const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+
+    if (action === "connect-url") {
+      if (!googleClientId) {
+        return jsonResponse({ error: "Google OAuth não configurado no servidor" }, 500);
+      }
+
+      const redirectUri =
+        url.searchParams.get("redirectUri") ||
+        (typeof body.redirectUri === "string" ? body.redirectUri : "");
+
+      if (!redirectUri) {
+        return jsonResponse({ error: "redirectUri é obrigatório" }, 400);
+      }
+
+      const params = new URLSearchParams({
+        client_id: googleClientId,
+        redirect_uri: redirectUri,
+        response_type: "code",
+        access_type: "offline",
+        prompt: "consent",
+        scope: "https://www.googleapis.com/auth/calendar",
+        state: user.id,
+      });
+
+      return jsonResponse({
+        url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+      });
+    }
+
+    if (action === "exchange-code") {
+      if (!googleClientId || !googleClientSecret) {
+        return jsonResponse({ error: "Google OAuth não configurado no servidor" }, 500);
+      }
+
+      const code = typeof body.code === "string" ? body.code : "";
+      const redirectUri = typeof body.redirectUri === "string" ? body.redirectUri : "";
+
+      if (!code || !redirectUri) {
+        return jsonResponse({ error: "code e redirectUri são obrigatórios" }, 400);
+      }
+
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: googleClientId,
+          client_secret: googleClientSecret,
+          code,
+          grant_type: "authorization_code",
+          redirect_uri: redirectUri,
+        }),
+      });
+
+      const tokenPayload = await tokenRes.json();
+      if (!tokenRes.ok || tokenPayload.error || !tokenPayload.access_token) {
+        return jsonResponse(
+          { error: "Falha ao trocar código por token Google", details: tokenPayload },
+          400,
+        );
+      }
+
+      const { data: currentToken } = await supabase
+        .from("google_tokens")
+        .select("refresh_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const refreshToken = tokenPayload.refresh_token ?? currentToken?.refresh_token ?? null;
+
+      const { error: upsertError } = await supabase.from("google_tokens").upsert(
+        {
+          user_id: user.id,
+          access_token: tokenPayload.access_token,
+          refresh_token: refreshToken,
+          expires_at: new Date(Date.now() + Number(tokenPayload.expires_in || 3600) * 1000).toISOString(),
+        },
+        { onConflict: "user_id" },
+      );
+
+      if (upsertError) {
+        return jsonResponse({ error: "Falha ao salvar token Google", details: upsertError.message }, 400);
+      }
+
+      return jsonResponse({ success: true });
+    }
+
     const { data: tokenData } = await supabase
       .from("google_tokens")
       .select("*")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (!tokenData) {
-      return new Response(
-        JSON.stringify({ error: "Google Calendar não conectado", code: "NO_TOKEN" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse({ error: "Google Calendar não conectado", code: "NO_TOKEN" }, 400);
     }
 
-    // Check if token is expired and refresh if needed
     let accessToken = tokenData.access_token;
+
     if (new Date(tokenData.expires_at) <= new Date()) {
       if (!tokenData.refresh_token) {
-        return new Response(
-          JSON.stringify({ error: "Token expirado, reconecte o Google Calendar", code: "TOKEN_EXPIRED" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        return jsonResponse(
+          { error: "Token expirado, reconecte o Google Calendar", code: "TOKEN_EXPIRED" },
+          400,
         );
       }
 
-      const googleClientId = Deno.env.get("GOOGLE_CLIENT_ID");
-      const googleClientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
-
       if (!googleClientId || !googleClientSecret) {
-        return new Response(
-          JSON.stringify({ error: "Google OAuth não configurado no servidor" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse({ error: "Google OAuth não configurado no servidor" }, 500);
       }
 
       const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -84,10 +183,10 @@ serve(async (req) => {
       });
 
       const refreshData = await refreshRes.json();
-      if (refreshData.error) {
-        return new Response(
-          JSON.stringify({ error: "Falha ao renovar token Google", details: refreshData }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      if (!refreshRes.ok || refreshData.error || !refreshData.access_token) {
+        return jsonResponse(
+          { error: "Falha ao renovar token Google", details: refreshData },
+          400,
         );
       }
 
@@ -96,7 +195,7 @@ serve(async (req) => {
         .from("google_tokens")
         .update({
           access_token: refreshData.access_token,
-          expires_at: new Date(Date.now() + refreshData.expires_in * 1000).toISOString(),
+          expires_at: new Date(Date.now() + Number(refreshData.expires_in || 3600) * 1000).toISOString(),
         })
         .eq("user_id", user.id);
     }
@@ -119,24 +218,27 @@ serve(async (req) => {
         });
         if (timeMax) params.set("timeMax", timeMax);
 
-        const res = await fetch(`${calendarBase}/calendars/primary/events?${params}`, { headers });
+        const res = await fetch(`${calendarBase}/calendars/primary/events?${params.toString()}`, { headers });
         const data = await res.json();
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse(data, res.ok ? 200 : 400);
       }
 
       case "create-event": {
-        const body = await req.json();
         const event = {
           summary: body.title,
           description: body.description || "",
           start: body.allDay
             ? { date: body.date }
-            : { dateTime: `${body.date}T${body.time || "09:00"}:00`, timeZone: body.timeZone || "America/Sao_Paulo" },
+            : {
+                dateTime: `${body.date}T${body.time || "09:00"}:00`,
+                timeZone: body.timeZone || "America/Sao_Paulo",
+              },
           end: body.allDay
             ? { date: body.date }
-            : { dateTime: `${body.date}T${body.endTime || body.time || "10:00"}:00`, timeZone: body.timeZone || "America/Sao_Paulo" },
+            : {
+                dateTime: `${body.date}T${body.endTime || body.time || "10:00"}:00`,
+                timeZone: body.timeZone || "America/Sao_Paulo",
+              },
           reminders: { useDefault: true },
         };
 
@@ -145,25 +247,33 @@ serve(async (req) => {
           headers,
           body: JSON.stringify(event),
         });
+
         const data = await res.json();
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse(data, res.ok ? 200 : 400);
       }
 
       case "update-event": {
-        const body = await req.json();
-        const { eventId, ...updates } = body;
-        const event: Record<string, any> = {};
+        const eventId = typeof body.eventId === "string" ? body.eventId : "";
+        if (!eventId) return jsonResponse({ error: "eventId é obrigatório" }, 400);
+
+        const updates = body;
+        const event: Record<string, unknown> = {};
+
         if (updates.title) event.summary = updates.title;
         if (updates.description !== undefined) event.description = updates.description;
         if (updates.date) {
           event.start = updates.allDay
             ? { date: updates.date }
-            : { dateTime: `${updates.date}T${updates.time || "09:00"}:00`, timeZone: updates.timeZone || "America/Sao_Paulo" };
+            : {
+                dateTime: `${updates.date}T${updates.time || "09:00"}:00`,
+                timeZone: updates.timeZone || "America/Sao_Paulo",
+              };
           event.end = updates.allDay
             ? { date: updates.date }
-            : { dateTime: `${updates.date}T${updates.endTime || updates.time || "10:00"}:00`, timeZone: updates.timeZone || "America/Sao_Paulo" };
+            : {
+                dateTime: `${updates.date}T${updates.endTime || updates.time || "10:00"}:00`,
+                timeZone: updates.timeZone || "America/Sao_Paulo",
+              };
         }
 
         const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
@@ -171,34 +281,27 @@ serve(async (req) => {
           headers,
           body: JSON.stringify(event),
         });
+
         const data = await res.json();
-        return new Response(JSON.stringify(data), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse(data, res.ok ? 200 : 400);
       }
 
       case "delete-event": {
         const eventId = url.searchParams.get("eventId");
+        if (!eventId) return jsonResponse({ error: "eventId é obrigatório" }, 400);
+
         const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
           method: "DELETE",
           headers,
         });
-        const text = await res.text();
-        return new Response(JSON.stringify({ success: res.ok }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+
+        return jsonResponse({ success: res.ok }, res.ok ? 200 : 400);
       }
 
       default:
-        return new Response(JSON.stringify({ error: "Ação inválida" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Ação inválida" }, 400);
     }
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: err instanceof Error ? err.message : "Erro inesperado" }, 500);
   }
 });

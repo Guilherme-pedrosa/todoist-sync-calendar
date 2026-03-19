@@ -12,11 +12,14 @@ import {
   Folder,
   Tag,
   LogOut,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 import { useTaskStore } from '@/store/taskStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 import {
   Collapsible,
   CollapsibleContent,
@@ -56,6 +59,8 @@ export function AppSidebar() {
   const [newLabelName, setNewLabelName] = useState('');
   const [showNewLabel, setShowNewLabel] = useState(false);
 
+  const [isConnectingCalendar, setIsConnectingCalendar] = useState(false);
+
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter(
     (t) => !t.completed && t.dueDate === today
@@ -80,6 +85,51 @@ export function AppSidebar() {
       addLabel({ name: newLabelName.trim(), color });
       setNewLabelName('');
       setShowNewLabel(false);
+    }
+  };
+
+  const handleConnectGoogleCalendar = async () => {
+    setIsConnectingCalendar(true);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        toast.error('Sessão inválida. Faça login novamente.');
+        return;
+      }
+
+      const redirectUri = `${window.location.origin}/calendar-callback`;
+      const params = new URLSearchParams({
+        action: 'connect-url',
+        redirectUri,
+      });
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || 'Não foi possível iniciar conexão com Google Calendar');
+      }
+
+      window.location.href = payload.url;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao conectar Google Calendar');
+    } finally {
+      setIsConnectingCalendar(false);
     }
   };
 
@@ -253,11 +303,18 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-sidebar-border space-y-3">
-        <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Google Calendar</span>
-          <span className="ml-auto px-1.5 py-0.5 rounded bg-sidebar-accent text-[10px]">Conectado</span>
-        </div>
+        <button
+          onClick={handleConnectGoogleCalendar}
+          disabled={isConnectingCalendar}
+          className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+        >
+          {isConnectingCalendar ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <CalendarDays className="h-3.5 w-3.5" />
+          )}
+          <span>{isConnectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}</span>
+        </button>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
