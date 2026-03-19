@@ -42,7 +42,7 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [recurrence, setRecurrence] = useState<RecurrenceType | null>(null);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) return;
 
     addTask({
