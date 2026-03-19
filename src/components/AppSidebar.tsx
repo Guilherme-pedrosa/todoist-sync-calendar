@@ -34,6 +34,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
+  const { signOut } = useAuth();
   const {
     tasks,
     projects,
