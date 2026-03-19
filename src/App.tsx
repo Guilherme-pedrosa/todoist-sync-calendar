@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import CalendarCallback from "./pages/CalendarCallback";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
