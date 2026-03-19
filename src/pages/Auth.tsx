@@ -55,6 +55,7 @@ export default function Auth() {
       extraParams: {
         access_type: 'offline',
         prompt: 'consent',
+        scope: 'openid email profile https://www.googleapis.com/auth/calendar',
       },
     });
     if (error) toast.error('Erro ao conectar com Google');
