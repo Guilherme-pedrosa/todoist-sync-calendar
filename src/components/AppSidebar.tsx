@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Folder,
   Tag,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
