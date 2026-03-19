@@ -42,6 +42,14 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/calendar-callback"
+              element={
+                <ProtectedRoute>
+                  <CalendarCallback />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

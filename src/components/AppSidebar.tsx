@@ -303,11 +303,18 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-sidebar-border space-y-3">
-        <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Google Calendar</span>
-          <span className="ml-auto px-1.5 py-0.5 rounded bg-sidebar-accent text-[10px]">Conectado</span>
-        </div>
+        <button
+          onClick={handleConnectGoogleCalendar}
+          disabled={isConnectingCalendar}
+          className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+        >
+          {isConnectingCalendar ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <CalendarDays className="h-3.5 w-3.5" />
+          )}
+          <span>{isConnectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}</span>
+        </button>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
