@@ -1,39 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
-
-export type Priority = 1 | 2 | 3 | 4;
-export type ViewFilter = 'inbox' | 'today' | 'upcoming' | 'completed' | 'project' | 'label';
-export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
-
-export interface Task {
-  id: string;
-  title: string;
-  description?: string;
-  completed: boolean;
-  completedAt?: string;
-  priority: Priority;
-  dueDate?: string;
-  dueTime?: string;
-  projectId?: string;
-  parentId?: string;
-  labels: string[];
-  recurrence?: { type: RecurrenceType; interval: number };
-  googleCalendarEventId?: string;
-  createdAt: string;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  color: string;
-  isInbox?: boolean;
-}
-
-export interface Label {
-  id: string;
-  name: string;
-  color: string;
-}
+import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 
 interface TaskState {
   tasks: Task[];
@@ -45,25 +12,20 @@ interface TaskState {
   sidebarOpen: boolean;
   loading: boolean;
 
-  // Data loading
   fetchData: () => Promise<void>;
 
-  // Task actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & { labels?: string[] }) => Promise<void>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
 
-  // Project actions
   addProject: (project: Omit<Project, 'id'>) => Promise<void>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
-  // Label actions
   addLabel: (label: Omit<Label, 'id'>) => Promise<void>;
   deleteLabel: (id: string) => Promise<void>;
 
-  // View actions
   setActiveView: (view: ViewFilter) => void;
   setActiveProjectId: (id: string | null) => void;
   setActiveLabelId: (id: string | null) => void;
@@ -155,7 +117,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (error || !data) return;
 
-    // Insert labels
     const labelIds = taskData.labels || [];
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
@@ -237,11 +198,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const { data, error } = await supabase
       .from('projects')
-      .insert({
-        user_id: userId,
-        name: projectData.name,
-        color: projectData.color,
-      })
+      .insert({ user_id: userId, name: projectData.name, color: projectData.color })
       .select()
       .single();
 
@@ -256,7 +213,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.color !== undefined) dbUpdates.color = updates.color;
-
     await supabase.from('projects').update(dbUpdates).eq('id', id);
     set((state) => ({
       projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
@@ -264,13 +220,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   deleteProject: async (id) => {
-    // Move tasks to inbox
     const inbox = get().projects.find((p) => p.isInbox);
     if (inbox) {
       await supabase.from('tasks').update({ project_id: inbox.id }).eq('project_id', id);
     }
     await supabase.from('projects').delete().eq('id', id);
-
     set((state) => ({
       projects: state.projects.filter((p) => p.id !== id),
       tasks: state.tasks.map((t) => (t.projectId === id ? { ...t, projectId: inbox?.id } : t)),
@@ -288,7 +242,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       .single();
 
     if (error || !data) return;
-
     set((state) => ({
       labels: [...state.labels, { id: data.id, name: data.name, color: data.color }],
     }));
@@ -297,7 +250,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   deleteLabel: async (id) => {
     await supabase.from('task_labels').delete().eq('label_id', id);
     await supabase.from('labels').delete().eq('id', id);
-
     set((state) => ({
       labels: state.labels.filter((l) => l.id !== id),
       tasks: state.tasks.map((t) => ({ ...t, labels: t.labels.filter((l) => l !== id) })),
