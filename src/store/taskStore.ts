@@ -1,6 +1,39 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { Task, Project, Label, ViewFilter, Priority, Recurrence } from '@/types/task';
+import { supabase } from '@/integrations/supabase/client';
+
+export type Priority = 1 | 2 | 3 | 4;
+export type ViewFilter = 'inbox' | 'today' | 'upcoming' | 'completed' | 'project' | 'label';
+export type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  completedAt?: string;
+  priority: Priority;
+  dueDate?: string;
+  dueTime?: string;
+  projectId?: string;
+  parentId?: string;
+  labels: string[];
+  recurrence?: { type: RecurrenceType; interval: number };
+  googleCalendarEventId?: string;
+  createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  color: string;
+  isInbox?: boolean;
+}
+
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface TaskState {
   tasks: Task[];
@@ -10,21 +43,25 @@ interface TaskState {
   activeProjectId: string | null;
   activeLabelId: string | null;
   sidebarOpen: boolean;
+  loading: boolean;
+
+  // Data loading
+  fetchData: () => Promise<void>;
 
   // Task actions
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt'>) => void;
-  updateTask: (id: string, updates: Partial<Task>) => void;
-  deleteTask: (id: string) => void;
-  toggleTask: (id: string) => void;
+  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & { labels?: string[] }) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  toggleTask: (id: string) => Promise<void>;
 
   // Project actions
-  addProject: (project: Omit<Project, 'id'>) => void;
-  updateProject: (id: string, updates: Partial<Project>) => void;
-  deleteProject: (id: string) => void;
+  addProject: (project: Omit<Project, 'id'>) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
 
   // Label actions
-  addLabel: (label: Omit<Label, 'id'>) => void;
-  deleteLabel: (id: string) => void;
+  addLabel: (label: Omit<Label, 'id'>) => Promise<void>;
+  deleteLabel: (id: string) => Promise<void>;
 
   // View actions
   setActiveView: (view: ViewFilter) => void;
@@ -33,168 +70,242 @@ interface TaskState {
   toggleSidebar: () => void;
 }
 
-const generateId = () => crypto.randomUUID();
+async function getUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
 
-const DEFAULT_PROJECTS: Project[] = [
-  { id: 'inbox', name: 'Caixa de Entrada', color: 'hsl(230, 10%, 50%)' },
-  { id: 'personal', name: 'Pessoal', color: 'hsl(152, 60%, 42%)' },
-  { id: 'work', name: 'Trabalho', color: 'hsl(262, 60%, 55%)' },
-];
+export const useTaskStore = create<TaskState>()((set, get) => ({
+  tasks: [],
+  projects: [],
+  labels: [],
+  activeView: 'today',
+  activeProjectId: null,
+  activeLabelId: null,
+  sidebarOpen: true,
+  loading: true,
 
-const DEFAULT_LABELS: Label[] = [
-  { id: 'urgent', name: 'Urgente', color: 'hsl(0, 72%, 51%)' },
-  { id: 'meeting', name: 'Reunião', color: 'hsl(262, 60%, 55%)' },
-  { id: 'email', name: 'E-mail', color: 'hsl(38, 92%, 50%)' },
-];
+  fetchData: async () => {
+    const userId = await getUserId();
+    if (!userId) return;
 
-const today = new Date().toISOString().split('T')[0];
-const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const [projectsRes, labelsRes, tasksRes] = await Promise.all([
+      supabase.from('projects').select('*').eq('user_id', userId).order('position'),
+      supabase.from('labels').select('*').eq('user_id', userId),
+      supabase.from('tasks').select('*, task_labels(label_id)').eq('user_id', userId),
+    ]);
 
-const SAMPLE_TASKS: Task[] = [
-  {
-    id: generateId(),
-    title: 'Revisar relatório mensal',
-    description: 'Verificar os números do Q1 e preparar apresentação',
-    completed: false,
-    priority: 1,
-    dueDate: today,
-    dueTime: '14:00',
-    projectId: 'work',
-    labels: ['urgent'],
-    createdAt: new Date().toISOString(),
+    const projects: Project[] = (projectsRes.data || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      color: p.color,
+      isInbox: p.is_inbox,
+    }));
+
+    const labels: Label[] = (labelsRes.data || []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      color: l.color,
+    }));
+
+    const tasks: Task[] = (tasksRes.data || []).map((t: any) => ({
+      id: t.id,
+      title: t.title,
+      description: t.description || undefined,
+      completed: t.completed,
+      completedAt: t.completed_at || undefined,
+      priority: t.priority as Priority,
+      dueDate: t.due_date || undefined,
+      dueTime: t.due_time ? t.due_time.slice(0, 5) : undefined,
+      projectId: t.project_id || undefined,
+      parentId: t.parent_id || undefined,
+      labels: (t.task_labels || []).map((tl: any) => tl.label_id),
+      recurrence: t.recurrence_type
+        ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
+        : undefined,
+      googleCalendarEventId: t.google_calendar_event_id || undefined,
+      createdAt: t.created_at,
+    }));
+
+    set({ projects, labels, tasks, loading: false });
   },
-  {
-    id: generateId(),
-    title: 'Comprar presentes de aniversário',
-    completed: false,
-    priority: 2,
-    dueDate: tomorrow,
-    projectId: 'personal',
-    labels: [],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: generateId(),
-    title: 'Responder e-mails pendentes',
-    completed: false,
-    priority: 3,
-    dueDate: today,
-    projectId: 'work',
-    labels: ['email'],
-    createdAt: new Date().toISOString(),
-    recurrence: { type: 'daily', interval: 1 },
-  },
-  {
-    id: generateId(),
-    title: 'Agendar dentista',
-    completed: false,
-    priority: 4,
-    projectId: 'personal',
-    labels: [],
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: generateId(),
-    title: 'Preparar reunião de sprint',
-    description: 'Definir backlog e prioridades para próxima sprint',
-    completed: false,
-    priority: 2,
-    dueDate: today,
-    dueTime: '10:00',
-    projectId: 'work',
-    labels: ['meeting'],
-    createdAt: new Date().toISOString(),
-    recurrence: { type: 'weekly', interval: 1 },
-  },
-];
 
-export const useTaskStore = create<TaskState>()(
-  persist(
-    (set, get) => ({
-      tasks: SAMPLE_TASKS,
-      projects: DEFAULT_PROJECTS,
-      labels: DEFAULT_LABELS,
-      activeView: 'today',
-      activeProjectId: null,
-      activeLabelId: null,
-      sidebarOpen: true,
+  addTask: async (taskData) => {
+    const userId = await getUserId();
+    if (!userId) return;
 
-      addTask: (taskData) => {
-        const task: Task = {
-          ...taskData,
-          id: generateId(),
-          completed: false,
-          createdAt: new Date().toISOString(),
-        };
-        set((state) => ({ tasks: [task, ...state.tasks] }));
-      },
+    const inboxProject = get().projects.find((p) => p.isInbox);
 
-      updateTask: (id, updates) => {
-        set((state) => ({
-          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-        }));
-      },
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert({
+        user_id: userId,
+        title: taskData.title,
+        description: taskData.description || null,
+        priority: taskData.priority || 4,
+        due_date: taskData.dueDate || null,
+        due_time: taskData.dueTime ? `${taskData.dueTime}:00` : null,
+        project_id: taskData.projectId || inboxProject?.id || null,
+        parent_id: taskData.parentId || null,
+        recurrence_type: taskData.recurrence?.type || null,
+        recurrence_interval: taskData.recurrence?.interval || null,
+      })
+      .select()
+      .single();
 
-      deleteTask: (id) => {
-        set((state) => ({
-          tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
-        }));
-      },
+    if (error || !data) return;
 
-      toggleTask: (id) => {
-        set((state) => ({
-          tasks: state.tasks.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  completed: !t.completed,
-                  completedAt: !t.completed ? new Date().toISOString() : undefined,
-                }
-              : t
-          ),
-        }));
-      },
-
-      addProject: (projectData) => {
-        const project: Project = { ...projectData, id: generateId() };
-        set((state) => ({ projects: [...state.projects, project] }));
-      },
-
-      updateProject: (id, updates) => {
-        set((state) => ({
-          projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-        }));
-      },
-
-      deleteProject: (id) => {
-        set((state) => ({
-          projects: state.projects.filter((p) => p.id !== id),
-          tasks: state.tasks.map((t) => (t.projectId === id ? { ...t, projectId: 'inbox' } : t)),
-        }));
-      },
-
-      addLabel: (labelData) => {
-        const label: Label = { ...labelData, id: generateId() };
-        set((state) => ({ labels: [...state.labels, label] }));
-      },
-
-      deleteLabel: (id) => {
-        set((state) => ({
-          labels: state.labels.filter((l) => l.id !== id),
-          tasks: state.tasks.map((t) => ({
-            ...t,
-            labels: t.labels.filter((l) => l !== id),
-          })),
-        }));
-      },
-
-      setActiveView: (view) => set({ activeView: view }),
-      setActiveProjectId: (id) => set({ activeProjectId: id, activeView: 'project' }),
-      setActiveLabelId: (id) => set({ activeLabelId: id, activeView: 'label' }),
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-    }),
-    {
-      name: 'taskflow-storage',
+    // Insert labels
+    const labelIds = taskData.labels || [];
+    if (labelIds.length > 0) {
+      await supabase.from('task_labels').insert(
+        labelIds.map((labelId) => ({ task_id: data.id, label_id: labelId }))
+      );
     }
-  )
-);
+
+    const newTask: Task = {
+      id: data.id,
+      title: data.title,
+      description: data.description || undefined,
+      completed: data.completed,
+      priority: data.priority as Priority,
+      dueDate: data.due_date || undefined,
+      dueTime: data.due_time ? data.due_time.slice(0, 5) : undefined,
+      projectId: data.project_id || undefined,
+      parentId: data.parent_id || undefined,
+      labels: labelIds,
+      recurrence: data.recurrence_type
+        ? { type: data.recurrence_type as RecurrenceType, interval: data.recurrence_interval || 1 }
+        : undefined,
+      createdAt: data.created_at,
+    };
+
+    set((state) => ({ tasks: [newTask, ...state.tasks] }));
+  },
+
+  updateTask: async (id, updates) => {
+    const dbUpdates: Record<string, any> = {};
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
+    if (updates.dueTime !== undefined) dbUpdates.due_time = updates.dueTime ? `${updates.dueTime}:00` : null;
+    if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
+    if (updates.completed !== undefined) {
+      dbUpdates.completed = updates.completed;
+      dbUpdates.completed_at = updates.completed ? new Date().toISOString() : null;
+    }
+
+    if (Object.keys(dbUpdates).length > 0) {
+      await supabase.from('tasks').update(dbUpdates).eq('id', id);
+    }
+
+    set((state) => ({
+      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    }));
+  },
+
+  deleteTask: async (id) => {
+    await supabase.from('tasks').delete().eq('id', id);
+    set((state) => ({
+      tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
+    }));
+  },
+
+  toggleTask: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    const completed = !task.completed;
+    const completedAt = completed ? new Date().toISOString() : null;
+
+    await supabase
+      .from('tasks')
+      .update({ completed, completed_at: completedAt })
+      .eq('id', id);
+
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
+      ),
+    }));
+  },
+
+  addProject: async (projectData) => {
+    const userId = await getUserId();
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('projects')
+      .insert({
+        user_id: userId,
+        name: projectData.name,
+        color: projectData.color,
+      })
+      .select()
+      .single();
+
+    if (error || !data) return;
+
+    set((state) => ({
+      projects: [...state.projects, { id: data.id, name: data.name, color: data.color, isInbox: data.is_inbox }],
+    }));
+  },
+
+  updateProject: async (id, updates) => {
+    const dbUpdates: Record<string, any> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.color !== undefined) dbUpdates.color = updates.color;
+
+    await supabase.from('projects').update(dbUpdates).eq('id', id);
+    set((state) => ({
+      projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+  },
+
+  deleteProject: async (id) => {
+    // Move tasks to inbox
+    const inbox = get().projects.find((p) => p.isInbox);
+    if (inbox) {
+      await supabase.from('tasks').update({ project_id: inbox.id }).eq('project_id', id);
+    }
+    await supabase.from('projects').delete().eq('id', id);
+
+    set((state) => ({
+      projects: state.projects.filter((p) => p.id !== id),
+      tasks: state.tasks.map((t) => (t.projectId === id ? { ...t, projectId: inbox?.id } : t)),
+    }));
+  },
+
+  addLabel: async (labelData) => {
+    const userId = await getUserId();
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('labels')
+      .insert({ user_id: userId, name: labelData.name, color: labelData.color })
+      .select()
+      .single();
+
+    if (error || !data) return;
+
+    set((state) => ({
+      labels: [...state.labels, { id: data.id, name: data.name, color: data.color }],
+    }));
+  },
+
+  deleteLabel: async (id) => {
+    await supabase.from('task_labels').delete().eq('label_id', id);
+    await supabase.from('labels').delete().eq('id', id);
+
+    set((state) => ({
+      labels: state.labels.filter((l) => l.id !== id),
+      tasks: state.tasks.map((t) => ({ ...t, labels: t.labels.filter((l) => l !== id) })),
+    }));
+  },
+
+  setActiveView: (view) => set({ activeView: view, activeProjectId: null, activeLabelId: null }),
+  setActiveProjectId: (id) => set({ activeProjectId: id, activeView: 'project' }),
+  setActiveLabelId: (id) => set({ activeLabelId: id, activeView: 'label' }),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+}));
