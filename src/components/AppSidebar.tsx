@@ -59,8 +59,9 @@ export function AppSidebar() {
   const todayCount = tasks.filter(
     (t) => !t.completed && t.dueDate === today
   ).length;
+  const inboxProject = projects.find((p) => p.isInbox);
   const inboxCount = tasks.filter(
-    (t) => !t.completed && t.projectId === 'inbox'
+    (t) => !t.completed && t.projectId === inboxProject?.id
   ).length;
 
   const handleAddProject = () => {
