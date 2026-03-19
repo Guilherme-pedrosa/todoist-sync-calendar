@@ -52,10 +52,10 @@ export default function Auth() {
   const handleGoogleLogin = async () => {
     const { error } = await lovable.auth.signInWithOAuth('google', {
       redirect_uri: window.location.origin,
-      scopes: 'openid email profile https://www.googleapis.com/auth/calendar',
       extraParams: {
         access_type: 'offline',
         prompt: 'consent',
+        scope: 'openid email profile https://www.googleapis.com/auth/calendar',
       },
     });
     if (error) toast.error('Erro ao conectar com Google');
