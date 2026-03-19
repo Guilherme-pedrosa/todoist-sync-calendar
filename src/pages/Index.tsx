@@ -1,16 +1,27 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { cn } from '@/lib/utils';
+import { useTaskStore } from '@/store/taskStore';
+import { AppSidebar } from '@/components/AppSidebar';
+import { TaskList } from '@/components/TaskList';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar */}
+      <div
+        className={cn(
+          'shrink-0 transition-all duration-300 ease-in-out overflow-hidden border-r border-sidebar-border',
+          sidebarOpen ? 'w-[280px]' : 'w-0'
+        )}
+      >
+        <AppSidebar />
+      </div>
+
+      {/* Main */}
+      <TaskList />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
