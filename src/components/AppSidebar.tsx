@@ -31,7 +31,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
-  const { signOut, calendarConnected } = useAuth();
+  const { signOut, calendarConnected, connectCalendar } = useAuth();
   const {
     tasks,
     projects,
@@ -52,6 +52,7 @@ export function AppSidebar() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [showNewLabel, setShowNewLabel] = useState(false);
+  const [connectingCalendar, setConnectingCalendar] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter(
@@ -77,6 +78,15 @@ export function AppSidebar() {
       addLabel({ name: newLabelName.trim(), color });
       setNewLabelName('');
       setShowNewLabel(false);
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      await connectCalendar();
+    } finally {
+      setConnectingCalendar(false);
     }
   };
 
