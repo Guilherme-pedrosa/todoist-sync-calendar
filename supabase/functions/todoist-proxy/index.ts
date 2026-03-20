@@ -22,19 +22,28 @@ serve(async (req) => {
   const url = new URL(req.url);
   const endpoint = url.searchParams.get("endpoint") || "projects";
 
-  try {
-    const res = await fetch(`https://api.todoist.com/api/v1/${endpoint}`, {
-      headers: { Authorization: `Bearer ${TODOIST_API_KEY}` },
-    });
-    const text = await res.text();
-    return new Response(text, {
-      status: res.status,
-      headers: { ...corsHeaders, "Content-Type": res.headers.get("Content-Type") || "application/json" },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  // Try both API versions
+  const results: Record<string, unknown> = {};
+
+  for (const version of ["api/v1", "rest/v2"]) {
+    try {
+      const apiUrl = `https://api.todoist.com/${version}/${endpoint}`;
+      const res = await fetch(apiUrl, {
+        headers: { Authorization: `Bearer ${TODOIST_API_KEY}` },
+      });
+      const text = await res.text();
+      results[version] = { status: res.status, body: text.substring(0, 500) };
+    } catch (e) {
+      results[version] = { error: String(e) };
+    }
   }
+
+  // Also show token length for debugging (NOT the token itself)
+  results.token_length = TODOIST_API_KEY.length;
+  results.token_prefix = TODOIST_API_KEY.substring(0, 4) + "...";
+
+  return new Response(JSON.stringify(results, null, 2), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
