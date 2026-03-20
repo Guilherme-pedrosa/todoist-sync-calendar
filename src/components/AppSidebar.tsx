@@ -264,14 +264,25 @@ export function AppSidebar() {
           <CalendarDays className="h-3.5 w-3.5" />
           <span>Google Calendar</span>
           <span className={cn(
-            "ml-auto px-1.5 py-0.5 rounded text-[10px]",
+            'ml-auto px-1.5 py-0.5 rounded text-[10px]',
             calendarConnected
-              ? "bg-green-500/20 text-green-400"
-              : "bg-sidebar-accent text-sidebar-foreground/50"
+              ? 'bg-green-500/20 text-green-400'
+              : 'bg-sidebar-accent text-sidebar-foreground/50'
           )}>
             {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
           </span>
         </div>
+
+        {!calendarConnected && (
+          <button
+            onClick={handleConnectCalendar}
+            disabled={connectingCalendar}
+            className="w-full h-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium hover:bg-sidebar-accent/80 transition-colors disabled:opacity-60"
+          >
+            {connectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}
+          </button>
+        )}
+
         <button
           onClick={signOut}
           className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"

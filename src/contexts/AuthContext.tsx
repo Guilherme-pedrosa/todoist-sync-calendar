@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 
 interface AuthContextType {
   user: User | null;
@@ -31,91 +30,76 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const requestGoogleCalendarConsent = async () => {
     try {
-      const { error } = await lovable.auth.signInWithOAuth('google', {
-        redirect_uri: window.location.origin,
-        extraParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-          scope: 'openid email profile https://www.googleapis.com/auth/calendar',
-        },
+      const {
+        data: { session: currentSession },
+      } = await supabase.auth.getSession();
+
+      if (!currentSession?.access_token) {
+        throw new Error('Sessão inválida. Faça login novamente.');
+      }
+
+      const redirectUri = `${window.location.origin}/calendar-callback`;
+      const params = new URLSearchParams({
+        action: 'connect-url',
+        redirectUri,
       });
 
-      if (error) {
-        throw error;
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${currentSession.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || 'Falha ao iniciar conexão com Google Calendar');
       }
+
+      window.location.assign(payload.url);
     } catch (error) {
       setCalendarConnected(false);
       console.error('Erro ao solicitar consentimento do Google Calendar:', error);
     }
   };
 
-  const saveProviderTokens = async (currentSession: Session) => {
-    if (!currentSession.user || !currentSession.provider_token) return false;
-
-    const { data: existingToken } = await supabase
-      .from('google_tokens')
-      .select('refresh_token')
-      .eq('user_id', currentSession.user.id)
-      .maybeSingle();
-
-    const refreshToken =
-      currentSession.provider_refresh_token ?? existingToken?.refresh_token ?? null;
-
-    const { error } = await supabase.from('google_tokens').upsert(
-      {
-        user_id: currentSession.user.id,
-        access_token: currentSession.provider_token,
-        refresh_token: refreshToken,
-        expires_at: new Date(Date.now() + 55 * 60 * 1000).toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-    if (error) {
-      console.error('Erro ao salvar tokens Google:', error.message);
-      return false;
-    }
-
-    setCalendarConnected(true);
-    return true;
-  };
-
-  const checkCalendarConnection = async (userId: string, shouldAutoRedirect = false) => {
-    const { data } = await supabase
+  const checkCalendarConnection = async (userId: string) => {
+    const { data, error } = await supabase
       .from('google_tokens')
       .select('id')
       .eq('user_id', userId)
       .limit(1);
 
-    const connected = !!data?.length;
-    setCalendarConnected(connected);
+    if (error) {
+      setCalendarConnected(false);
+      return;
+    }
+
+    setCalendarConnected(!!data?.length);
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
-        setSession(nextSession);
-        setUser(nextSession?.user ?? null);
-        setLoading(false);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setLoading(false);
 
-        if (!nextSession?.user) {
-          setCalendarConnected(null);
-          return;
-        }
-
-        if (nextSession.user.app_metadata.provider !== 'google') {
-          setCalendarConnected(false);
-          return;
-        }
-
-        if (nextSession.provider_token) {
-          void saveProviderTokens(nextSession);
-          return;
-        }
-
-        void checkCalendarConnection(nextSession.user.id);
+      if (!nextSession?.user) {
+        setCalendarConnected(null);
+        return;
       }
-    );
+
+      setCalendarConnected(null);
+      void checkCalendarConnection(nextSession.user.id);
+    });
 
     supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       setSession(initialSession);
@@ -127,16 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      if (initialSession.user.app_metadata.provider !== 'google') {
-        setCalendarConnected(false);
-        return;
-      }
-
-      if (initialSession.provider_token) {
-        void saveProviderTokens(initialSession);
-        return;
-      }
-
+      setCalendarConnected(null);
       void checkCalendarConnection(initialSession.user.id);
     });
 
