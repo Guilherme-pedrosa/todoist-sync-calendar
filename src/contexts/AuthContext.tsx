@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -25,12 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
-  const calendarConsentInFlightRef = useRef(false);
 
   const requestGoogleCalendarConsent = async (currentSession: Session) => {
-    if (calendarConsentInFlightRef.current) return;
-    calendarConsentInFlightRef.current = true;
-
     const redirectUri = `${window.location.origin}/calendar-callback`;
     const params = new URLSearchParams({
       action: 'connect-url',
@@ -57,7 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       window.location.assign(payload.url);
     } catch (error) {
-      calendarConsentInFlightRef.current = false;
       setCalendarConnected(false);
       console.error('Erro ao solicitar consentimento do Google Calendar:', error);
     }
@@ -86,12 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     if (error) {
-      calendarConsentInFlightRef.current = false;
       console.error('Erro ao salvar tokens Google:', error.message);
       return false;
     }
 
-    calendarConsentInFlightRef.current = false;
     setCalendarConnected(true);
     return true;
   };
@@ -106,12 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const connected = !!data?.length;
     setCalendarConnected(connected);
 
-    if (connected) {
-      calendarConsentInFlightRef.current = false;
-      return;
-    }
-
     if (
+      !connected &&
       !window.location.pathname.includes('auth') &&
       !window.location.pathname.includes('calendar-callback')
     ) {
@@ -128,13 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!nextSession?.user) {
           setCalendarConnected(null);
-          calendarConsentInFlightRef.current = false;
           return;
         }
 
         if (nextSession.user.app_metadata.provider !== 'google') {
           setCalendarConnected(false);
-          calendarConsentInFlightRef.current = false;
           return;
         }
 
@@ -159,7 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (initialSession.user.app_metadata.provider !== 'google') {
         setCalendarConnected(false);
-        calendarConsentInFlightRef.current = false;
         return;
       }
 
@@ -177,7 +163,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setCalendarConnected(null);
-    calendarConsentInFlightRef.current = false;
   };
 
   return (
