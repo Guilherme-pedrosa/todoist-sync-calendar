@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   calendarConnected: boolean | null;
   signOut: () => Promise<void>;
+  connectCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   calendarConnected: null,
   signOut: async () => {},
+  connectCalendar: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -78,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const checkCalendarConnection = async (userId: string) => {
+  const checkCalendarConnection = async (userId: string, shouldAutoRedirect = false) => {
     const { data } = await supabase
       .from('google_tokens')
       .select('id')
@@ -87,14 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const connected = !!data?.length;
     setCalendarConnected(connected);
-
-    if (
-      !connected &&
-      !window.location.pathname.includes('auth') &&
-      !window.location.pathname.includes('calendar-callback')
-    ) {
-      await requestGoogleCalendarConsent();
-    }
   };
 
   useEffect(() => {
@@ -154,8 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCalendarConnected(null);
   };
 
+  const connectCalendar = async () => {
+    await requestGoogleCalendarConsent();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut, connectCalendar }}>
       {children}
     </AuthContext.Provider>
   );
