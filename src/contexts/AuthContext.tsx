@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { lovable } from '@/integrations/lovable/index';
 
 interface AuthContextType {
   user: User | null;
@@ -28,21 +27,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
   const calendarConsentInFlightRef = useRef(false);
 
-  const requestGoogleCalendarConsent = async () => {
+  const requestGoogleCalendarConsent = async (currentSession: Session) => {
     if (calendarConsentInFlightRef.current) return;
     calendarConsentInFlightRef.current = true;
 
-    const { error } = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
-      extraParams: {
-        access_type: 'offline',
-        prompt: 'consent',
-        scope: 'openid email profile https://www.googleapis.com/auth/calendar',
-      },
+    const redirectUri = `${window.location.origin}/calendar-callback`;
+    const params = new URLSearchParams({
+      action: 'connect-url',
+      redirectUri,
     });
 
-    if (error) {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?${params.toString()}`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${currentSession.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.url) {
+        throw new Error(payload?.error || 'Falha ao iniciar conexão com Google Calendar');
+      }
+
+      window.location.assign(payload.url);
+    } catch (error) {
       calendarConsentInFlightRef.current = false;
+      setCalendarConnected(false);
       console.error('Erro ao solicitar consentimento do Google Calendar:', error);
     }
   };
@@ -70,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     if (error) {
+      calendarConsentInFlightRef.current = false;
       console.error('Erro ao salvar tokens Google:', error.message);
       return false;
     }
@@ -79,7 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const checkCalendarConnection = async (userId: string) => {
+  const checkCalendarConnection = async (userId: string, currentSession: Session) => {
     const { data } = await supabase
       .from('google_tokens')
       .select('id')
@@ -89,12 +106,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const connected = !!data?.length;
     setCalendarConnected(connected);
 
+    if (connected) {
+      calendarConsentInFlightRef.current = false;
+      return;
+    }
+
     if (
-      !connected &&
       !window.location.pathname.includes('auth') &&
       !window.location.pathname.includes('calendar-callback')
     ) {
-      await requestGoogleCalendarConsent();
+      await requestGoogleCalendarConsent(currentSession);
     }
   };
 
@@ -113,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (nextSession.user.app_metadata.provider !== 'google') {
           setCalendarConnected(false);
+          calendarConsentInFlightRef.current = false;
           return;
         }
 
@@ -121,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        void checkCalendarConnection(nextSession.user.id);
+        void checkCalendarConnection(nextSession.user.id, nextSession);
       }
     );
 
@@ -137,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (initialSession.user.app_metadata.provider !== 'google') {
         setCalendarConnected(false);
+        calendarConsentInFlightRef.current = false;
         return;
       }
 
@@ -145,7 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      void checkCalendarConnection(initialSession.user.id);
+      void checkCalendarConnection(initialSession.user.id, initialSession);
     });
 
     return () => subscription.unsubscribe();
