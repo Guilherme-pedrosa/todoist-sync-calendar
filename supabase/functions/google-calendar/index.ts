@@ -81,10 +81,18 @@ serve(async (req) => {
         response_type: "code",
         access_type: "offline",
         prompt: "consent select_account",
-        login_hint: user.email ?? "",
         scope: "https://www.googleapis.com/auth/calendar",
         state: user.id,
       });
+
+      if (user.email) {
+        params.set("login_hint", user.email);
+
+        const emailDomain = user.email.split("@")[1];
+        if (emailDomain) {
+          params.set("hd", emailDomain);
+        }
+      }
 
       return jsonResponse({
         url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
