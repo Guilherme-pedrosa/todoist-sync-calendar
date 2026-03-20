@@ -80,7 +80,8 @@ serve(async (req) => {
         redirect_uri: redirectUri,
         response_type: "code",
         access_type: "offline",
-        prompt: "consent",
+        prompt: "consent select_account",
+        login_hint: user.email ?? "",
         scope: "https://www.googleapis.com/auth/calendar",
         state: user.id,
       });
