@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   calendarConnected: boolean | null;
   signOut: () => Promise<void>;
+  connectCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   calendarConnected: null,
   signOut: async () => {},
+  connectCalendar: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -146,8 +148,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCalendarConnected(null);
   };
 
+  const connectCalendar = async () => {
+    await requestGoogleCalendarConsent();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut, connectCalendar }}>
       {children}
     </AuthContext.Provider>
   );
