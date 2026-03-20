@@ -85,10 +85,6 @@ serve(async (req) => {
         state: user.id,
       });
 
-      if (user.email) {
-        params.set("login_hint", user.email);
-      }
-
       const hostedDomain =
         typeof body.hd === "string"
           ? body.hd.trim()
