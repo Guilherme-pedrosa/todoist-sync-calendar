@@ -80,10 +80,19 @@ serve(async (req) => {
         redirect_uri: redirectUri,
         response_type: "code",
         access_type: "offline",
-        prompt: "consent",
+        prompt: "consent select_account",
         scope: "https://www.googleapis.com/auth/calendar",
         state: user.id,
       });
+
+      if (user.email) {
+        params.set("login_hint", user.email);
+
+        const emailDomain = user.email.split("@")[1];
+        if (emailDomain) {
+          params.set("hd", emailDomain);
+        }
+      }
 
       return jsonResponse({
         url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
