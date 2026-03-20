@@ -87,11 +87,17 @@ serve(async (req) => {
 
       if (user.email) {
         params.set("login_hint", user.email);
+      }
 
-        const emailDomain = user.email.split("@")[1];
-        if (emailDomain) {
-          params.set("hd", emailDomain);
-        }
+      const hostedDomain =
+        typeof body.hd === "string"
+          ? body.hd.trim()
+          : typeof url.searchParams.get("hd") === "string"
+            ? String(url.searchParams.get("hd") || "").trim()
+            : "";
+
+      if (hostedDomain) {
+        params.set("hd", hostedDomain);
       }
 
       return jsonResponse({
