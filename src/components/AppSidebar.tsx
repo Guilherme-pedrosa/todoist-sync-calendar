@@ -266,7 +266,7 @@ export function AppSidebar() {
           <span className={cn(
             'ml-auto px-1.5 py-0.5 rounded text-[10px]',
             calendarConnected
-              ? 'bg-green-500/20 text-green-400'
+              ? 'bg-sidebar-primary/20 text-sidebar-primary'
               : 'bg-sidebar-accent text-sidebar-foreground/50'
           )}>
             {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
