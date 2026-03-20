@@ -22,14 +22,14 @@ serve(async (req) => {
   const url = new URL(req.url);
   const endpoint = url.searchParams.get("endpoint") || "projects";
 
-  const headers = { Authorization: `Bearer ${TODOIST_API_KEY}` };
-
   try {
-    const res = await fetch(`https://api.todoist.com/rest/v2/${endpoint}`, { headers });
-    const data = await res.json();
-    return new Response(JSON.stringify(data), {
+    const res = await fetch(`https://api.todoist.com/rest/v2/${endpoint}`, {
+      headers: { Authorization: `Bearer ${TODOIST_API_KEY}` },
+    });
+    const text = await res.text();
+    return new Response(text, {
       status: res.status,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": res.headers.get("Content-Type") || "application/json" },
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: String(error) }), {
