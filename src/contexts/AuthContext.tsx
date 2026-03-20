@@ -28,6 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
 
+  const isInvalidRefreshTokenError = (error: unknown) => {
+    if (!error || typeof error !== 'object') return false;
+    const authError = error as { code?: string; message?: string };
+    return (
+      authError.code === 'refresh_token_not_found' ||
+      authError.message?.toLowerCase().includes('refresh token')
+    );
+  };
+
   const requestGoogleCalendarConsent = async () => {
     try {
       const {
@@ -101,7 +110,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void checkCalendarConnection(nextSession.user.id);
     });
 
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: initialSession }, error }) => {
+      if (isInvalidRefreshTokenError(error)) {
+        await supabase.auth.signOut({ scope: 'local' });
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+        setCalendarConnected(null);
+        return;
+      }
+
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       setLoading(false);
