@@ -10,13 +10,13 @@ const Index = () => {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
   const loading = useTaskStore((s) => s.loading);
   const fetchData = useTaskStore((s) => s.fetchData);
-  const { user } = useAuth();
+  const { user, calendarConnected } = useAuth();
 
   useEffect(() => {
     if (user) {
       fetchData();
     }
-  }, [user, fetchData]);
+  }, [user, calendarConnected, fetchData]);
 
   if (loading) {
     return (
