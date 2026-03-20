@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
 
 interface AuthContextType {
   user: User | null;
@@ -26,32 +27,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState<boolean | null>(null);
 
-  const requestGoogleCalendarConsent = async (currentSession: Session) => {
-    const redirectUri = `${window.location.origin}/calendar-callback`;
-    const params = new URLSearchParams({
-      action: 'connect-url',
-      redirectUri,
-    });
-
+  const requestGoogleCalendarConsent = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?${params.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            Authorization: `Bearer ${currentSession.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      const { error } = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin,
+        extraParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+          scope: 'openid email profile https://www.googleapis.com/auth/calendar',
+        },
+      });
 
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.url) {
-        throw new Error(payload?.error || 'Falha ao iniciar conexão com Google Calendar');
+      if (error) {
+        throw error;
       }
-
-      window.location.assign(payload.url);
     } catch (error) {
       setCalendarConnected(false);
       console.error('Erro ao solicitar consentimento do Google Calendar:', error);
@@ -89,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return true;
   };
 
-  const checkCalendarConnection = async (userId: string, currentSession: Session) => {
+  const checkCalendarConnection = async (userId: string) => {
     const { data } = await supabase
       .from('google_tokens')
       .select('id')
@@ -104,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       !window.location.pathname.includes('auth') &&
       !window.location.pathname.includes('calendar-callback')
     ) {
-      await requestGoogleCalendarConsent(currentSession);
+      await requestGoogleCalendarConsent();
     }
   };
 
@@ -130,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        void checkCalendarConnection(nextSession.user.id, nextSession);
+        void checkCalendarConnection(nextSession.user.id);
       }
     );
 
@@ -154,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      void checkCalendarConnection(initialSession.user.id, initialSession);
+      void checkCalendarConnection(initialSession.user.id);
     });
 
     return () => subscription.unsubscribe();
