@@ -303,7 +303,7 @@ function buildColumns(
   ctx: {
     projects: ReturnType<typeof useTaskStore.getState>['projects'];
     labels: ReturnType<typeof useTaskStore.getState>['labels'];
-    sections: ReturnType<typeof useTaskStore.getState>['sections'];
+    sections: KanbanSection[];
     projectId?: string;
     newTaskDefaults?: Record<string, any>;
   }
