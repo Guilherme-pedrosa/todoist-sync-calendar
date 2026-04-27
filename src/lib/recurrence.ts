@@ -156,6 +156,52 @@ export function removeWeekdayFromRecurrence(
 }
 
 /**
+ * When the user edits "the whole series" and the new date/time differs,
+ * the stored recurrence string may still contain a stale DTSTART (and
+ * EXDATEs aligned to the old time). This produces ghost duplicates and
+ * makes occurrence-coverage checks fail. Rewrite DTSTART to match the
+ * new anchor and shift EXDATE times to the new HH:mm so they keep
+ * matching real occurrences. Returns the recurrenceRule unchanged when
+ * it is a bare RRULE without DTSTART/EXDATE.
+ */
+export function rewriteRecurrenceAnchor(
+  recurrenceRule: string,
+  newAnchorDate: string,
+  newAnchorTime: string | null | undefined,
+): string {
+  const trimmed = recurrenceRule.trim();
+  // Bare rule without DTSTART/EXDATE — nothing to rewrite.
+  if (!/\bDTSTART[:;]/i.test(trimmed) && !/\bEXDATE[:;]/i.test(trimmed)) {
+    return trimmed;
+  }
+  const time = newAnchorTime || '00:00';
+  const newAnchorLocal = parseISO(`${newAnchorDate}T${time}:00`);
+  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
+  const newTimeStr = format(newAnchorLocal, "'T'HHmmss");
+
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let dtstartLine: string | null = null;
+  let rruleLine: string | null = null;
+  const exdates: string[] = [];
+
+  for (const line of lines) {
+    if (/^DTSTART[:;]/i.test(line)) dtstartLine = `DTSTART:${fmt(newAnchorLocal)}`;
+    else if (/^EXDATE[:;]/i.test(line)) {
+      // Replace the time portion of each EXDATE date with the new time,
+      // preserving the original date so the exception still applies.
+      const replaced = line.replace(/(\d{8})T\d{6}/g, (_m, day) => `${day}${newTimeStr}`);
+      exdates.push(replaced);
+    } else if (/^RRULE[:;]/i.test(line)) rruleLine = line;
+    else if (/^[A-Z]+=/i.test(line)) rruleLine = `RRULE:${line}`;
+  }
+
+  if (!dtstartLine) dtstartLine = `DTSTART:${fmt(newAnchorLocal)}`;
+  if (!rruleLine) rruleLine = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
+
+  return [dtstartLine, rruleLine, ...exdates].join('\n');
+}
+
+/**
  * Compute the next occurrence of a recurring task.
  * Returns yyyy-MM-dd | undefined and HH:mm | undefined if hour-anchored.
  * If the rule has terminated, returns null.

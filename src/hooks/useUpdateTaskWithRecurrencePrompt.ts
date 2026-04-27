@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
-import { addExdateToRecurrence } from '@/lib/recurrence';
+import { addExdateToRecurrence, rewriteRecurrenceAnchor } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
 
@@ -58,7 +58,30 @@ export function useUpdateTaskWithRecurrencePrompt() {
       if (mode === null) return; // cancelled
 
       if (mode === 'series') {
-        await updateTask(taskId, updates);
+        // When the series anchor moves to a new date/time, rewrite the
+        // stored recurrence string so DTSTART/EXDATEs match the new
+        // anchor — otherwise the rule will keep producing ghost
+        // occurrences at the old time and the calendar-dedup logic
+        // can wipe the task entirely.
+        const seriesUpdates: Partial<Task> = { ...updates };
+        if (task.recurrenceRule) {
+          const newDate =
+            updates.dueDate !== undefined
+              ? (updates.dueDate as string | null) ?? task.dueDate
+              : task.dueDate;
+          const newTime =
+            updates.dueTime !== undefined
+              ? (updates.dueTime as string | null)
+              : task.dueTime ?? null;
+          if (newDate) {
+            seriesUpdates.recurrenceRule = rewriteRecurrenceAnchor(
+              task.recurrenceRule,
+              newDate,
+              newTime,
+            );
+          }
+        }
+        await updateTask(taskId, seriesUpdates);
         return;
       }
 
