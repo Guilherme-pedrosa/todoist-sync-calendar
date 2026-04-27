@@ -20,6 +20,7 @@ interface TodoistProject {
   name: string;
   color?: string;
   is_inbox_project?: boolean;
+  inbox_project?: boolean;
 }
 
 interface TodoistLabel {
