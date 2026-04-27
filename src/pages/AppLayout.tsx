@@ -171,6 +171,7 @@ export default function AppLayout() {
       <CommandPalette />
       <MobileBottomNav />
       <InstallPwaBanner />
+      <RecurringEditDialog />
     </div>
   );
 }
