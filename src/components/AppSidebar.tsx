@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Inbox,
   CalendarDays,
@@ -11,6 +12,7 @@ import {
   ChevronRight,
   Tag,
   LogOut,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -45,6 +47,7 @@ export function AppSidebar() {
     setActiveLabelId,
     addProject,
     addLabel,
+    fetchData,
   } = useTaskStore();
 
   const [projectsOpen, setProjectsOpen] = useState(true);
@@ -54,6 +57,7 @@ export function AppSidebar() {
   const [newLabelName, setNewLabelName] = useState('');
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const [importingTodoist, setImportingTodoist] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter(
@@ -109,6 +113,39 @@ export function AppSidebar() {
       toast.error(error instanceof Error ? error.message : 'Falha ao desconectar');
     } finally {
       setConnectingCalendar(false);
+    }
+  };
+
+  const handleImportTodoist = async () => {
+    setImportingTodoist(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/todoist-proxy?action=import-all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'Falha ao importar do Todoist');
+
+      const { createdProjects = 0, createdLabels = 0, createdTasks = 0 } = payload;
+      toast.success(
+        `Importado: ${createdTasks} tarefa(s), ${createdProjects} projeto(s), ${createdLabels} etiqueta(s)`
+      );
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao importar do Todoist');
+    } finally {
+      setImportingTodoist(false);
     }
   };
 
@@ -323,6 +360,15 @@ export function AppSidebar() {
             </button>
           </div>
         )}
+
+        <button
+          onClick={handleImportTodoist}
+          disabled={importingTodoist}
+          className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {importingTodoist ? 'Importando...' : 'Importar do Todoist'}
+        </button>
 
         <button
           onClick={signOut}
