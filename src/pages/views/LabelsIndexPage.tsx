@@ -155,15 +155,15 @@ export default function LabelsIndexPage() {
               <div className="flex flex-wrap gap-2 mt-2">
                 {TODOIST_COLORS.map((c) => (
                   <button
-                    key={c.value}
-                    onClick={() => setColor(c.value)}
+                    key={c.hsl}
+                    onClick={() => setColor(c.hsl)}
                     className={cn(
                       'h-7 w-7 rounded-full border-2 transition-transform',
-                      color === c.value
+                      color === c.hsl
                         ? 'border-foreground scale-110'
                         : 'border-transparent hover:scale-105'
                     )}
-                    style={{ backgroundColor: c.value }}
+                    style={{ backgroundColor: c.hsl }}
                     title={c.name}
                   />
                 ))}
