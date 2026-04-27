@@ -182,6 +182,48 @@ export default function SettingsPage() {
     await signOut();
   };
 
+  const wipeAllTasks = async () => {
+    if (!user) return;
+    setWiping(true);
+    try {
+      // Reminders (via task ownership), comments, task_labels, then tasks
+      const { data: taskIds } = await supabase.from('tasks').select('id').eq('user_id', user.id);
+      const ids = (taskIds || []).map((t: any) => t.id);
+      if (ids.length) {
+        await supabase.from('reminders').delete().in('task_id', ids);
+        await supabase.from('comments').delete().in('task_id', ids);
+        await supabase.from('task_labels').delete().in('task_id', ids);
+      }
+      await supabase.from('tasks').delete().eq('user_id', user.id);
+      await supabase.from('activity_log').delete().eq('user_id', user.id).eq('entity_type', 'task');
+      toast.success('Todas as tarefas foram apagadas');
+      setConfirmWipeTasks(false);
+    } catch (e: any) {
+      toast.error('Erro ao apagar tarefas: ' + (e?.message || ''));
+    } finally {
+      setWiping(false);
+    }
+  };
+
+  const wipeAllLabels = async () => {
+    if (!user) return;
+    setWiping(true);
+    try {
+      const { data: lbls } = await supabase.from('labels').select('id').eq('user_id', user.id);
+      const ids = (lbls || []).map((l: any) => l.id);
+      if (ids.length) {
+        await supabase.from('task_labels').delete().in('label_id', ids);
+      }
+      await supabase.from('labels').delete().eq('user_id', user.id);
+      toast.success('Todas as etiquetas foram apagadas');
+      setConfirmWipeLabels(false);
+    } catch (e: any) {
+      toast.error('Erro ao apagar etiquetas: ' + (e?.message || ''));
+    } finally {
+      setWiping(false);
+    }
+  };
+
   if (loading || !settings) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
