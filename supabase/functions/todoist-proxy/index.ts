@@ -228,10 +228,10 @@ serve(async (req) => {
         }
       }
 
-      // 5. Sync tasks — dedup by (title + due_date)
+      // 5. Sync tasks — dedup by (title + due_date + project_id)
       const existingKey = new Set<string>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}`);
+        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}`);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -241,11 +241,11 @@ serve(async (req) => {
         const dueTime = tt.due?.datetime
           ? tt.due.datetime.slice(11, 19) // HH:MM:SS
           : null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
+        if (existingKey.has(key)) continue;
+        existingKey.add(key);
 
         tasksToInsert.push({
           task: tt,
