@@ -818,10 +818,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('tasks')
       .update({ completed, completed_at: completedAt })
       .eq('id', id);
+
+    if (updateError) {
+      console.error('Falha ao salvar conclusão da tarefa:', updateError);
+      return;
+    }
 
     set((state) => ({
       tasks: state.tasks.map((t) =>
@@ -850,7 +855,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         const accessToken = sessionData.session?.access_token;
         if (!accessToken) return;
 
-        await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
+        const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -862,6 +867,14 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
             completed,
           }),
         });
+        if (!response.ok) {
+          const bodyText = await readResponseText(response);
+          if (isGoogleRateLimit(bodyText)) {
+            console.warn('Google Calendar rate limit ao sincronizar conclusão. Mantendo conclusão local.', bodyText);
+            return;
+          }
+          console.error('Falha ao sincronizar conclusão com Google Calendar:', bodyText);
+        }
       } catch (error) {
         console.error('Falha ao sincronizar conclusão com Google Calendar:', error);
       }
