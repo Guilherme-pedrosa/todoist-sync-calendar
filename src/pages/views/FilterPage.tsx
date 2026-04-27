@@ -114,23 +114,36 @@ export default function FilterPage() {
           <h2 className="font-display text-xl font-bold tracking-tight">{filter.name}</h2>
           <p className="text-xs text-muted-foreground font-mono">{filter.query}</p>
         </div>
-        <span className="text-sm text-muted-foreground ml-auto">
-          {matched.length} tarefa{matched.length !== 1 ? 's' : ''}
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <ViewModeToolbar
+            mode={viewPref.mode}
+            groupBy={viewPref.groupBy}
+            onChangeMode={(m) => setViewPref({ ...viewPref, mode: m })}
+            onChangeGroupBy={(g) => setViewPref({ ...viewPref, groupBy: g })}
+            groupOptions={['priority', 'date', 'label', 'project', 'status']}
+          />
+          <span className="text-sm text-muted-foreground">
+            {matched.length} tarefa{matched.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
-        {matched.map((t) => (
-          <TaskItem key={t.id} task={t} />
-        ))}
-        {matched.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm font-medium text-muted-foreground">
-              Nenhuma tarefa corresponde a este filtro
-            </p>
-          </div>
-        )}
-      </div>
+      {viewPref.mode === 'kanban' ? (
+        <KanbanBoard tasks={matched} groupBy={viewPref.groupBy} />
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
+          {matched.map((t) => (
+            <TaskItem key={t.id} task={t} />
+          ))}
+          {matched.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <p className="text-sm font-medium text-muted-foreground">
+                Nenhuma tarefa corresponde a este filtro
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
