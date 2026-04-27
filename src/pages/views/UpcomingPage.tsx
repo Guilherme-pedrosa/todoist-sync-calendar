@@ -528,7 +528,7 @@ function DayColumn({
       ))}
 
       {/* Now indicator */}
-      {nowMin !== null && (
+      {nowMin !== null && nowMin >= DAY_START_MIN && nowMin <= DAY_END_MIN && (
         <div
           className="absolute left-0 right-0 z-[5] pointer-events-none"
           style={{ top: ((nowMin - DAY_START_MIN) / 60) * HOUR_HEIGHT }}
