@@ -313,6 +313,7 @@ serve(async (req) => {
       }
 
       case "create-event": {
+        const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
         const normalizeTime = (t: unknown, fallback: string): string => {
           const s = typeof t === "string" ? t.trim() : "";
           if (!s) return fallback;
@@ -342,7 +343,41 @@ serve(async (req) => {
                 timeZone: body.timeZone || "America/Sao_Paulo",
               },
           reminders: { useDefault: true },
+          extendedProperties: taskId ? { private: { taskId } } : undefined,
         };
+
+        if (taskId) {
+          const lookupParams = new URLSearchParams({
+            privateExtendedProperty: `taskId=${taskId}`,
+            showDeleted: "false",
+            singleEvents: "false",
+            maxResults: "10",
+          });
+          const lookupRes = await fetch(`${calendarBase}/calendars/primary/events?${lookupParams.toString()}`, { headers });
+          const lookupData = await safeGoogleJson(lookupRes);
+          if (!lookupRes.ok) return jsonResponse(lookupData, 200);
+
+          const matches = Array.isArray(lookupData.items) ? lookupData.items : [];
+          if (matches.length > 0) {
+            const [primary, ...extras] = matches;
+            const patchRes = await fetch(`${calendarBase}/calendars/primary/events/${primary.id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(event),
+            });
+            const patchData = await safeGoogleJson(patchRes);
+
+            await Promise.all(
+              extras
+                .filter((extra: any) => extra?.id)
+                .map((extra: any) =>
+                  fetch(`${calendarBase}/calendars/primary/events/${extra.id}`, { method: "DELETE", headers }).catch(() => null),
+                ),
+            );
+
+            return jsonResponse(patchRes.ok ? patchData : { ...patchData, id: primary.id }, 200);
+          }
+        }
 
         const res = await fetch(`${calendarBase}/calendars/primary/events`, {
           method: "POST",
@@ -350,8 +385,8 @@ serve(async (req) => {
           body: JSON.stringify(event),
         });
 
-        const data = await res.json();
-        return jsonResponse(data, res.ok ? 200 : 400);
+        const data = await safeGoogleJson(res);
+        return jsonResponse(data, 200);
       }
 
       case "update-event": {
