@@ -244,30 +244,49 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   return tasks.filter((task) => !idsToDelete.has(task.id));
 }
 
-async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
-  if (!task.dueDate) return null;
+async function createGoogleCalendarEvent(
+  task: Task,
+  opts: { retries?: number } = {},
+): Promise<{ id: string | null; rateLimited?: boolean }> {
+  if (!task.dueDate) return { id: null };
   const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return null;
-  const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title: task.title,
-      description: task.description ?? '',
-      date: task.dueDate,
-      time: task.dueTime,
-      endTime: getTaskEndTime(task),
-      allDay: !task.dueTime,
-      durationMinutes: task.durationMinutes ?? 60,
-    }),
-  });
-  if (!response.ok) return null;
-  const payload = await response.json();
-  return typeof payload?.id === 'string' ? payload.id : null;
+  if (!accessToken) return { id: null };
+  const maxRetries = opts.retries ?? 3;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: task.title,
+        description: task.description ?? '',
+        date: task.dueDate,
+        time: task.dueTime,
+        endTime: getTaskEndTime(task),
+        allDay: !task.dueTime,
+        durationMinutes: task.durationMinutes ?? 60,
+      }),
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      return { id: typeof payload?.id === 'string' ? payload.id : null };
+    }
+    // Detecta rate limit: edge function retorna 400 envelopando 403 do Google
+    let bodyText = '';
+    try { bodyText = await response.text(); } catch {}
+    const isRateLimit = /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+    if (isRateLimit && attempt < maxRetries) {
+      const delay = 800 * Math.pow(2, attempt) + Math.random() * 400;
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+    if (isRateLimit) return { id: null, rateLimited: true };
+    return { id: null };
+  }
+  return { id: null };
 }
 
 async function updateGoogleCalendarEvent(task: Task): Promise<void> {
@@ -430,25 +449,25 @@ async function syncGoogleCalendarEvents(
     );
     if (orphanTasks.length > 0) {
       const updates: Array<{ id: string; eventId: string }> = [];
-      // Limita concorrência (5 em paralelo) para não estourar quota do Google
-      const chunkSize = 5;
-      for (let i = 0; i < orphanTasks.length; i += chunkSize) {
-        const chunk = orphanTasks.slice(i, i + chunkSize);
-        const results = await Promise.all(
-          chunk.map(async (task) => {
-            try {
-              const eventId = await createGoogleCalendarEvent(task);
-              return eventId ? { id: task.id, eventId } : null;
-            } catch (err) {
-              console.error('Backfill: falha em', task.title, err);
-              return null;
-            }
-          }),
-        );
-        for (const r of results) if (r) updates.push(r);
+      // Serializa com pequeno delay para não estourar quota do Google (403 rateLimitExceeded)
+      let stoppedByRateLimit = false;
+      for (const task of orphanTasks) {
+        try {
+          const { id: eventId, rateLimited } = await createGoogleCalendarEvent(task);
+          if (eventId) {
+            updates.push({ id: task.id, eventId });
+          } else if (rateLimited) {
+            stoppedByRateLimit = true;
+            console.warn('Backfill interrompido por rate limit do Google Calendar.');
+            break;
+          }
+        } catch (err) {
+          console.error('Backfill: falha em', task.title, err);
+        }
+        // throttle leve: ~3 req/s
+        await new Promise((r) => setTimeout(r, 350));
       }
       if (updates.length > 0) {
-        // Atualiza Supabase em paralelo
         await Promise.all(
           updates.map((u) =>
             supabase
@@ -463,6 +482,9 @@ async function syncGoogleCalendarEvents(
             ? { ...t, googleCalendarEventId: updateMap.get(t.id)! }
             : t,
         );
+      }
+      if (stoppedByRateLimit) {
+        // Sinal não-fatal — próxima sincronização tenta os restantes
       }
     }
 
@@ -584,7 +606,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (newTask.googleCalendarEventId) {
           await updateGoogleCalendarEvent(newTask);
         } else {
-          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
+          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(newTask);
           if (googleCalendarEventId) {
           await supabase
             .from('tasks')
@@ -694,7 +716,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (merged.dueDate && existing.googleCalendarEventId) {
           await updateGoogleCalendarEvent(merged);
         } else if (merged.dueDate && !existing.googleCalendarEventId && !merged.completed) {
-          const googleCalendarEventId = await createGoogleCalendarEvent(merged);
+          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(merged);
           if (googleCalendarEventId) {
             await supabase.from('tasks').update({ google_calendar_event_id: googleCalendarEventId }).eq('id', id);
             set((state) => ({
