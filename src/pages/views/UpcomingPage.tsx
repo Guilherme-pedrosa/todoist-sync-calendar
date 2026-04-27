@@ -167,7 +167,7 @@ function WeekGrid({
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
-  const openTaskDetail = useTaskDetailStore((s) => s.openTaskDetail);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
 
   const [drag, setDrag] = useState<DragState | null>(null);
   // Preview overrides while dragging (avoid waiting for DB roundtrip)
