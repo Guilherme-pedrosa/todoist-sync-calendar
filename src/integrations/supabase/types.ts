@@ -233,6 +233,66 @@ export type Database = {
           },
         ]
       }
+      tasks_backup_pre_phase1: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          due_time: string | null
+          google_calendar_event_id: string | null
+          id: string | null
+          parent_id: string | null
+          position: number | null
+          priority: number | null
+          project_id: string | null
+          recurrence_interval: number | null
+          recurrence_type: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          google_calendar_event_id?: string | null
+          id?: string | null
+          parent_id?: string | null
+          position?: number | null
+          priority?: number | null
+          project_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          google_calendar_event_id?: string | null
+          id?: string | null
+          parent_id?: string | null
+          position?: number | null
+          priority?: number | null
+          project_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
