@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 import { useUndoStore } from '@/store/undoStore';
+import { expandOccurrencesInRange } from '@/lib/recurrence';
 
 interface TaskState {
   tasks: Task[];
@@ -139,6 +140,19 @@ function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
   );
 }
 
+function rangesOverlap(startA?: string | null, durationA?: number | null, startB?: string | null, durationB?: number | null) {
+  if (!startA || !startB) return false;
+  const toMin = (value: string) => {
+    const [h, m] = value.slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const aStart = toMin(startA);
+  const bStart = toMin(startB);
+  const aEnd = aStart + (durationA ?? 60);
+  const bEnd = bStart + (durationB ?? 60);
+  return aStart < bEnd && bStart < aEnd;
+}
+
 function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
   const parsed = getCalendarDateAndTime(event);
   return (
@@ -153,12 +167,19 @@ function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
 function recurrenceCoversCalendarEvent(task: Task, event: GoogleCalendarEvent) {
   const parsed = getCalendarDateAndTime(event);
   if (!task.recurrenceRule || !parsed.dueDate || !task.dueDate) return false;
+  const day = new Date(`${parsed.dueDate}T12:00:00`);
+  const occurrences = expandOccurrencesInRange(
+    task.recurrenceRule,
+    task.dueDate,
+    task.dueTime,
+    day,
+    day
+  );
   return (
     !task.completed &&
+    occurrences.includes(parsed.dueDate) &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
-    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null) &&
-    task.dueDate <= parsed.dueDate
+    rangesOverlap(task.dueTime, task.durationMinutes, parsed.dueTime, parsed.durationMinutes)
   );
 }
 
