@@ -14,7 +14,12 @@ interface TaskState {
 
   fetchData: () => Promise<void>;
 
-  addTask: (task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & { labels?: string[] }) => Promise<void>;
+  addTask: (
+    task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & {
+      labels?: string[];
+      reminderMinutes?: number | null;
+    }
+  ) => Promise<Task | null>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
@@ -27,6 +32,7 @@ interface TaskState {
 
   addLabel: (label: Omit<Label, 'id'>) => Promise<void>;
   deleteLabel: (id: string) => Promise<void>;
+  toggleLabelFavorite: (id: string) => Promise<void>;
 
   setActiveView: (view: ViewFilter) => void;
   setActiveProjectId: (id: string | null) => void;
@@ -56,7 +62,11 @@ function mapDbTaskToTask(t: any): Task {
     priority: t.priority as Priority,
     dueDate: t.due_date || undefined,
     dueTime: t.due_time ? t.due_time.slice(0, 5) : undefined,
+    dueString: t.due_string || null,
+    deadline: t.deadline || null,
+    recurrenceRule: t.recurrence_rule || null,
     projectId: t.project_id || undefined,
+    sectionId: t.section_id || null,
     parentId: t.parent_id || undefined,
     labels: (t.task_labels || []).map((tl: any) => tl.label_id),
     recurrence: t.recurrence_type
@@ -72,11 +82,9 @@ function getCalendarDateAndTime(event: GoogleCalendarEvent): { dueDate?: string;
     const [date, timeWithOffset] = event.start.dateTime.split('T');
     return { dueDate: date, dueTime: timeWithOffset?.slice(0, 5) };
   }
-
   if (event.start?.date) {
     return { dueDate: event.start.date };
   }
-
   return {};
 }
 
@@ -96,20 +104,14 @@ async function syncTodayGoogleCalendarEvents(
     .eq('user_id', userId)
     .limit(1);
 
-  if (tokenError || !tokenRows?.length) {
-    return currentTasks;
-  }
+  if (tokenError || !tokenRows?.length) return currentTasks;
 
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
-
-  if (!accessToken) {
-    return currentTasks;
-  }
+  if (!accessToken) return currentTasks;
 
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
-
   const endOfDay = new Date();
   endOfDay.setHours(23, 59, 59, 999);
 
@@ -129,21 +131,10 @@ async function syncTodayGoogleCalendarEvents(
       },
     });
 
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null);
-      if (errorPayload?.code === 'NO_TOKEN' || errorPayload?.code === 'TOKEN_EXPIRED') {
-        return currentTasks;
-      }
-      console.error('Erro ao buscar eventos do Google Calendar:', errorPayload ?? response.statusText);
-      return currentTasks;
-    }
-
+    if (!response.ok) return currentTasks;
     const payload = await response.json();
     const events: GoogleCalendarEvent[] = Array.isArray(payload?.items) ? payload.items : [];
-
-    if (events.length === 0) {
-      return currentTasks;
-    }
+    if (events.length === 0) return currentTasks;
 
     const existingGoogleEventIds = new Set(
       currentTasks.map((task) => task.googleCalendarEventId).filter(Boolean) as string[]
@@ -165,20 +156,14 @@ async function syncTodayGoogleCalendarEvents(
         };
       });
 
-    if (tasksToInsert.length === 0) {
-      return currentTasks;
-    }
+    if (tasksToInsert.length === 0) return currentTasks;
 
     const { data: insertedRows, error: insertError } = await supabase
       .from('tasks')
       .insert(tasksToInsert)
       .select('*, task_labels(label_id)');
 
-    if (insertError || !insertedRows) {
-      console.error('Erro ao salvar eventos do Google Calendar:', insertError?.message);
-      return currentTasks;
-    }
-
+    if (insertError || !insertedRows) return currentTasks;
     const syncedTasks = insertedRows.map(mapDbTaskToTask);
     return [...syncedTasks, ...currentTasks];
   } catch (error) {
@@ -238,28 +223,35 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   addTask: async (taskData) => {
     const userId = await getUserId();
-    if (!userId) return;
+    if (!userId) return null;
 
     const inboxProject = get().projects.find((p) => p.isInbox);
 
+    const insertPayload: Record<string, any> = {
+      user_id: userId,
+      title: taskData.title,
+      description: taskData.description || null,
+      priority: taskData.priority || 4,
+      due_date: taskData.dueDate || null,
+      due_time: taskData.dueTime ? `${taskData.dueTime}:00` : null,
+      due_string: taskData.dueString || null,
+      deadline: taskData.deadline || null,
+      recurrence_rule: taskData.recurrenceRule || null,
+      project_id: taskData.projectId || inboxProject?.id || null,
+      section_id: taskData.sectionId || null,
+      parent_id: taskData.parentId || null,
+    };
+
     const { data, error } = await supabase
       .from('tasks')
-      .insert({
-        user_id: userId,
-        title: taskData.title,
-        description: taskData.description || null,
-        priority: taskData.priority || 4,
-        due_date: taskData.dueDate || null,
-        due_time: taskData.dueTime ? `${taskData.dueTime}:00` : null,
-        project_id: taskData.projectId || inboxProject?.id || null,
-        parent_id: taskData.parentId || null,
-        recurrence_type: taskData.recurrence?.type || null,
-        recurrence_interval: taskData.recurrence?.interval || null,
-      })
+      .insert(insertPayload as any)
       .select()
       .single();
 
-    if (error || !data) return;
+    if (error || !data) {
+      console.error('addTask error', error);
+      return null;
+    }
 
     const labelIds = taskData.labels || [];
     if (labelIds.length > 0) {
@@ -268,24 +260,22 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
-    const newTask: Task = {
-      id: data.id,
-      title: data.title,
-      description: data.description || undefined,
-      completed: data.completed,
-      priority: data.priority as Priority,
-      dueDate: data.due_date || undefined,
-      dueTime: data.due_time ? data.due_time.slice(0, 5) : undefined,
-      projectId: data.project_id || undefined,
-      parentId: data.parent_id || undefined,
-      labels: labelIds,
-      recurrence: data.recurrence_type
-        ? { type: data.recurrence_type as RecurrenceType, interval: data.recurrence_interval || 1 }
-        : undefined,
-      createdAt: data.created_at,
-    };
+    // Reminder (only if due_time present and reminderMinutes provided/default)
+    if (data.due_date && data.due_time && taskData.reminderMinutes != null) {
+      const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
+      triggerAt.setMinutes(triggerAt.getMinutes() - taskData.reminderMinutes);
+      await supabase.from('reminders').insert({
+        task_id: data.id,
+        trigger_at: triggerAt.toISOString(),
+        type: 'absolute',
+        relative_minutes: taskData.reminderMinutes,
+        channel: 'push',
+      });
+    }
 
+    const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
+    return newTask;
   },
 
   updateTask: async (id, updates) => {
@@ -295,7 +285,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
     if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
     if (updates.dueTime !== undefined) dbUpdates.due_time = updates.dueTime ? `${updates.dueTime}:00` : null;
+    if (updates.dueString !== undefined) dbUpdates.due_string = updates.dueString;
+    if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
+    if (updates.recurrenceRule !== undefined) dbUpdates.recurrence_rule = updates.recurrenceRule;
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
+    if (updates.sectionId !== undefined) dbUpdates.section_id = updates.sectionId;
     if (updates.completed !== undefined) {
       dbUpdates.completed = updates.completed;
       dbUpdates.completed_at = updates.completed ? new Date().toISOString() : null;
@@ -335,7 +329,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       ),
     }));
 
-    // Sincroniza com Google Calendar se a tarefa veio de um evento
     if (task.googleCalendarEventId) {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -438,7 +431,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (inbox) {
       await supabase.from('tasks').update({ project_id: inbox.id }).eq('project_id', id);
     }
-    // Reparent sub-projects to root
     await supabase.from('projects').update({ parent_id: null }).eq('parent_id', id);
     await supabase.from('projects').delete().eq('id', id);
     set((state) => ({
@@ -461,7 +453,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (error || !data) return;
     set((state) => ({
-      labels: [...state.labels, { id: data.id, name: data.name, color: data.color }],
+      labels: [...state.labels, { id: data.id, name: data.name, color: data.color, isFavorite: !!data.is_favorite }],
     }));
   },
 
@@ -471,6 +463,16 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => ({
       labels: state.labels.filter((l) => l.id !== id),
       tasks: state.tasks.map((t) => ({ ...t, labels: t.labels.filter((l) => l !== id) })),
+    }));
+  },
+
+  toggleLabelFavorite: async (id) => {
+    const label = get().labels.find((l) => l.id === id);
+    if (!label) return;
+    const next = !label.isFavorite;
+    await supabase.from('labels').update({ is_favorite: next }).eq('id', id);
+    set((state) => ({
+      labels: state.labels.map((l) => (l.id === id ? { ...l, isFavorite: next } : l)),
     }));
   },
 

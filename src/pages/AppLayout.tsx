@@ -3,6 +3,9 @@ import { Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
+import { QuickAddDialog } from '@/components/QuickAddDialog';
+import { MobileFab } from '@/components/MobileFab';
+import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,6 +17,8 @@ export default function AppLayout() {
   const fetchData = useTaskStore((s) => s.fetchData);
   const { user, calendarConnected } = useAuth();
   const [processingCalendarOauth, setProcessingCalendarOauth] = useState(false);
+
+  useGlobalShortcuts();
 
   useEffect(() => {
     if (!user) return;
@@ -119,6 +124,8 @@ export default function AppLayout() {
         <AppSidebar />
       </div>
       <Outlet />
+      <QuickAddDialog />
+      <MobileFab />
     </div>
   );
 }
