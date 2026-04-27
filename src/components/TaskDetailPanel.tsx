@@ -30,6 +30,7 @@ import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
+import { useDeleteTaskWithRecurrencePrompt } from '@/hooks/useDeleteTaskWithRecurrencePrompt';
 import { Task, Priority } from '@/types/task';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -121,6 +122,7 @@ export function TaskDetailPanel() {
   const allLabels = useTaskStore((s) => s.labels);
   const updateTask = useTaskStore((s) => s.updateTask);
   const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
+  const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
@@ -384,9 +386,11 @@ export function TaskDetailPanel() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onSelect={() => {
-                  deleteTask(task.id);
-                  close();
+                onSelect={async () => {
+                  const result = await deleteWithPrompt(task.id, {
+                    occurrenceDate: task.dueDate ?? undefined,
+                  });
+                  if (result !== 'cancelled') close();
                 }}
               >
                 <Trash2 className="h-4 w-4 mr-2" /> Excluir
