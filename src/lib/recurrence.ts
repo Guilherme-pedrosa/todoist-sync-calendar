@@ -1,5 +1,24 @@
-import { RRule } from 'rrule';
+import { RRule, rrulestr } from 'rrule';
 import { format, parseISO } from 'date-fns';
+
+/**
+ * Parse a stored recurrence string. Supports a bare RRULE (e.g.
+ * "FREQ=WEEKLY;BYDAY=FR") OR a full ICS block with EXDATE lines.
+ */
+function parseRecurrence(recurrenceRule: string, dtstart: Date) {
+  const trimmed = recurrenceRule.trim();
+  if (/\n/.test(trimmed) || /\bEXDATE[:;]/i.test(trimmed)) {
+    let body = trimmed;
+    if (!/\bDTSTART[:;]/i.test(body)) {
+      const dt = format(dtstart, "yyyyMMdd'T'HHmmss");
+      body = `DTSTART:${dt}\n${body}`;
+    }
+    return rrulestr(body, { forceset: true });
+  }
+  const ruleStr = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
+  const baseRule = RRule.fromString(ruleStr);
+  return new RRule({ ...baseRule.origOptions, dtstart });
+}
 
 /**
  * Expand a recurrence rule between two dates (inclusive), anchored at the
@@ -15,24 +34,17 @@ export function expandOccurrencesInRange(
 ): string[] {
   if (!recurrenceRule || !anchorDate) return [];
   try {
-    const ruleStr = recurrenceRule.startsWith('RRULE:')
-      ? recurrenceRule
-      : `RRULE:${recurrenceRule}`;
-    const baseRule = RRule.fromString(ruleStr);
     const anchor = parseISO(`${anchorDate}T${anchorTime || '00:00'}:00`);
-    const anchoredRule = new RRule({ ...baseRule.origOptions, dtstart: anchor });
+    const rule = parseRecurrence(recurrenceRule, anchor);
 
-    // Normalize range to whole days (inclusive end-of-day)
     const start = new Date(rangeStart);
     start.setHours(0, 0, 0, 0);
     const end = new Date(rangeEnd);
     end.setHours(23, 59, 59, 999);
 
-    // If anchor is after the range, no occurrences to render here.
-    // If anchor is before range start, use range start.
     const lookupStart = anchor < start ? start : anchor;
 
-    const occurrences = anchoredRule.between(lookupStart, end, true);
+    const occurrences = rule.between(lookupStart, end, true);
     const dates = new Set<string>();
     for (const d of occurrences) dates.add(format(d, 'yyyy-MM-dd'));
     return Array.from(dates);
@@ -40,6 +52,45 @@ export function expandOccurrencesInRange(
     console.error('expandOccurrencesInRange error', e);
     return [];
   }
+}
+
+/**
+ * Add an EXDATE entry to a recurrence string. Returns a normalized
+ * multi-line value containing DTSTART + RRULE + EXDATE(s). The exception
+ * date must match the anchor's local time so rrule treats it as a real
+ * occurrence to skip.
+ */
+export function addExdateToRecurrence(
+  recurrenceRule: string,
+  anchorDate: string,
+  anchorTime: string | null | undefined,
+  exceptionDate: string
+): string {
+  const time = anchorTime || '00:00';
+  const dtstartLocal = parseISO(`${anchorDate}T${time}:00`);
+  const exLocal = parseISO(`${exceptionDate}T${time}:00`);
+  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
+
+  const trimmed = recurrenceRule.trim();
+  const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+
+  let dtstart: string | null = null;
+  const exdates: string[] = [];
+  let rrule: string | null = null;
+
+  for (const line of lines) {
+    if (/^DTSTART[:;]/i.test(line)) dtstart = line;
+    else if (/^EXDATE[:;]/i.test(line)) exdates.push(line);
+    else if (/^RRULE[:;]/i.test(line)) rrule = line;
+    else if (/^[A-Z]+=/i.test(line)) rrule = `RRULE:${line}`;
+  }
+
+  if (!dtstart) dtstart = `DTSTART:${fmt(dtstartLocal)}`;
+  if (!rrule) rrule = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
+
+  exdates.push(`EXDATE:${fmt(exLocal)}`);
+
+  return [dtstart, rrule, ...exdates].join('\n');
 }
 
 /**
@@ -54,24 +105,14 @@ export function nextOccurrence(
 ): { dueDate: string; dueTime?: string } | null {
   if (!recurrenceRule) return null;
   try {
-    const ruleStr = recurrenceRule.startsWith('RRULE:')
-      ? recurrenceRule
-      : `RRULE:${recurrenceRule}`;
-    const rule = RRule.fromString(ruleStr);
-
-    // Anchor: prefer current due, else now
     let anchor: Date;
     if (currentDate) {
       anchor = parseISO(`${currentDate}T${currentTime || '00:00'}:00`);
     } else {
       anchor = new Date();
     }
-
-    // RRULEs saved without DTSTART otherwise start at "now", which can make
-    // same-day recurrences stay on the same day. Anchor the rule on the task's
-    // current due date/time, then find the next occurrence after it.
-    const anchoredRule = new RRule({ ...rule.origOptions, dtstart: anchor });
-    const next = anchoredRule.after(anchor, false);
+    const rule = parseRecurrence(recurrenceRule, anchor);
+    const next = rule.after(anchor, false);
     if (!next) return null;
 
     return {

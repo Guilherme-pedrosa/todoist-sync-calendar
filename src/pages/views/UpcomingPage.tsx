@@ -28,6 +28,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
@@ -205,8 +206,8 @@ export default function UpcomingPage() {
 // ---------- Week grid (Google Calendar–style) ----------
 
 type DragState =
-  | { kind: 'move'; taskId: string; pointerOffsetMin: number; durationMin: number }
-  | { kind: 'resize'; taskId: string; startTopMin: number; minDuration: number }
+  | { kind: 'move'; taskId: string; pointerOffsetMin: number; durationMin: number; sourceDayKey: string }
+  | { kind: 'resize'; taskId: string; startTopMin: number; minDuration: number; sourceDayKey: string }
   | { kind: 'create'; dayKey: string; startMin: number };
 
 function timeToMinutes(t?: string | null): number {
@@ -243,6 +244,7 @@ function WeekGrid({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
+  const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
@@ -336,7 +338,11 @@ function WeekGrid({
           if (p.dayKey) updates.dueDate = p.dayKey;
           if (p.startMin !== undefined) updates.dueTime = minutesToTime(p.startMin);
           if (p.durationMin !== undefined) updates.durationMinutes = p.durationMin;
-          await updateTask(currentDrag.taskId, updates);
+          await updateWithPrompt(currentDrag.taskId, updates, {
+            occurrenceDate: currentDrag.sourceDayKey,
+            changeLabel:
+              currentDrag.kind === 'resize' ? 'duração' : 'data e horário',
+          });
         } catch (err) {
           toast.error('Falha ao reagendar tarefa');
         }
@@ -359,7 +365,7 @@ function WeekGrid({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, preview, createBox, findDayUnderPointer, pointerToMinutes, updateTask, openQuickAdd]);
+  }, [drag, preview, createBox, findDayUnderPointer, pointerToMinutes, updateTask, updateWithPrompt, openQuickAdd]);
 
   // Now indicator
   const [now, setNow] = useState(new Date());
@@ -430,6 +436,7 @@ function WeekGrid({
                         taskId: t.id,
                         pointerOffsetMin,
                         durationMin: DEFAULT_DURATION,
+                        sourceDayKey: k,
                       });
                     }}
                   />
@@ -492,14 +499,14 @@ function WeekGrid({
                     ...p,
                     [taskId]: { dayKey: k, startMin, durationMin },
                   }));
-                  setDrag({ kind: 'move', taskId, pointerOffsetMin, durationMin });
+                  setDrag({ kind: 'move', taskId, pointerOffsetMin, durationMin, sourceDayKey: k });
                 }}
                 onStartResize={(taskId, startTopMin, currentDuration) => {
                   setPreview((p) => ({
                     ...p,
                     [taskId]: { dayKey: k, startMin: startTopMin, durationMin: currentDuration },
                   }));
-                  setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES });
+                  setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES, sourceDayKey: k });
                 }}
                 onOpenTask={(id) => openTaskDetail(id)}
               />

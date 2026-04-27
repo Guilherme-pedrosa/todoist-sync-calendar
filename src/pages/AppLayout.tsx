@@ -6,6 +6,7 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { QuickAddDialog } from '@/components/QuickAddDialog';
 import { MobileFab } from '@/components/MobileFab';
 import { TaskDetailPanel } from '@/components/TaskDetailPanel';
+import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
@@ -171,6 +172,7 @@ export default function AppLayout() {
       <CommandPalette />
       <MobileBottomNav />
       <InstallPwaBanner />
+      <RecurringEditDialog />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
+import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
 import { Task, Priority } from '@/types/task';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -119,6 +120,7 @@ export function TaskDetailPanel() {
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const updateTask = useTaskStore((s) => s.updateTask);
+  const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
@@ -585,12 +587,16 @@ export function TaskDetailPanel() {
               <DatePickerPopover
                 value={dateValue}
                 onChange={(v) =>
-                  updateTask(task.id, {
-                    dueDate: v.date ?? null as any,
-                    dueTime: v.time ?? null as any,
-                    recurrenceRule: v.recurrenceRule ?? null,
-                    durationMinutes: v.durationMinutes ?? null,
-                  })
+                  updateWithPrompt(
+                    task.id,
+                    {
+                      dueDate: v.date ?? null as any,
+                      dueTime: v.time ?? null as any,
+                      recurrenceRule: v.recurrenceRule ?? null,
+                      durationMinutes: v.durationMinutes ?? null,
+                    },
+                    { changeLabel: 'data e horário' }
+                  )
                 }
                 trigger={
                   <button className="w-full text-left text-sm hover:text-primary">
