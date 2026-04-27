@@ -11,7 +11,9 @@ import UpcomingPage from "./pages/views/UpcomingPage";
 import CompletedPage from "./pages/views/CompletedPage";
 import ProjectPage from "./pages/views/ProjectPage";
 import LabelPage from "./pages/views/LabelPage";
+import LabelsIndexPage from "./pages/views/LabelsIndexPage";
 import FilterPage from "./pages/views/FilterPage";
+import FiltersIndexPage from "./pages/views/FiltersIndexPage";
 import SettingsPage from "./pages/SettingsPage";
 import Auth from "./pages/Auth";
 import CalendarCallback from "./pages/CalendarCallback";
@@ -63,7 +65,9 @@ const App = () => (
               <Route path="/upcoming" element={<UpcomingPage />} />
               <Route path="/completed" element={<CompletedPage />} />
               <Route path="/projects/:projectId" element={<ProjectPage />} />
+              <Route path="/labels" element={<LabelsIndexPage />} />
               <Route path="/labels/:labelId" element={<LabelPage />} />
+              <Route path="/filters" element={<FiltersIndexPage />} />
               <Route path="/filters/:filterId" element={<FilterPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
