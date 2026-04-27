@@ -141,9 +141,10 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             // swipe direita → concluir
             complete(task.id);
           } else if (info.offset.x < -80) {
-            // swipe esquerda → excluir (com undo)
+            // swipe esquerda → excluir (com prompt p/ recorrente)
             const snapshot = { ...task };
-            void deleteTask(task.id).then(() => {
+            void deleteWithPrompt(task.id, { occurrenceDate: task.dueDate ?? undefined }).then((result) => {
+              if (result !== 'deleted') return;
               toast('Tarefa excluída', {
                 duration: 6000,
                 action: {
