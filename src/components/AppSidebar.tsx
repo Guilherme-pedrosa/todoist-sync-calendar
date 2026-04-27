@@ -124,7 +124,7 @@ export function AppSidebar() {
       if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
 
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/todoist-proxy?action=import-all`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/todoist-proxy?action=import-inbox`,
         {
           method: 'POST',
           headers: {
@@ -137,9 +137,9 @@ export function AppSidebar() {
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.error || 'Falha ao importar do Todoist');
 
-      const { createdProjects = 0, createdLabels = 0, createdTasks = 0 } = payload;
+      const { totalFromTodoist = 0, createdTasks = 0 } = payload;
       toast.success(
-        `Importado: ${createdTasks} tarefa(s), ${createdProjects} projeto(s), ${createdLabels} etiqueta(s)`
+        `Caixa de Entrada importada: ${createdTasks} nova(s) de ${totalFromTodoist} no Todoist`
       );
       await fetchData();
     } catch (error) {
@@ -367,7 +367,7 @@ export function AppSidebar() {
           className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
         >
           <Download className="h-3.5 w-3.5" />
-          {importingTodoist ? 'Importando...' : 'Importar do Todoist'}
+          {importingTodoist ? 'Importando...' : 'Importar Caixa de Entrada (Todoist)'}
         </button>
 
         <button
