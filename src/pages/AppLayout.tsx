@@ -7,6 +7,8 @@ import { QuickAddDialog } from '@/components/QuickAddDialog';
 import { MobileFab } from '@/components/MobileFab';
 import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { CommandPalette } from '@/components/CommandPalette';
+import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { InstallPwaBanner } from '@/components/InstallPwaBanner';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
