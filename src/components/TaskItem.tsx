@@ -316,7 +316,35 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
-                onSelect={() => deleteTask(task.id)}
+                onSelect={async () => {
+                  const snapshot = { ...task };
+                  await deleteTask(task.id);
+                  toast('Tarefa excluída', {
+                    duration: 6000,
+                    action: {
+                      label: 'Desfazer',
+                      onClick: async () => {
+                        // Recria a tarefa
+                        await useTaskStore.getState().addTask({
+                          title: snapshot.title,
+                          description: snapshot.description,
+                          priority: snapshot.priority,
+                          dueDate: snapshot.dueDate ?? null,
+                          dueTime: snapshot.dueTime ?? null,
+                          durationMinutes: snapshot.durationMinutes ?? null,
+                          dueString: snapshot.dueString ?? null,
+                          deadline: snapshot.deadline ?? null,
+                          recurrenceRule: snapshot.recurrenceRule ?? null,
+                          projectId: snapshot.projectId ?? null,
+                          sectionId: snapshot.sectionId ?? null,
+                          parentId: snapshot.parentId ?? null,
+                          labels: snapshot.labels,
+                          position: 0,
+                        } as any);
+                      },
+                    },
+                  });
+                }}
               >
                 <Trash2 className="h-4 w-4 mr-2" /> Excluir
               </DropdownMenuItem>
