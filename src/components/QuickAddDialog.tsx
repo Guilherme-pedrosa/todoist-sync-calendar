@@ -108,6 +108,7 @@ export function QuickAddDialog() {
     setLocation_('');
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
+    nlpSetRef.current = {};
     setTimeout(() => inputRef.current?.focus(), 60);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, inboxProject?.id]);
