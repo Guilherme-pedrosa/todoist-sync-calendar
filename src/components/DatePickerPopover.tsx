@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { addDays, format, nextSaturday } from 'date-fns';
+import { useEffect, useState } from 'react';
+import { addDays, format, nextSaturday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   Calendar as CalendarIcon,
@@ -10,6 +10,7 @@ import {
   Sun,
   Sunrise,
   X,
+  Check,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
@@ -21,7 +22,8 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { RRule, Frequency } from 'rrule';
-import { recurrenceRuleToLabel } from '@/lib/nlp';
+import { recurrenceRuleToLabel, parseNlp } from '@/lib/nlp';
+import { RecurrenceCustomDialog } from '@/components/RecurrenceCustomDialog';
 
 export interface DateValue {
   date?: string; // yyyy-MM-dd
@@ -36,17 +38,34 @@ interface Props {
   align?: 'start' | 'center' | 'end';
 }
 
-const RECURRENCE_PRESETS: Array<{ label: string; build: () => string }> = [
-  { label: 'Diariamente', build: () => new RRule({ freq: Frequency.DAILY, interval: 1 }).toString().replace('RRULE:', '') },
-  { label: 'Dias úteis (seg-sex)', build: () => new RRule({ freq: Frequency.WEEKLY, interval: 1, byweekday: [RRule.MO, RRule.TU, RRule.WE, RRule.TH, RRule.FR] }).toString().replace('RRULE:', '') },
-  { label: 'Semanalmente', build: () => new RRule({ freq: Frequency.WEEKLY, interval: 1 }).toString().replace('RRULE:', '') },
-  { label: 'Mensalmente', build: () => new RRule({ freq: Frequency.MONTHLY, interval: 1 }).toString().replace('RRULE:', '') },
-  { label: 'Anualmente', build: () => new RRule({ freq: Frequency.YEARLY, interval: 1 }).toString().replace('RRULE:', '') },
-];
+function buildPresets(anchor?: string): Array<{ label: string; build: () => string }> {
+  const ref = anchor ? parseISO(`${anchor}T00:00:00`) : new Date();
+  const dayIdx = ref.getDay(); // 0 Sun .. 6 Sat
+  const dayNames = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  const dayOfMonth = ref.getDate();
+  const month = ref.getMonth();
+  const monthName = format(ref, 'MMMM', { locale: ptBR });
+  const wdayMap = [RRule.SU, RRule.MO, RRule.TU, RRule.WE, RRule.TH, RRule.FR, RRule.SA];
+
+  return [
+    { label: 'Todo dia', build: () => new RRule({ freq: Frequency.DAILY, interval: 1 }).toString().replace('RRULE:', '') },
+    { label: `Toda ${dayNames[dayIdx]}`, build: () => new RRule({ freq: Frequency.WEEKLY, interval: 1, byweekday: [wdayMap[dayIdx]] }).toString().replace('RRULE:', '') },
+    { label: 'Todo dia útil', build: () => new RRule({ freq: Frequency.WEEKLY, interval: 1, byweekday: [RRule.MO, RRule.TU, RRule.WE, RRule.TH, RRule.FR] }).toString().replace('RRULE:', '') },
+    { label: `Todo mês no dia ${dayOfMonth}`, build: () => new RRule({ freq: Frequency.MONTHLY, interval: 1, bymonthday: [dayOfMonth] }).toString().replace('RRULE:', '') },
+    { label: `Todo ano em ${dayOfMonth} ${monthName}`, build: () => new RRule({ freq: Frequency.YEARLY, interval: 1, bymonth: [month + 1], bymonthday: [dayOfMonth] }).toString().replace('RRULE:', '') },
+  ];
+}
 
 export function DatePickerPopover({ value, onChange, trigger, align = 'start' }: Props) {
   const [open, setOpen] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
   const selected = value.date ? new Date(`${value.date}T00:00:00`) : undefined;
+
+  useEffect(() => {
+    if (!open) setTextInput('');
+  }, [open]);
 
   const setQuick = (d: Date) => {
     onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
@@ -55,7 +74,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
   const recurrenceLabel = recurrenceRuleToLabel(value.recurrenceRule);
 
   const summary = (() => {
-    if (!value.date && !value.recurrenceRule) return 'Data';
+    if (!value.date && !value.recurrenceRule) return 'Sem data';
     const parts: string[] = [];
     if (value.date) {
       const d = new Date(`${value.date}T00:00:00`);
@@ -66,141 +85,222 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
     return parts.join(' · ');
   })();
 
+  const hasValue = !!(value.date || value.recurrenceRule);
+
+  const handleTextSubmit = () => {
+    if (!textInput.trim()) return;
+    const parsed = parseNlp(textInput);
+    const next: DateValue = { ...value };
+    if (parsed.dueDate) next.date = parsed.dueDate;
+    if (parsed.dueTime) next.time = parsed.dueTime;
+    if (parsed.recurrenceRule) next.recurrenceRule = parsed.recurrenceRule;
+    onChange(next);
+    setTextInput('');
+  };
+
+  const presets = buildPresets(value.date);
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        {trigger ?? (
-          <button
-            type="button"
-            className={cn(
-              'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-              value.date || value.recurrenceRule
-                ? 'border-primary/30 text-primary bg-primary/5'
-                : 'border-border text-muted-foreground hover:border-primary/30'
-            )}
-          >
-            <CalendarIcon className="h-3.5 w-3.5" />
-            {summary}
-          </button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-0" align={align}>
-        <div className="p-2 border-b border-border space-y-0.5">
-          <PresetRow
-            icon={<Sun className="h-3.5 w-3.5 text-priority-3" />}
-            label="Hoje"
-            shortcut={format(new Date(), 'EEE', { locale: ptBR })}
-            onClick={() => setQuick(new Date())}
-          />
-          <PresetRow
-            icon={<Sunrise className="h-3.5 w-3.5 text-warning" />}
-            label="Amanhã"
-            shortcut={format(addDays(new Date(), 1), 'EEE', { locale: ptBR })}
-            onClick={() => setQuick(addDays(new Date(), 1))}
-          />
-          <PresetRow
-            icon={<CalendarDays className="h-3.5 w-3.5 text-accent" />}
-            label="Próximo fim de semana"
-            shortcut={format(nextSaturday(new Date()), 'EEE', { locale: ptBR })}
-            onClick={() => setQuick(nextSaturday(new Date()))}
-          />
-          <PresetRow
-            icon={<CalendarClock className="h-3.5 w-3.5 text-success" />}
-            label="Próxima semana"
-            shortcut={format(addDays(new Date(), 7), 'EEE d', { locale: ptBR })}
-            onClick={() => setQuick(addDays(new Date(), 7))}
-          />
-          {value.date && (
-            <PresetRow
-              icon={<CalendarX className="h-3.5 w-3.5 text-destructive" />}
-              label="Sem data"
-              onClick={() => onChange({ date: undefined, time: undefined, recurrenceRule: value.recurrenceRule })}
-            />
+    <>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          {trigger ?? (
+            <button
+              type="button"
+              className={cn(
+                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+                hasValue
+                  ? 'border-primary/30 text-primary bg-primary/5'
+                  : 'border-border text-muted-foreground hover:border-primary/30'
+              )}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              {summary}
+              {hasValue && (
+                <X
+                  className="h-3 w-3 ml-1 opacity-60 hover:opacity-100"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onChange({ date: undefined, time: undefined, recurrenceRule: null });
+                  }}
+                />
+              )}
+            </button>
           )}
-        </div>
-        <Calendar
-          mode="single"
-          selected={selected}
-          onSelect={(d) => {
-            if (d) onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
-          }}
-          locale={ptBR}
-          className={cn('p-3 pointer-events-auto')}
-        />
-        <div className="p-2 border-t border-border space-y-2">
-          <div className="flex items-center gap-2">
-            <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="text-xs text-muted-foreground">Hora</span>
+        </PopoverTrigger>
+        <PopoverContent className="w-[320px] p-0" align={align}>
+          {/* Free-text NLP input */}
+          <div className="p-2 border-b border-border">
             <Input
-              type="time"
-              value={value.time ?? ''}
-              onChange={(e) => onChange({ ...value, time: e.target.value || undefined })}
-              className="h-7 text-xs ml-auto w-[110px]"
+              placeholder='Ex.: "amanhã 14h" ou "toda segunda"'
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleTextSubmit();
+                }
+              }}
+              className="h-8 text-xs"
             />
-            {value.time && (
-              <button
-                onClick={() => onChange({ ...value, time: undefined })}
-                className="p-1 rounded hover:bg-muted"
-                aria-label="Remover hora"
-              >
-                <X className="h-3 w-3" />
-              </button>
+          </div>
+
+          <div className="p-2 border-b border-border space-y-0.5">
+            <PresetRow
+              icon={<Sun className="h-3.5 w-3.5 text-success" />}
+              label="Hoje"
+              shortcut={format(new Date(), 'EEE', { locale: ptBR })}
+              onClick={() => setQuick(new Date())}
+            />
+            <PresetRow
+              icon={<Sunrise className="h-3.5 w-3.5 text-warning" />}
+              label="Amanhã"
+              shortcut={format(addDays(new Date(), 1), 'EEE', { locale: ptBR })}
+              onClick={() => setQuick(addDays(new Date(), 1))}
+            />
+            <PresetRow
+              icon={<CalendarDays className="h-3.5 w-3.5 text-primary" />}
+              label="Este fim de semana"
+              shortcut={format(nextSaturday(new Date()), 'EEE', { locale: ptBR })}
+              onClick={() => setQuick(nextSaturday(new Date()))}
+            />
+            <PresetRow
+              icon={<CalendarClock className="h-3.5 w-3.5 text-accent" />}
+              label="Próxima semana"
+              shortcut={format(addDays(new Date(), 7), 'EEE d', { locale: ptBR })}
+              onClick={() => setQuick(addDays(new Date(), 7))}
+            />
+            {value.date && (
+              <PresetRow
+                icon={<CalendarX className="h-3.5 w-3.5 text-muted-foreground" />}
+                label="Sem vencimento"
+                onClick={() => onChange({ date: undefined, time: undefined, recurrenceRule: value.recurrenceRule })}
+              />
             )}
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border transition-colors',
-                  value.recurrenceRule
-                    ? 'border-accent/40 text-accent bg-accent/5'
-                    : 'border-border text-muted-foreground hover:border-accent/40'
-                )}
-              >
-                <Repeat className="h-3.5 w-3.5" />
-                {recurrenceLabel || 'Repetir'}
-                {value.recurrenceRule && (
-                  <X
-                    className="h-3 w-3 ml-auto"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onChange({ ...value, recurrenceRule: null });
-                    }}
-                  />
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-56 p-1" align="end">
-              {RECURRENCE_PRESETS.map((p) => (
+          <Calendar
+            mode="single"
+            selected={selected}
+            onSelect={(d) => {
+              if (d) onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
+            }}
+            locale={ptBR}
+            className={cn('p-3 pointer-events-auto')}
+          />
+          <div className="p-2 border-t border-border space-y-2">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">Hora</span>
+              <Input
+                type="time"
+                value={value.time ?? ''}
+                onChange={(e) => onChange({ ...value, time: e.target.value || undefined })}
+                className="h-7 text-xs ml-auto w-[110px]"
+              />
+              {value.time && (
                 <button
-                  key={p.label}
-                  onClick={() => onChange({ ...value, recurrenceRule: p.build() })}
+                  onClick={() => onChange({ ...value, time: undefined })}
+                  className="p-1 rounded hover:bg-muted"
+                  aria-label="Remover hora"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <Popover open={recurrenceMenuOpen} onOpenChange={setRecurrenceMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border transition-colors',
+                    value.recurrenceRule
+                      ? 'border-accent/40 text-accent bg-accent/5'
+                      : 'border-border text-muted-foreground hover:border-accent/40'
+                  )}
+                >
+                  <Repeat className="h-3.5 w-3.5" />
+                  {recurrenceLabel || 'Repetir'}
+                  {value.recurrenceRule && (
+                    <X
+                      className="h-3 w-3 ml-auto"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onChange({ ...value, recurrenceRule: null });
+                      }}
+                    />
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-60 p-1" align="end">
+                {presets.map((p) => (
+                  <button
+                    key={p.label}
+                    onClick={() => {
+                      onChange({ ...value, recurrenceRule: p.build() });
+                      setRecurrenceMenuOpen(false);
+                    }}
+                    className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                <div className="my-1 border-t border-border" />
+                <button
+                  onClick={() => {
+                    setRecurrenceMenuOpen(false);
+                    setCustomOpen(true);
+                  }}
                   className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
                 >
-                  {p.label}
+                  Personalizar…
                 </button>
-              ))}
-              {value.recurrenceRule && (
-                <>
-                  <div className="my-1 border-t border-border" />
-                  <button
-                    onClick={() => onChange({ ...value, recurrenceRule: null })}
-                    className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive"
-                  >
-                    Remover recorrência
-                  </button>
-                </>
+                {value.recurrenceRule && (
+                  <>
+                    <div className="my-1 border-t border-border" />
+                    <button
+                      onClick={() => {
+                        onChange({ ...value, recurrenceRule: null });
+                        setRecurrenceMenuOpen(false);
+                      }}
+                      className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive"
+                    >
+                      Remover recorrência
+                    </button>
+                  </>
+                )}
+              </PopoverContent>
+            </Popover>
+            <div className="flex gap-2">
+              {hasValue && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="flex-1 h-7 text-xs"
+                  onClick={() => {
+                    onChange({ date: undefined, time: undefined, recurrenceRule: null });
+                  }}
+                >
+                  Limpar
+                </Button>
               )}
-            </PopoverContent>
-          </Popover>
-          <Button size="sm" className="w-full h-7 text-xs" onClick={() => setOpen(false)}>
-            Confirmar
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+              <Button size="sm" className="flex-1 h-7 text-xs" onClick={() => setOpen(false)}>
+                <Check className="h-3 w-3 mr-1" /> OK
+              </Button>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <RecurrenceCustomDialog
+        open={customOpen}
+        onOpenChange={setCustomOpen}
+        initialRule={value.recurrenceRule}
+        startDate={value.date}
+        onSave={(rule) => onChange({ ...value, recurrenceRule: rule })}
+      />
+    </>
   );
 }
 
