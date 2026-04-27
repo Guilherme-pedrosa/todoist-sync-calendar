@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { Task } from '@/types/task';
 import { TaskItem } from '@/components/TaskItem';
@@ -135,8 +135,15 @@ function WeekGrid({
   hours: number[];
   tasksByDay: Map<string, Task[]>;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Scroll para 7h ao montar (cada hora ~44px + 36 all-day + 60 header)
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 7 * 44;
+    }
+  }, []);
   return (
-    <div className="flex-1 overflow-auto scrollbar-thin">
+    <div ref={scrollRef} className="flex-1 overflow-auto scrollbar-thin">
       <div className="min-w-[900px]">
         {/* Day header */}
         <div className="sticky top-0 z-10 grid grid-cols-[60px_repeat(7,1fr)] bg-background border-b border-border">
