@@ -223,7 +223,7 @@ function WeekGrid({
         if (!dayKey) return;
         const dayEl = dayColumnsRef.current.get(dayKey)!;
         const min = pointerToMinutes(dayEl, e.clientY) - drag.pointerOffsetMin;
-        const clamped = Math.max(0, Math.min(24 * 60 - drag.durationMin, snap(min)));
+        const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - drag.durationMin, snap(min)));
         setPreview((p) => ({
           ...p,
           [drag.taskId]: { dayKey, startMin: clamped, durationMin: drag.durationMin },
