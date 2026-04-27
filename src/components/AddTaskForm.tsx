@@ -32,6 +32,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
   const [date, setDate] = useState<DateValue>({ date: defaultDate });
   const [projectId, setProjectId] = useState(defaultProjectId || inboxProject?.id || '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
+  const [nlpSet, setNlpSet] = useState({ date: false, time: false, rec: false, prio: false });
 
   useEffect(() => {
     if (defaultProjectId) setProjectId(defaultProjectId);
@@ -40,14 +41,23 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
 
   const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
 
-  // Auto-apply NLP suggestions
+  // Auto-apply NLP suggestions — NLP é autoritativa enquanto o token existir.
   useEffect(() => {
     if (!parsed) return;
-    if (parsed.dueDate && !date.date) setDate((d) => ({ ...d, date: parsed.dueDate }));
-    if (parsed.dueTime && !date.time) setDate((d) => ({ ...d, time: parsed.dueTime }));
-    if (parsed.recurrenceRule && !date.recurrenceRule)
-      setDate((d) => ({ ...d, recurrenceRule: parsed.recurrenceRule }));
-    if (parsed.priority && priority === 4) setPriority(parsed.priority);
+    setDate((d) => ({
+      ...d,
+      date: parsed.dueDate || (nlpSet.date ? undefined : d.date),
+      time: parsed.dueTime || (nlpSet.time ? undefined : d.time),
+      recurrenceRule: parsed.recurrenceRule || (nlpSet.rec ? null : d.recurrenceRule),
+    }));
+    if (parsed.priority) setPriority(parsed.priority);
+    else if (nlpSet.prio) setPriority(4);
+    setNlpSet({
+      date: !!parsed.dueDate,
+      time: !!parsed.dueTime,
+      rec: !!parsed.recurrenceRule,
+      prio: !!parsed.priority,
+    });
     if (parsed.labelTokens.length > 0) {
       const matched = allLabels
         .filter((l) => parsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
@@ -61,7 +71,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
       if (proj) setProjectId(proj.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed?.cleanedTitle]);
+  }, [title]);
 
   const handleSubmit = async () => {
     const finalTitle = (parsed?.cleanedTitle || title).trim();
