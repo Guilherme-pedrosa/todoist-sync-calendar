@@ -10,7 +10,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { Task } from '@/types/task';
-import { isToday, isBefore, parseISO, addDays, format } from 'date-fns';
+import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function TaskList() {
@@ -43,14 +43,14 @@ export function TaskList() {
         title = 'Hoje';
         Icon = CalendarDays;
         filtered = tasks.filter(
-          (t) => !t.completed && t.dueDate && (t.dueDate === today || (isBefore(parseISO(t.dueDate), new Date()) && !t.completed))
+          (t) => !t.completed && t.dueDate === today
         );
-        // Sort: overdue first, then by priority, then by time
+        // Sort by priority, then by time
         filtered.sort((a, b) => {
-          if (a.dueDate !== today && b.dueDate === today) return -1;
-          if (a.dueDate === today && b.dueDate !== today) return 1;
           if (a.priority !== b.priority) return a.priority - b.priority;
           if (a.dueTime && b.dueTime) return a.dueTime.localeCompare(b.dueTime);
+          if (a.dueTime) return -1;
+          if (b.dueTime) return 1;
           return 0;
         });
         break;
