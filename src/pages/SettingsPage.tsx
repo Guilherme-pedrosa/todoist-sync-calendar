@@ -83,6 +83,9 @@ export default function SettingsPage() {
   const [savingFlash, setSavingFlash] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmWipeTasks, setConfirmWipeTasks] = useState(false);
+  const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
+  const [wiping, setWiping] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
 
   useEffect(() => {
