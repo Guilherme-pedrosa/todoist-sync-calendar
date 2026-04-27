@@ -442,10 +442,10 @@ export function AppSidebar() {
       {/* Search */}
       <div className="px-3 pb-2">
         <button
-          aria-label="Buscar"
+          aria-label="Buscar tarefas, projetos e etiquetas"
           className="w-full h-9 inline-flex items-center gap-2 px-3 rounded-md bg-sidebar-accent/30 text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-colors"
-          title="Busca em breve (Ctrl+K)"
-          onClick={() => openQuickAdd()}
+          title="Buscar (Ctrl+K)"
+          onClick={() => openPalette(true)}
         >
           <Search className="h-4 w-4" />
           <span>Buscar</span>
