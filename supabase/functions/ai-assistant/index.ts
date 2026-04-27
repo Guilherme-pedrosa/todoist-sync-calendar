@@ -37,6 +37,7 @@ interface BasePayload {
   action: "suggest-slot" | "organize-day" | "analyze-day" | "chat";
   // Comum
   today: string; // YYYY-MM-DD
+  nowTime?: string; // HH:mm — hora atual no fuso do usuário
   workdayStart?: string; // "07:00"
   workdayEnd?: string; // "20:00"
   scheduled?: ScheduledTask[]; // o que já está marcado
@@ -59,8 +60,11 @@ interface BasePayload {
 
 function buildSystemPrompt(p: BasePayload): string {
   const today = p.today;
+  const nowTime = p.nowTime ?? "00:00";
   const ws = p.workdayStart ?? "08:00";
   const we = p.workdayEnd ?? "19:00";
+  const targetDate = p.date ?? p.today;
+  const isToday = targetDate === today;
   const sched = (p.scheduled ?? [])
     .slice(0, 80)
     .map(
@@ -78,13 +82,17 @@ function buildSystemPrompt(p: BasePayload): string {
   return [
     "Você é um assistente de produtividade integrado a um app de tarefas estilo Todoist com sincronização ao Google Calendar.",
     "Responda SEMPRE em português do Brasil, com tom direto, prático e amigável.",
-    `Hoje é ${today}. Janela de trabalho padrão: ${ws}–${we}.`,
+    `Hoje é ${today}. Agora são ${nowTime}. Janela de trabalho padrão: ${ws}–${we}.`,
     "Princípios:",
+    "- ⛔ NUNCA agende ou sugira horários no PASSADO. Se o dia alvo for hoje, todo horário sugerido deve ser >= a hora atual + 5 minutos (arredondado para múltiplo de 15).",
     "- Respeite feriados nacionais (não agende trabalho neles, exceto se o usuário pedir).",
-    "- Tarefas de alta prioridade (P1, P2) ficam na manhã, quando possível.",
+    "- Tarefas de alta prioridade (P1, P2) ficam na manhã, quando possível — MAS se a manhã já passou, escolha o próximo bloco livre.",
     "- Deixe respiros de 10–15 min entre blocos longos.",
     "- Não sobreponha horários de tarefas já marcadas.",
     "- Use blocos arredondados em múltiplos de 15 minutos.",
+    isToday
+      ? `- ATENÇÃO: o dia alvo é HOJE (${today}) e agora são ${nowTime}. Comece a partir desse horário, nunca antes.`
+      : `- Dia alvo: ${targetDate}. Pode usar a janela completa de trabalho.`,
     "",
     "AGENDA ATUAL:",
     sched || "(sem tarefas marcadas)",
