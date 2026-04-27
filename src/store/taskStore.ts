@@ -265,8 +265,7 @@ async function syncGoogleCalendarEvents(
 
   const startOfRange = new Date();
   startOfRange.setHours(0, 0, 0, 0);
-  const endOfRange = new Date(startOfRange);
-  endOfRange.setDate(endOfRange.getDate() + 14);
+  const endOfRange = new Date();
   endOfRange.setHours(23, 59, 59, 999);
 
   const params = new URLSearchParams({
