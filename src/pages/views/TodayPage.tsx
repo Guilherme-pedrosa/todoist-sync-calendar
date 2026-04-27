@@ -8,12 +8,16 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import { ViewModeToolbar } from '@/components/ViewModeToolbar';
+import { useViewPref } from '@/hooks/useViewPref';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [overdueOpen, setOverdueOpen] = useState(true);
+  const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -63,11 +67,25 @@ export default function TodayPage() {
             </p>
           </div>
         </div>
-        <span className="text-xs sm:text-sm text-muted-foreground ml-auto shrink-0">
-          {total}
-        </span>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <ViewModeToolbar
+            mode={viewPref.mode}
+            groupBy={viewPref.groupBy}
+            onChangeMode={(m) => setViewPref({ ...viewPref, mode: m })}
+            onChangeGroupBy={(g) => setViewPref({ ...viewPref, groupBy: g })}
+            groupOptions={['priority', 'label', 'project', 'status']}
+          />
+          <span className="text-xs sm:text-sm text-muted-foreground">{total}</span>
+        </div>
       </header>
 
+      {viewPref.mode === 'kanban' ? (
+        <KanbanBoard
+          tasks={[...overdue, ...todayTasks]}
+          groupBy={viewPref.groupBy}
+          newTaskDefaults={{ defaultDate: today }}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3">
         {overdue.length > 0 && (
           <div className="mb-4">
@@ -125,6 +143,7 @@ export default function TodayPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

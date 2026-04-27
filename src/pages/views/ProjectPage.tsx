@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
 type SortBy = 'manual' | 'date' | 'priority' | 'alpha' | 'added';
 
@@ -64,6 +66,7 @@ export default function ProjectPage() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('section');
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
@@ -157,13 +160,7 @@ export default function ProjectPage() {
     );
   }
 
-  // Board (Kanban) view
-  const noSection = projectTasks.filter((t) => !t.sectionId);
-  const bySection: Record<string, Task[]> = {};
-  sections.forEach((s) => {
-    bySection[s.id] = projectTasks.filter((t) => t.sectionId === s.id);
-  });
-
+  // Board (Kanban) view — usa KanbanBoard genérico com agrupamento configurável
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <ProjectHeader
@@ -175,6 +172,8 @@ export default function ProjectPage() {
         onViewChange={handleViewChange}
         onSortChange={setSortBy}
         onLabelFilterChange={setLabelFilter}
+        kanbanGroupBy={kanbanGroupBy}
+        onKanbanGroupByChange={setKanbanGroupBy}
         onArchive={async () => {
           await archiveProject(project.id);
           toast.success('Projeto arquivado');
@@ -185,29 +184,13 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
-        <div className="flex gap-3 h-full min-w-max">
-          <Column
-            title="Sem seção"
-            tasks={noSection}
-            onAdd={() =>
-              openQuickAdd({ defaultProjectId: projectId, defaultDueDate: undefined })
-            }
-          />
-          {sections.map((s) => (
-            <Column
-              key={s.id}
-              title={s.name}
-              tasks={bySection[s.id] || []}
-              onAdd={() =>
-                openQuickAdd({
-                  defaultProjectId: projectId,
-                })
-              }
-            />
-          ))}
-        </div>
-      </div>
+      <KanbanBoard
+        tasks={projectTasks}
+        groupBy={kanbanGroupBy}
+        projectId={projectId}
+        sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
+        newTaskDefaults={{ projectId }}
+      />
 
       <DeleteDialog
         open={confirmDelete}
@@ -272,6 +255,8 @@ function ProjectHeader({
   onDelete,
   onEdit,
   onToggleSidebar,
+  kanbanGroupBy,
+  onKanbanGroupByChange,
 }: any) {
   return (
     <header className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-border/50">
@@ -337,6 +322,22 @@ function ProjectHeader({
             <KanbanSquare className="h-3.5 w-3.5" /> Quadro
           </button>
         </div>
+
+        {/* Agrupar por (apenas no Kanban) */}
+        {view === 'board' && (
+          <Select value={kanbanGroupBy} onValueChange={onKanbanGroupByChange}>
+            <SelectTrigger className="h-8 text-xs w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="section" className="text-xs">Agrupar: Seção</SelectItem>
+              <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
+              <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
+              <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
+              <SelectItem value="status" className="text-xs">Agrupar: Status</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

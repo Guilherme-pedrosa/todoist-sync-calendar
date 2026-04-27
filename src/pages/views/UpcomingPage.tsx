@@ -12,6 +12,7 @@ import {
   ChevronRight,
   List as ListIcon,
   CalendarClock,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -25,8 +26,17 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
-type Mode = 'list' | 'week' | 'day';
+type Mode = 'list' | 'week' | 'day' | 'kanban';
 
 const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
@@ -41,6 +51,7 @@ export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [mode, setMode] = useState<Mode>('week');
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('date');
   const [weekOffset, setWeekOffset] = useState(0);
 
   const upcoming = useMemo(
@@ -127,8 +138,30 @@ export default function UpcomingPage() {
             >
               <ListIcon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
             </button>
+            <button
+              onClick={() => setMode('kanban')}
+              className={cn(
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
+                mode === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
+            </button>
           </div>
-          {mode !== 'day' && (
+          {mode === 'kanban' && (
+            <Select value={kanbanGroupBy} onValueChange={(v) => setKanbanGroupBy(v as KanbanGroupBy)}>
+              <SelectTrigger className="h-8 text-xs w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
+                <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
+                <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
+                <SelectItem value="project" className="text-xs">Agrupar: Projeto</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          {mode !== 'day' && mode !== 'kanban' && (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
                 <ChevronLeft className="h-4 w-4" />
@@ -149,7 +182,9 @@ export default function UpcomingPage() {
         </div>
       </header>
 
-      {mode === 'week' || mode === 'day' ? (
+      {mode === 'kanban' ? (
+        <KanbanBoard tasks={upcoming} groupBy={kanbanGroupBy} />
+      ) : mode === 'week' || mode === 'day' ? (
         <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
       ) : (
         <ListView tasks={upcoming} />
