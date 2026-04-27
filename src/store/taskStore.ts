@@ -411,16 +411,21 @@ async function syncGoogleCalendarEvents(
           await supabase.from('tasks').delete().in('id', duplicateIds);
           nextTasks = nextTasks.filter((task) => !duplicateIds.includes(task.id));
         }
-        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
-        nextTasks = nextTasks.map((task) =>
-          task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
-        );
+        if (!linkedTask.completed) {
+          await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+          nextTasks = nextTasks.map((task) =>
+            task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
+          );
+        }
         continue;
       }
 
       if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
         continue;
       }
+
+      const completedMatch = nextTasks.find((task) => task.completed && taskMatchesCalendarEvent(task, event, { includeCompleted: true }));
+      if (completedMatch) continue;
 
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
