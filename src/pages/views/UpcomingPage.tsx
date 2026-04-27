@@ -35,6 +35,7 @@ const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
 const HOUR_HEIGHT = 48; // px por hora
 const MIN_TASK_MINUTES = 15;
+const MIN_EVENT_HEIGHT = 34;
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION = 60;
 const DAY_START_MIN = DAY_START_HOUR * 60;
@@ -632,7 +633,8 @@ function DayColumn({
           const p = preview[task.id];
           const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
           const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-          return { task, startMin, endMin: startMin + durationMin, durationMin };
+          const visualDurationMin = Math.max(durationMin, (MIN_EVENT_HEIGHT / HOUR_HEIGHT) * 60);
+          return { task, startMin, endMin: startMin + durationMin, visualEndMin: startMin + visualDurationMin, durationMin };
         });
         // Sort by start, then by longer first
         items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
@@ -653,18 +655,18 @@ function DayColumn({
           if (it.startMin >= clusterEnd) flush();
           // pick the lowest free column index
           const used = new Set(
-            cluster.filter((c) => c.endMin > it.startMin).map((c) => c.col)
+            cluster.filter((c) => c.visualEndMin > it.startMin).map((c) => c.col)
           );
           let col = 0;
           while (used.has(col)) col++;
           cluster.push({ ...it, col, cols: 1 });
-          clusterEnd = Math.max(clusterEnd, it.endMin);
+          clusterEnd = Math.max(clusterEnd, it.visualEndMin);
         }
         flush();
 
         return laid.map(({ task, startMin, durationMin, col, cols }) => {
           const top = ((startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT;
-          const height = Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
+          const height = Math.max(MIN_EVENT_HEIGHT, (durationMin / 60) * HOUR_HEIGHT);
           const isDragging = !!preview[task.id];
           return (
             <EventBlock
