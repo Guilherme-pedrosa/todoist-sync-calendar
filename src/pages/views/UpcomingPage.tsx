@@ -802,11 +802,18 @@ function EventBlock({
   onClick: () => void;
 }) {
   const project = useTaskStore((s) => s.projects.find((p) => p.id === task.projectId));
+  const toggleTask = useTaskStore((s) => s.toggleTask);
   const priorityBorder: Record<number, string> = {
     1: 'border-l-priority-1',
     2: 'border-l-priority-2',
     3: 'border-l-priority-3',
     4: 'border-l-muted-foreground/40',
+  };
+  const priorityRing: Record<number, string> = {
+    1: 'border-priority-1 hover:bg-priority-1/10',
+    2: 'border-priority-2 hover:bg-priority-2/10',
+    3: 'border-priority-3 hover:bg-priority-3/10',
+    4: 'border-muted-foreground/40 hover:bg-muted',
   };
   const downRef = useRef<{
     x: number;
