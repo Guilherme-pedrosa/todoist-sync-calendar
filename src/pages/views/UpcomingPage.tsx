@@ -366,15 +366,15 @@ function WeekGrid({
 
         {/* Day columns with hour grid + absolutely positioned events */}
         <div className="grid grid-cols-[60px_repeat(7,1fr)] relative">
-          {/* Hours gutter */}
-          <div className="flex flex-col">
-            {hours.map((h) => (
+          {/* Hours gutter — labels alinhados ao topo de cada slot (igual Google Calendar) */}
+          <div className="relative" style={{ height: hours.length * HOUR_HEIGHT }}>
+            {hours.map((h, i) => (
               <div
                 key={h}
-                style={{ height: HOUR_HEIGHT }}
-                className="px-2 text-[10px] text-muted-foreground/70 text-right pr-3 border-b border-border/40 -mt-[6px] first:mt-0"
+                className="absolute right-2 text-[10px] text-muted-foreground/70 -translate-y-1/2 pr-1 bg-background"
+                style={{ top: i * HOUR_HEIGHT }}
               >
-                {h === 0 ? '' : `${String(h).padStart(2, '0')}:00`}
+                {i === 0 ? '' : `${String(h).padStart(2, '0')}:00`}
               </div>
             ))}
           </div>
