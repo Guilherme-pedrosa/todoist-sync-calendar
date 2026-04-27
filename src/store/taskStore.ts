@@ -603,7 +603,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (newTask.googleCalendarEventId) {
           await updateGoogleCalendarEvent(newTask);
         } else {
-          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
+          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(newTask);
           if (googleCalendarEventId) {
           await supabase
             .from('tasks')
