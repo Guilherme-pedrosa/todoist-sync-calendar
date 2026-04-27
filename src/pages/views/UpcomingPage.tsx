@@ -387,7 +387,7 @@ function WeekGrid({
         </div>
 
         {/* Day columns with hour grid + absolutely positioned events */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] relative">
+        <div className={cn('grid relative', gridCols)}>
           {/* Hours gutter — labels alinhados ao topo de cada slot (igual Google Calendar) */}
           <div className="relative" style={{ height: hours.length * HOUR_HEIGHT }}>
             {hours.map((h, i) => (
