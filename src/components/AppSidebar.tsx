@@ -99,6 +99,18 @@ export function AppSidebar() {
     }
   };
 
+  const handleDisconnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      await disconnectCalendar();
+      toast.success('Google Calendar desconectado');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao desconectar');
+    } finally {
+      setConnectingCalendar(false);
+    }
+  };
+
   const navItems = [
     {
       icon: Inbox,
