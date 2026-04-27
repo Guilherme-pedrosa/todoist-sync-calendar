@@ -48,6 +48,10 @@ interface TodoistTask {
   deadline?: {
     date?: string;
   } | null;
+  duration?: {
+    amount?: number;
+    unit?: "minute" | "day";
+  } | null;
 }
 
 // Convert a Todoist `due.string` into an RRULE (RFC 5545) when recurring.
@@ -198,6 +202,11 @@ const mapPriority = (p?: number) => {
     case 2: return 3;
     default: return 4;
   }
+};
+
+const mapDurationMinutes = (duration?: TodoistTask["duration"]): number | null => {
+  if (!duration?.amount || duration.amount <= 0) return null;
+  return duration.unit === "day" ? duration.amount * 24 * 60 : duration.amount;
 };
 
 // Insert tasks in topological waves so parent_id can be mapped Todoist -> app.
@@ -354,6 +363,7 @@ serve(async (req) => {
         const dueString = tt.due?.string || null;
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
+        const durationMinutes = mapDurationMinutes(tt.duration);
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
@@ -367,6 +377,7 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            duration_minutes: durationMinutes,
             due_string: dueString,
             recurrence_rule: recurrenceRule,
             deadline: deadline,
@@ -524,6 +535,7 @@ serve(async (req) => {
         const dueString = tt.due?.string || null;
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
+        const durationMinutes = mapDurationMinutes(tt.duration);
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
@@ -539,6 +551,7 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            duration_minutes: durationMinutes,
             due_string: dueString,
             recurrence_rule: recurrenceRule,
             deadline: deadline,

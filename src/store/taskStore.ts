@@ -48,6 +48,10 @@ interface GoogleCalendarEvent {
     date?: string;
     dateTime?: string;
   };
+  end?: {
+    date?: string;
+    dateTime?: string;
+  };
 }
 
 const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
@@ -78,13 +82,24 @@ function mapDbTaskToTask(t: any): Task {
   };
 }
 
-function getCalendarDateAndTime(event: GoogleCalendarEvent): { dueDate?: string; dueTime?: string } {
+function getCalendarDateAndTime(event: GoogleCalendarEvent): {
+  dueDate?: string;
+  dueTime?: string;
+  durationMinutes?: number | null;
+} {
   if (event.start?.dateTime) {
     const [date, timeWithOffset] = event.start.dateTime.split('T');
-    return { dueDate: date, dueTime: timeWithOffset?.slice(0, 5) };
+    const dueTime = timeWithOffset?.slice(0, 5);
+    const start = new Date(event.start.dateTime);
+    const end = event.end?.dateTime ? new Date(event.end.dateTime) : null;
+    const durationMinutes =
+      end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())
+        ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000))
+        : null;
+    return { dueDate: date, dueTime, durationMinutes };
   }
   if (event.start?.date) {
-    return { dueDate: event.start.date };
+    return { dueDate: event.start.date, durationMinutes: null };
   }
   return {};
 }
@@ -144,13 +159,14 @@ async function syncTodayGoogleCalendarEvents(
     const tasksToInsert = events
       .filter((event) => event.id && !existingGoogleEventIds.has(event.id))
       .map((event) => {
-        const { dueDate, dueTime } = getCalendarDateAndTime(event);
+        const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
         return {
           user_id: userId,
           title: event.summary?.trim() || 'Evento do Google Calendar',
           description: event.description || null,
           due_date: dueDate || null,
           due_time: dueTime ? `${dueTime}:00` : null,
+          duration_minutes: durationMinutes,
           priority: 4,
           project_id: inboxProjectId || null,
           google_calendar_event_id: event.id,
