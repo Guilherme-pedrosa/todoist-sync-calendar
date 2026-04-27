@@ -112,14 +112,49 @@ export function QuickAddDialog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, inboxProject?.id]);
 
-  // apply NLP suggestions
+  // apply NLP suggestions — sempre que o título mudar, NLP é autoritativa
+  // para data/hora/recorrência/prioridade detectadas (igual Todoist).
+  // Rastreia o que foi setado pela NLP pra poder limpar quando o token sumir.
+  const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
   useEffect(() => {
     if (!parsed) return;
-    if (parsed.dueDate && !date.date) setDate((d) => ({ ...d, date: parsed.dueDate }));
-    if (parsed.dueTime && !date.time) setDate((d) => ({ ...d, time: parsed.dueTime }));
-    if (parsed.recurrenceRule && !date.recurrenceRule)
+
+    // Data: se NLP detectou, sobrescreve. Se NLP havia setado antes e agora sumiu, limpa.
+    if (parsed.dueDate) {
+      setDate((d) => ({ ...d, date: parsed.dueDate }));
+      nlpSetRef.current.date = true;
+    } else if (nlpSetRef.current.date) {
+      setDate((d) => ({ ...d, date: undefined }));
+      nlpSetRef.current.date = false;
+    }
+
+    // Hora
+    if (parsed.dueTime) {
+      setDate((d) => ({ ...d, time: parsed.dueTime }));
+      nlpSetRef.current.time = true;
+    } else if (nlpSetRef.current.time) {
+      setDate((d) => ({ ...d, time: undefined }));
+      nlpSetRef.current.time = false;
+    }
+
+    // Recorrência
+    if (parsed.recurrenceRule) {
       setDate((d) => ({ ...d, recurrenceRule: parsed.recurrenceRule }));
-    if (parsed.priority && priority === 4) setPriority(parsed.priority);
+      nlpSetRef.current.rec = true;
+    } else if (nlpSetRef.current.rec) {
+      setDate((d) => ({ ...d, recurrenceRule: null }));
+      nlpSetRef.current.rec = false;
+    }
+
+    // Prioridade
+    if (parsed.priority) {
+      setPriority(parsed.priority);
+      nlpSetRef.current.prio = true;
+    } else if (nlpSetRef.current.prio) {
+      setPriority(4);
+      nlpSetRef.current.prio = false;
+    }
+
     if (parsed.labelTokens.length > 0) {
       const matched = labels
         .filter((l) => parsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
@@ -133,7 +168,7 @@ export function QuickAddDialog() {
       if (proj) setProjectId(proj.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parsed?.cleanedTitle]);
+  }, [title]);
 
   const submit = async (closeAfter = false) => {
     const finalTitle = (parsed?.cleanedTitle || title).trim();
