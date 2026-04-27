@@ -667,39 +667,31 @@ function DayColumn({
 
       {/* Events with overlap-aware column layout */}
       {(() => {
-        // Compute start/end (in minutes) for each event including drag preview.
-        // visualEndMin accounts for MIN_EVENT_HEIGHT — short tasks reserve their
-        // full rendered footprint plus a small buffer so they never get covered
-        // by the next task in the same column.
-        const minVisualMin = (MIN_EVENT_HEIGHT / HOUR_HEIGHT) * 60;
-        const bufferMin = (2 / HOUR_HEIGHT) * 60; // ~2px breathing room
+        // Detecta sobreposição REAL no tempo (a.start < b.end && b.start < a.end).
+        // Tarefas consecutivas (uma terminando exatamente quando a outra começa)
+        // NÃO são consideradas sobrepostas — ficam empilhadas em coluna única,
+        // ocupando 100% da largura. Só dividem em colunas lado a lado quando
+        // realmente colidem no tempo.
         const items = events.map((task) => {
           const p = preview[task.id];
           const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
           const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-          const visualDurationMin = Math.max(durationMin, minVisualMin) + bufferMin;
-          return { task, startMin, endMin: startMin + durationMin, visualEndMin: startMin + visualDurationMin, durationMin };
+          return { task, startMin, endMin: startMin + durationMin, durationMin };
         });
         // Sort by start, then by longer first
         items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
 
-        // Greedy column packing within overlap clusters.
-        // Use visualEndMin (which respects MIN_EVENT_HEIGHT) so very short tasks
-        // still reserve their visual footprint for collision detection,
-        // but compute each event's width based on the maximum number of columns
-        // it actually overlaps with — not the entire cluster.
         type Laid = (typeof items)[number] & { col: number; cols: number };
         const laid: Laid[] = [];
         let cluster: Laid[] = [];
         let clusterEnd = -Infinity;
 
         const flush = () => {
-          // For each item, width = max(col+1) among items it visually overlaps with
           for (const a of cluster) {
             let maxCols = a.col + 1;
             for (const b of cluster) {
               if (a === b) continue;
-              const overlaps = a.startMin < b.visualEndMin && b.startMin < a.visualEndMin;
+              const overlaps = a.startMin < b.endMin && b.startMin < a.endMin;
               if (overlaps) maxCols = Math.max(maxCols, b.col + 1);
             }
             a.cols = maxCols;
@@ -710,15 +702,15 @@ function DayColumn({
         };
 
         for (const it of items) {
+          // Cluster apenas quando há sobreposição real (start estritamente antes do fim)
           if (it.startMin >= clusterEnd) flush();
-          // pick the lowest column index not used by an item this one visually overlaps
           const used = new Set(
-            cluster.filter((c) => c.visualEndMin > it.startMin).map((c) => c.col)
+            cluster.filter((c) => c.endMin > it.startMin).map((c) => c.col)
           );
           let col = 0;
           while (used.has(col)) col++;
           cluster.push({ ...it, col, cols: 1 });
-          clusterEnd = Math.max(clusterEnd, it.visualEndMin);
+          clusterEnd = Math.max(clusterEnd, it.endMin);
         }
         flush();
 
