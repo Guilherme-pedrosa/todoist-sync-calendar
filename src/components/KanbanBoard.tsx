@@ -65,10 +65,9 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
-export function KanbanBoard({ tasks, groupBy, projectId, newTaskDefaults }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskDefaults }: KanbanBoardProps) {
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
-  const sections = useTaskStore((s) => s.sections);
   const updateTask = useTaskStore((s) => s.updateTask);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
