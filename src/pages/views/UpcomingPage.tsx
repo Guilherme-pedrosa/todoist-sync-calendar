@@ -625,35 +625,71 @@ function DayColumn({
         </div>
       )}
 
-      {/* Events */}
-      {events.map((task) => {
-        const p = preview[task.id];
-        const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
-        const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-        const top = ((startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT;
-        const height = Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
-        const isDragging = !!p;
-        return (
-          <EventBlock
-            key={task.id}
-            task={task}
-            top={top}
-            height={height}
+      {/* Events with overlap-aware column layout */}
+      {(() => {
+        // Compute start/end (in minutes) for each event including drag preview
+        const items = events.map((task) => {
+          const p = preview[task.id];
+          const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
+          const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
+          return { task, startMin, endMin: startMin + durationMin, durationMin };
+        });
+        // Sort by start, then by longer first
+        items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+
+        // Greedy column packing within overlap clusters
+        type Laid = (typeof items)[number] & { col: number; cols: number };
+        const laid: Laid[] = [];
+        let cluster: Laid[] = [];
+        let clusterEnd = -Infinity;
+        const flush = () => {
+          const cols = Math.max(1, ...cluster.map((c) => c.col + 1));
+          cluster.forEach((c) => (c.cols = cols));
+          laid.push(...cluster);
+          cluster = [];
+          clusterEnd = -Infinity;
+        };
+        for (const it of items) {
+          if (it.startMin >= clusterEnd) flush();
+          // pick the lowest free column index
+          const used = new Set(
+            cluster.filter((c) => c.endMin > it.startMin).map((c) => c.col)
+          );
+          let col = 0;
+          while (used.has(col)) col++;
+          cluster.push({ ...it, col, cols: 1 });
+          clusterEnd = Math.max(clusterEnd, it.endMin);
+        }
+        flush();
+
+        return laid.map(({ task, startMin, durationMin, col, cols }) => {
+          const top = ((startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT;
+          const height = Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
+          const isDragging = !!preview[task.id];
+          return (
+            <EventBlock
+              key={task.id}
+              task={task}
+              top={top}
+              height={height}
               durationMin={durationMin}
-            isDragging={isDragging}
-            onStartMoveAt={(e) => {
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              const offsetY = e.clientY - rect.top;
-              const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
-              onStartMove(task.id, offsetMin, durationMin, startMin);
-            }}
-            onPointerDownResize={() => {
-              onStartResize(task.id, startMin, durationMin);
-            }}
-            onClick={() => onOpenTask(task.id)}
-          />
-        );
-      })}
+              col={col}
+              cols={cols}
+              isDragging={isDragging}
+              onStartMoveAt={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const offsetY = e.clientY - rect.top;
+                const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
+                onStartMove(task.id, offsetMin, durationMin, startMin);
+              }}
+              onPointerDownResize={() => {
+                onStartResize(task.id, startMin, durationMin);
+              }}
+              onClick={() => onOpenTask(task.id)}
+            />
+          );
+        });
+      })()}
 
       {/* Create rectangle */}
       {createBox && (
