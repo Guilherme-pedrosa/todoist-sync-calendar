@@ -166,6 +166,16 @@ function dueStringToRRule(
   return null;
 }
 
+function mergeImportedTask(existing: any, row: any): any | null {
+  const patch: Record<string, unknown> = {};
+  for (const key of ["due_date", "due_time", "duration_minutes", "due_string", "recurrence_rule", "deadline", "priority", "description"] as const) {
+    if ((existing?.[key] == null || existing?.[key] === "") && row[key] != null && row[key] !== "") {
+      patch[key] = row[key];
+    }
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 
 // Todoist color name -> approximate HSL
 const TODOIST_COLOR_MAP: Record<string, string> = {
