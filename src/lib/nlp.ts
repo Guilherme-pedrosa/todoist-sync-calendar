@@ -17,6 +17,14 @@ export interface ParsedNlp {
   matchedRanges: Array<{ start: number; end: number; type: string }>;
 }
 
+function expandDateRange(text: string, start: number, end: number) {
+  let expandedStart = start;
+  const prefix = text.slice(0, start);
+  const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao)\s*$/i);
+  if (preposition) expandedStart = start - preposition[0].length;
+  return { start: expandedStart, end };
+}
+
 const RECURRENCE_PATTERNS: Array<{
   re: RegExp;
   build: (m: RegExpExecArray) => { rule: string; label: string };
@@ -145,7 +153,8 @@ export function parseNlp(input: string): ParsedNlp {
       if (hasTime) {
         dueTime = format(d, 'HH:mm');
       }
-      matchedRanges.push({ start: r.index, end: r.index + r.text.length, type: 'date' });
+      const range = expandDateRange(working, r.index, r.index + r.text.length);
+      matchedRanges.push({ ...range, type: 'date' });
     }
   } catch {
     // ignore
