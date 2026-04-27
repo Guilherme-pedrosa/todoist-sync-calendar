@@ -61,8 +61,13 @@ export function useCompleteTask() {
         // If null → recurrence ended, mark as truly done below
       }
 
+      // End-recurring path: clear the rule then mark completed below
+      if (task.recurrenceRule && options?.endRecurring) {
+        await updateTask(taskId, { recurrenceRule: null });
+      }
+
       await toggleTask(taskId);
-      toast('Tarefa concluída', {
+      toast(options?.endRecurring ? 'Tarefa finalizada para sempre' : 'Tarefa concluída', {
         duration: 5000,
         action: {
           label: 'Desfazer',
