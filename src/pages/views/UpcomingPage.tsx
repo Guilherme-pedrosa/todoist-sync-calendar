@@ -495,14 +495,14 @@ function WeekGrid({
                     ...p,
                     [taskId]: { dayKey: k, startMin, durationMin },
                   }));
-                  setDrag({ kind: 'move', taskId, pointerOffsetMin, durationMin });
+                  setDrag({ kind: 'move', taskId, pointerOffsetMin, durationMin, sourceDayKey: k });
                 }}
                 onStartResize={(taskId, startTopMin, currentDuration) => {
                   setPreview((p) => ({
                     ...p,
                     [taskId]: { dayKey: k, startMin: startTopMin, durationMin: currentDuration },
                   }));
-                  setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES });
+                  setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES, sourceDayKey: k });
                 }}
                 onOpenTask={(id) => openTaskDetail(id)}
               />
