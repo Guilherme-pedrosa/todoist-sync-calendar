@@ -612,7 +612,6 @@ export function TaskDetailPanel() {
                       recurrenceRule: v.recurrenceRule ?? null,
                       durationMinutes: v.durationMinutes ?? null,
                     },
-                    { changeLabel: 'data e horário' }
                     { occurrenceDate: selectedOccurrenceDate ?? undefined, changeLabel: 'data e horário' }
                   )
                 }
