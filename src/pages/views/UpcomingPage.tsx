@@ -389,20 +389,41 @@ function WeekGrid({
           <div />
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
+            const dayKey = format(day, 'yyyy-MM-dd');
+            const holiday = getHolidayForDate(dayKey);
+            const isNationalHoliday = holiday?.type === 'national';
             return (
               <div
                 key={day.toISOString()}
+                title={holiday?.name}
                 className={cn(
                   'px-3 py-2 text-center border-l border-border',
-                  isToday && 'bg-primary/5'
+                  isToday && 'bg-primary/5',
+                  isNationalHoliday && !isToday && 'bg-destructive/5'
                 )}
               >
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                   {format(day, 'EEE', { locale: ptBR })}
                 </div>
-                <div className={cn('text-lg font-display font-bold', isToday && 'text-primary')}>
+                <div
+                  className={cn(
+                    'text-lg font-display font-bold',
+                    isToday && 'text-primary',
+                    !isToday && isNationalHoliday && 'text-destructive'
+                  )}
+                >
                   {format(day, 'd')}
                 </div>
+                {holiday && (
+                  <div
+                    className={cn(
+                      'mt-0.5 text-[9px] font-medium leading-tight truncate',
+                      isNationalHoliday ? 'text-destructive' : 'text-muted-foreground'
+                    )}
+                  >
+                    🎉 {holiday.name}
+                  </div>
+                )}
               </div>
             );
           })}
