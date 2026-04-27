@@ -277,6 +277,9 @@ serve(async (req) => {
         if (tt.is_completed) continue;
         const dueDate = tt.due?.date || (tt.due?.datetime ? tt.due.datetime.slice(0, 10) : null);
         const dueTime = tt.due?.datetime ? tt.due.datetime.slice(11, 19) : null;
+        const dueString = tt.due?.string || null;
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const deadline = tt.deadline?.date || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
@@ -290,6 +293,9 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline: deadline,
             project_id: appInbox.id,
           },
         });
