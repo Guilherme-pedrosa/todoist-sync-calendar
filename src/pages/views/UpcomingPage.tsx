@@ -243,6 +243,7 @@ function WeekGrid({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
+  const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
