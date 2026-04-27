@@ -340,14 +340,24 @@ function WeekGrid({
                 className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
               >
                 {allDay.map((t) => (
-                  <button
+                  <AllDayChip
                     key={t.id}
-                    onClick={() => openTaskDetail(t.id)}
-                    className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate"
-                    title={t.title}
-                  >
-                    {t.title}
-                  </button>
+                    task={t}
+                    onOpen={() => openTaskDetail(t.id)}
+                    onStartDrag={(pointerOffsetMin) => {
+                      // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
+                      setPreview((p) => ({
+                        ...p,
+                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                      }));
+                      setDrag({
+                        kind: 'move',
+                        taskId: t.id,
+                        pointerOffsetMin,
+                        durationMin: DEFAULT_DURATION,
+                      });
+                    }}
+                  />
                 ))}
               </div>
             );
