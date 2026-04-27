@@ -26,6 +26,7 @@ import {
   Filter as FilterIcon,
   Settings,
   User as UserIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
