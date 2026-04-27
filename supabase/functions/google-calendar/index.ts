@@ -25,6 +25,31 @@ const parseJsonBody = async (req: Request): Promise<JsonBody> => {
   }
 };
 
+const normalizeEventText = (value: unknown) =>
+  String(value || "")
+    .replace(/^✅\s*/, "")
+    .trim()
+    .toLowerCase();
+
+const eventDateKey = (event: Record<string, any>, field: "start" | "end") =>
+  event?.[field]?.dateTime || event?.[field]?.date || "";
+
+const eventDedupeKey = (event: Record<string, any>) => {
+  const taskId = event?.extendedProperties?.private?.taskId;
+  if (typeof taskId === "string" && taskId.trim()) return `task:${taskId.trim()}`;
+  return `slot:${normalizeEventText(event.summary)}|${eventDateKey(event, "start")}|${eventDateKey(event, "end")}`;
+};
+
+const safeGoogleJson = async (res: Response) => {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
