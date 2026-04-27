@@ -380,9 +380,25 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
+    const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
+    if (googleCalendarEventId) {
+      await supabase
+        .from('tasks')
+        .update({ google_calendar_event_id: googleCalendarEventId })
+        .eq('id', newTask.id);
+
+      newTask.googleCalendarEventId = googleCalendarEventId;
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === newTask.id ? { ...t, googleCalendarEventId } : t)),
+      }));
+    }
+
     useUndoStore.getState().push({
       label: `Criar "${newTask.title}"`,
       undo: async () => {
+        if (newTask.googleCalendarEventId) {
+          await deleteGoogleCalendarEvent(newTask.googleCalendarEventId);
+        }
         await supabase.from('tasks').delete().eq('id', newTask.id);
         set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
       },
