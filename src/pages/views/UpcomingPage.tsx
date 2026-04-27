@@ -639,21 +639,35 @@ function DayColumn({
         // Sort by start, then by longer first
         items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
 
-        // Greedy column packing within overlap clusters
+        // Greedy column packing within overlap clusters.
+        // Use visualEndMin (which respects MIN_EVENT_HEIGHT) so very short tasks
+        // still reserve their visual footprint for collision detection,
+        // but compute each event's width based on the maximum number of columns
+        // it actually overlaps with — not the entire cluster.
         type Laid = (typeof items)[number] & { col: number; cols: number };
         const laid: Laid[] = [];
         let cluster: Laid[] = [];
         let clusterEnd = -Infinity;
+
         const flush = () => {
-          const cols = Math.max(1, ...cluster.map((c) => c.col + 1));
-          cluster.forEach((c) => (c.cols = cols));
+          // For each item, width = max(col+1) among items it visually overlaps with
+          for (const a of cluster) {
+            let maxCols = a.col + 1;
+            for (const b of cluster) {
+              if (a === b) continue;
+              const overlaps = a.startMin < b.visualEndMin && b.startMin < a.visualEndMin;
+              if (overlaps) maxCols = Math.max(maxCols, b.col + 1);
+            }
+            a.cols = maxCols;
+          }
           laid.push(...cluster);
           cluster = [];
           clusterEnd = -Infinity;
         };
+
         for (const it of items) {
           if (it.startMin >= clusterEnd) flush();
-          // pick the lowest free column index
+          // pick the lowest column index not used by an item this one visually overlaps
           const used = new Set(
             cluster.filter((c) => c.visualEndMin > it.startMin).map((c) => c.col)
           );
