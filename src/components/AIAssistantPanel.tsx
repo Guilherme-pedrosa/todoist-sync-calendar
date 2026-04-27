@@ -178,7 +178,8 @@ function OrganizeTab({
   projects: any[];
   onApply: (a: { id: string; date: string; time: string; durationMinutes: number }[]) => void;
 }) {
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [date, setDate] = useState(() => today);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     assignments: { id: string; date: string; time: string; durationMinutes: number }[];
@@ -212,7 +213,25 @@ function OrganizeTab({
         tasks,
         projects,
       });
-      setResult(r);
+
+      // Filtra horários no passado se o dia alvo for hoje
+      if (date === today) {
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const valid = r.assignments.filter((a) => {
+          const [h, m] = a.time.split(':').map(Number);
+          return h * 60 + m >= nowMin;
+        });
+        const dropped = r.assignments.length - valid.length;
+        if (dropped > 0) {
+          toast.warning(
+            `${dropped} sugestão(ões) no passado foram descartadas. Tente de novo se quiser preencher.`,
+          );
+        }
+        setResult({ ...r, assignments: valid });
+      } else {
+        setResult(r);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao organizar');
     } finally {
@@ -226,6 +245,7 @@ function OrganizeTab({
         <input
           type="date"
           value={date}
+          min={today}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
