@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarX,
+  Clock3,
   Repeat,
   Sun,
   Sunrise,
@@ -87,6 +88,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
   const [open, setOpen] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const selected = value.date ? new Date(`${value.date}T00:00:00`) : undefined;
 
