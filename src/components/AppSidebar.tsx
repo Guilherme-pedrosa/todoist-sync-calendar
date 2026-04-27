@@ -105,6 +105,7 @@ export function AppSidebar() {
   const deleteLabel = useTaskStore((s) => s.deleteLabel);
   const addLabel = useTaskStore((s) => s.addLabel);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const openPalette = useCommandPaletteStore((s) => s.setOpen);
 
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
