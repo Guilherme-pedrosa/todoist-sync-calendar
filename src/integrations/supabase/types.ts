@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       comments: {
         Row: {
           content: string
@@ -45,6 +75,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      filters: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_favorite: boolean
+          name: string
+          position: number
+          query: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          name: string
+          position?: number
+          query: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          name?: string
+          position?: number
+          query?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       google_tokens: {
         Row: {
