@@ -114,6 +114,7 @@ export function AppSidebar() {
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
   const [importingTodoist, setImportingTodoist] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
