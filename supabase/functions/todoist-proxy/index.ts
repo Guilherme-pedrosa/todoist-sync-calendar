@@ -352,7 +352,7 @@ serve(async (req) => {
         const dueDate = tt.due?.date || (tt.due?.datetime ? tt.due.datetime.slice(0, 10) : null);
         const dueTime = tt.due?.datetime ? tt.due.datetime.slice(11, 19) : null;
         const dueString = tt.due?.string || null;
-        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
