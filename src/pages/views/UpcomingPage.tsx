@@ -543,7 +543,7 @@ function DayColumn({
         const p = preview[task.id];
         const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
         const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-        const top = (startMin / 60) * HOUR_HEIGHT;
+        const top = ((startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT;
         const height = Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
         const isDragging = !!p;
         return (
