@@ -28,7 +28,34 @@ import { RecurrenceCustomDialog } from '@/components/RecurrenceCustomDialog';
 export interface DateValue {
   date?: string; // yyyy-MM-dd
   time?: string; // HH:mm
+  durationMinutes?: number | null;
   recurrenceRule?: string | null;
+}
+
+const DURATION_PRESETS: Array<{ label: string; minutes: number | null }> = [
+  { label: 'Sem duração', minutes: null },
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '45 min', minutes: 45 },
+  { label: '1 h', minutes: 60 },
+  { label: '1h 30', minutes: 90 },
+  { label: '2 h', minutes: 120 },
+  { label: '3 h', minutes: 180 },
+];
+
+function formatDuration(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}`;
+}
+
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const nh = Math.floor((total % (24 * 60)) / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
 interface Props {
