@@ -146,11 +146,11 @@ serve(async (req) => {
     if (userError || !user) return json({ error: "Usuário inválido" }, 401);
 
     try {
-      // 1. Fetch from Todoist
+      // 1. Fetch from Todoist (paginated)
       const [tdProjects, tdLabels, tdTasks] = await Promise.all([
-        todoistFetch<TodoistProject[]>("projects", TODOIST_API_KEY),
-        todoistFetch<TodoistLabel[]>("labels", TODOIST_API_KEY),
-        todoistFetch<TodoistTask[]>("tasks", TODOIST_API_KEY),
+        todoistFetch<TodoistProject>("projects", TODOIST_API_KEY),
+        todoistFetch<TodoistLabel>("labels", TODOIST_API_KEY),
+        todoistFetch<TodoistTask>("tasks", TODOIST_API_KEY),
       ]);
 
       // 2. Existing app data
@@ -158,7 +158,7 @@ serve(async (req) => {
         await Promise.all([
           supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
-          supabase.from("tasks").select("id, title, due_date").eq("user_id", user.id),
+          supabase.from("tasks").select("id, title, due_date, project_id").eq("user_id", user.id),
         ]);
 
       // 3. Sync projects (dedup by name; map Todoist Inbox -> app Inbox)
