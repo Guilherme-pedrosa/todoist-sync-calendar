@@ -635,12 +635,17 @@ function DayColumn({
 
       {/* Events with overlap-aware column layout */}
       {(() => {
-        // Compute start/end (in minutes) for each event including drag preview
+        // Compute start/end (in minutes) for each event including drag preview.
+        // visualEndMin accounts for MIN_EVENT_HEIGHT — short tasks reserve their
+        // full rendered footprint plus a small buffer so they never get covered
+        // by the next task in the same column.
+        const minVisualMin = (MIN_EVENT_HEIGHT / HOUR_HEIGHT) * 60;
+        const bufferMin = (2 / HOUR_HEIGHT) * 60; // ~2px breathing room
         const items = events.map((task) => {
           const p = preview[task.id];
           const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
           const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-          const visualDurationMin = Math.max(durationMin, (MIN_EVENT_HEIGHT / HOUR_HEIGHT) * 60);
+          const visualDurationMin = Math.max(durationMin, minVisualMin) + bufferMin;
           return { task, startMin, endMin: startMin + durationMin, visualEndMin: startMin + visualDurationMin, durationMin };
         });
         // Sort by start, then by longer first
