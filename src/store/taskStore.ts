@@ -424,6 +424,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       due_string: taskData.dueString || null,
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
+      google_calendar_event_id: taskData.googleCalendarEventId || null,
       project_id: taskData.projectId || inboxProject?.id || null,
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
@@ -465,6 +466,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (newTask.dueDate && !newTask.completed) {
       try {
+        if (newTask.googleCalendarEventId) {
+          await updateGoogleCalendarEvent(newTask);
+          return newTask;
+        }
         const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
         if (googleCalendarEventId) {
           await supabase
@@ -508,6 +513,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.dueString !== undefined) dbUpdates.due_string = updates.dueString;
     if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
     if (updates.recurrenceRule !== undefined) dbUpdates.recurrence_rule = updates.recurrenceRule;
+    if ('googleCalendarEventId' in updates) dbUpdates.google_calendar_event_id = updates.googleCalendarEventId ?? null;
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
     if (updates.sectionId !== undefined) dbUpdates.section_id = updates.sectionId;
     if (updates.completed !== undefined) {
