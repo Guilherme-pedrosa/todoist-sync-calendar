@@ -36,7 +36,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { KanbanBoard } from '@/components/KanbanBoard';
-import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
 type SortBy = 'manual' | 'date' | 'priority' | 'alpha' | 'added';
 
@@ -66,7 +65,6 @@ export default function ProjectPage() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('section');
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
@@ -172,8 +170,6 @@ export default function ProjectPage() {
         onViewChange={handleViewChange}
         onSortChange={setSortBy}
         onLabelFilterChange={setLabelFilter}
-        kanbanGroupBy={kanbanGroupBy}
-        onKanbanGroupByChange={setKanbanGroupBy}
         onArchive={async () => {
           await archiveProject(project.id);
           toast.success('Projeto arquivado');
@@ -186,7 +182,7 @@ export default function ProjectPage() {
 
       <KanbanBoard
         tasks={projectTasks}
-        groupBy={kanbanGroupBy}
+        boardKey={`project:${projectId}`}
         projectId={projectId}
         sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
         newTaskDefaults={{ projectId }}
