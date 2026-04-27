@@ -633,7 +633,7 @@ function DayColumn({
             height={height}
               durationMin={durationMin}
             isDragging={isDragging}
-            onPointerDownBody={(e) => {
+            onStartMoveAt={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
               const offsetY = e.clientY - rect.top;
               const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
@@ -674,7 +674,7 @@ function EventBlock({
   height,
   durationMin,
   isDragging,
-  onPointerDownBody,
+  onStartMoveAt,
   onPointerDownResize,
   onClick,
 }: {
@@ -683,7 +683,7 @@ function EventBlock({
   height: number;
   durationMin: number;
   isDragging: boolean;
-  onPointerDownBody: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onStartMoveAt: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerDownResize: (e: React.PointerEvent<HTMLDivElement>) => void;
   onClick: () => void;
 }) {
@@ -694,33 +694,68 @@ function EventBlock({
     3: 'border-l-priority-3',
     4: 'border-l-muted-foreground/40',
   };
-  const downRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const downRef = useRef<{
+    x: number;
+    y: number;
+    moved: boolean;
+    pointerId: number;
+    started: boolean;
+  } | null>(null);
+
+  const endInteraction = (el: HTMLDivElement, pointerId: number) => {
+    try {
+      if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
+    } catch {}
+  };
 
   return (
     <div
       className={cn(
-        'absolute left-1 right-1 rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group',
+        'absolute left-1 right-1 rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group touch-none',
         priorityBorder[task.priority],
         isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
       )}
       style={{ top, height }}
       onPointerDown={(e) => {
+        if (e.button !== 0) return;
         e.stopPropagation();
-        downRef.current = { x: e.clientX, y: e.clientY, moved: false };
-        onPointerDownBody(e);
+        const el = e.currentTarget;
+        try { el.setPointerCapture(e.pointerId); } catch {}
+        downRef.current = {
+          x: e.clientX,
+          y: e.clientY,
+          moved: false,
+          pointerId: e.pointerId,
+          started: false,
+        };
       }}
       onPointerMove={(e) => {
         const d = downRef.current;
         if (!d) return;
-        if (Math.abs(e.clientX - d.x) > 3 || Math.abs(e.clientY - d.y) > 3) d.moved = true;
+        if (!d.moved && (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4)) {
+          d.moved = true;
+        }
+        if (d.moved && !d.started) {
+          d.started = true;
+          // Release capture so the global window listeners (in WeekGrid) take over
+          // and pointer events can hit other day columns.
+          endInteraction(e.currentTarget, d.pointerId);
+          onStartMoveAt(e);
+        }
       }}
       onPointerUp={(e) => {
         const d = downRef.current;
         downRef.current = null;
+        endInteraction(e.currentTarget, e.pointerId);
         if (d && !d.moved) {
           e.stopPropagation();
           onClick();
         }
+      }}
+      onPointerCancel={(e) => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
     >
       <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
