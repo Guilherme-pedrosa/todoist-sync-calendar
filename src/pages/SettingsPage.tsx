@@ -781,6 +781,41 @@ export default function SettingsPage() {
                   value={settings.delete_calendar_event_on_complete}
                   onChange={(v) => update({ delete_calendar_event_on_complete: v })}
                 />
+                <Section title="Manutenção do sync">
+                  <div className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={syncPaused ? 'default' : 'outline'}
+                        onClick={() => setCalendarSyncPaused(!syncPaused)}
+                      >
+                        {syncPaused ? '▶️ Retomar sync' : '⏸️ Pausar sync'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={calendarMaintenanceLoading !== null || !calendarConnected}
+                        onClick={() => cleanupCalendarDuplicates(true)}
+                      >
+                        {calendarMaintenanceLoading === 'analyze' ? 'Analisando…' : '🧹 Analisar duplicatas'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={calendarMaintenanceLoading !== null || !calendarConnected || !calendarDuplicateCount}
+                        onClick={() => cleanupCalendarDuplicates(false)}
+                      >
+                        {calendarMaintenanceLoading === 'delete'
+                          ? 'Deletando…'
+                          : `🗑️ Deletar ${calendarDuplicateCount || 0} duplicatas`}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Status do sync: {syncPaused ? 'pausado' : 'ativo'}.
+                      {calendarDuplicateCount !== null ? ` Última análise: ${calendarDuplicateCount} duplicatas.` : ''}
+                    </p>
+                  </div>
+                </Section>
               </Section>
             </TabsContent>
 
