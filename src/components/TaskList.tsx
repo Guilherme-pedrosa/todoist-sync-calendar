@@ -12,8 +12,10 @@ import {
   Plus,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
+import { useQuickAddStore } from '@/store/quickAddStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
+import { EmptyState } from '@/components/EmptyState';
 import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
