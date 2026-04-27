@@ -17,8 +17,10 @@ type ScheduledTaskCtx = {
 };
 
 function buildContext(tasks: Task[], projects: Project[]) {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const horizonEnd = format(addDays(new Date(), 14), 'yyyy-MM-dd');
+  const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
+  const nowTime = format(now, 'HH:mm');
+  const horizonEnd = format(addDays(now, 14), 'yyyy-MM-dd');
   const projectName = (id?: string) =>
     projects.find((p) => p.id === id)?.name;
 
@@ -40,13 +42,13 @@ function buildContext(tasks: Task[], projects: Project[]) {
       project: projectName(t.projectId),
     }));
 
-  const yearNow = new Date().getFullYear();
+  const yearNow = now.getFullYear();
   const holidays = [
     ...getBrazilianHolidays(yearNow),
     ...getBrazilianHolidays(yearNow + 1),
   ].filter((h) => h.date >= today && h.date <= horizonEnd);
 
-  return { today, scheduled, holidays };
+  return { today, nowTime, scheduled, holidays };
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
