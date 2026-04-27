@@ -127,11 +127,15 @@ export default function AppLayout() {
       >
         <AppSidebar />
       </div>
-      <Outlet />
+      <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
+        <Outlet />
+      </div>
       <QuickAddDialog />
       <MobileFab />
       <TaskDetailPanel />
       <CommandPalette />
+      <MobileBottomNav />
+      <InstallPwaBanner />
     </div>
   );
 }
