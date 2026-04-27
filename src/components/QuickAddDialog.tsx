@@ -12,7 +12,10 @@ import {
   MoreHorizontal,
   X,
   Paperclip,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
+import { suggestSlot } from '@/lib/aiAssistant';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
