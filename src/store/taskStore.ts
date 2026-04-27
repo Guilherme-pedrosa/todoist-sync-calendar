@@ -19,9 +19,11 @@ interface TaskState {
   deleteTask: (id: string) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
 
-  addProject: (project: Omit<Project, 'id'>) => Promise<void>;
+  addProject: (project: Omit<Project, 'id'>) => Promise<Project | null>;
   updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
+  archiveProject: (id: string) => Promise<void>;
+  toggleProjectFavorite: (id: string) => Promise<void>;
 
   addLabel: (label: Omit<Label, 'id'>) => Promise<void>;
   deleteLabel: (id: string) => Promise<void>;
@@ -205,17 +207,26 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       supabase.from('tasks').select('*, task_labels(label_id)').eq('user_id', userId),
     ]);
 
-    const projects: Project[] = (projectsRes.data || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      color: p.color,
-      isInbox: p.is_inbox,
-    }));
+    const projects: Project[] = (projectsRes.data || [])
+      .filter((p: any) => !p.archived_at)
+      .map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        color: p.color,
+        isInbox: p.is_inbox,
+        parentId: p.parent_id || null,
+        isFavorite: !!p.is_favorite,
+        viewType: (p.view_type as 'list' | 'board') || 'list',
+        description: p.description || null,
+        archivedAt: p.archived_at || null,
+        position: p.position ?? 0,
+      }));
 
-    const labels: Label[] = (labelsRes.data || []).map((l) => ({
+    const labels: Label[] = (labelsRes.data || []).map((l: any) => ({
       id: l.id,
       name: l.name,
       color: l.color,
+      isFavorite: !!l.is_favorite,
     }));
 
     const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
@@ -351,28 +362,74 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   addProject: async (projectData) => {
     const userId = await getUserId();
-    if (!userId) return;
+    if (!userId) return null;
+
+    const maxPosition = Math.max(0, ...get().projects.map((p) => p.position ?? 0));
 
     const { data, error } = await supabase
       .from('projects')
-      .insert({ user_id: userId, name: projectData.name, color: projectData.color })
+      .insert({
+        user_id: userId,
+        name: projectData.name,
+        color: projectData.color,
+        parent_id: projectData.parentId || null,
+        is_favorite: !!projectData.isFavorite,
+        view_type: projectData.viewType || 'list',
+        description: projectData.description || null,
+        position: maxPosition + 1,
+      })
       .select()
       .single();
 
-    if (error || !data) return;
+    if (error || !data) return null;
 
-    set((state) => ({
-      projects: [...state.projects, { id: data.id, name: data.name, color: data.color, isInbox: data.is_inbox }],
-    }));
+    const newProject: Project = {
+      id: data.id,
+      name: data.name,
+      color: data.color,
+      isInbox: data.is_inbox,
+      parentId: data.parent_id || null,
+      isFavorite: !!data.is_favorite,
+      viewType: (data.view_type as 'list' | 'board') || 'list',
+      description: data.description || null,
+      archivedAt: data.archived_at || null,
+      position: data.position ?? 0,
+    };
+
+    set((state) => ({ projects: [...state.projects, newProject] }));
+    return newProject;
   },
 
   updateProject: async (id, updates) => {
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.color !== undefined) dbUpdates.color = updates.color;
-    await supabase.from('projects').update(dbUpdates).eq('id', id);
+    if (updates.parentId !== undefined) dbUpdates.parent_id = updates.parentId;
+    if (updates.isFavorite !== undefined) dbUpdates.is_favorite = updates.isFavorite;
+    if (updates.viewType !== undefined) dbUpdates.view_type = updates.viewType;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (Object.keys(dbUpdates).length > 0) {
+      await supabase.from('projects').update(dbUpdates).eq('id', id);
+    }
     set((state) => ({
       projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    }));
+  },
+
+  archiveProject: async (id) => {
+    await supabase.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', id);
+    set((state) => ({
+      projects: state.projects.filter((p) => p.id !== id),
+    }));
+  },
+
+  toggleProjectFavorite: async (id) => {
+    const project = get().projects.find((p) => p.id === id);
+    if (!project) return;
+    const next = !project.isFavorite;
+    await supabase.from('projects').update({ is_favorite: next }).eq('id', id);
+    set((state) => ({
+      projects: state.projects.map((p) => (p.id === id ? { ...p, isFavorite: next } : p)),
     }));
   },
 
@@ -381,9 +438,13 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (inbox) {
       await supabase.from('tasks').update({ project_id: inbox.id }).eq('project_id', id);
     }
+    // Reparent sub-projects to root
+    await supabase.from('projects').update({ parent_id: null }).eq('parent_id', id);
     await supabase.from('projects').delete().eq('id', id);
     set((state) => ({
-      projects: state.projects.filter((p) => p.id !== id),
+      projects: state.projects
+        .filter((p) => p.id !== id)
+        .map((p) => (p.parentId === id ? { ...p, parentId: null } : p)),
       tasks: state.tasks.map((t) => (t.projectId === id ? { ...t, projectId: inbox?.id } : t)),
     }));
   },
