@@ -33,6 +33,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
   const [projectId, setProjectId] = useState(defaultProjectId || inboxProject?.id || '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [nlpSet, setNlpSet] = useState({ date: false, time: false, rec: false, prio: false });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (defaultProjectId) setProjectId(defaultProjectId);
