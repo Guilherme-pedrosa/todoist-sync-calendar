@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -17,6 +17,8 @@ import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon } from 'lucide-react';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,7 +34,9 @@ export interface KanbanSection {
 
 interface KanbanBoardProps {
   tasks: Task[];
-  groupBy: GroupBy;
+  groupBy?: GroupBy;
+  /** Identifica o quadro manual de cada página/visão */
+  boardKey?: string;
   /** Para projetos: limita seções/colunas a este projeto */
   projectId?: string;
   /** Seções disponíveis (necessário quando groupBy='section') */
@@ -45,18 +49,9 @@ interface Column {
   id: string;
   title: string;
   color?: string;
-  /** Patch a aplicar à tarefa quando arrastada para esta coluna */
-  patch: Partial<Task> & Record<string, any>;
   /** Defaults para nova tarefa criada nesta coluna */
   newTaskDefaults?: Record<string, any>;
 }
-
-const PRIORITY_LABELS: Record<Priority, string> = {
-  1: 'P1 — Urgente',
-  2: 'P2 — Alta',
-  3: 'P3 — Média',
-  4: 'P4 — Baixa',
-};
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   1: 'hsl(var(--priority-1))',
@@ -65,43 +60,48 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
-export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskDefaults }: KanbanBoardProps) {
-  const projects = useTaskStore((s) => s.projects);
-  const labels = useTaskStore((s) => s.labels);
-  const updateTask = useTaskStore((s) => s.updateTask);
+export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const storageKey = getKanbanStorageKey(boardKey);
+  const [board, setBoard] = useState<ManualKanbanState>(() => ({
+    storageKey,
+    ...readManualKanban(storageKey),
+  }));
 
-  const { columns, getTaskColumnId } = useMemo(
-    () => buildColumns(groupBy, { projects, labels, sections, projectId, newTaskDefaults }),
-    [groupBy, projects, labels, sections, projectId, newTaskDefaults]
+  useEffect(() => {
+    setBoard({ storageKey, ...readManualKanban(storageKey) });
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (board.storageKey !== storageKey) return;
+    writeManualKanban(storageKey, board);
+  }, [board, storageKey]);
+
+  const columns = useMemo<Column[]>(
+    () => board.columns.map((col) => ({ ...col, newTaskDefaults: { ...(newTaskDefaults || {}) } })),
+    [board.columns, newTaskDefaults]
   );
 
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const c of columns) map.set(c.id, []);
-    const otherCol = columns.find((c) => c.id === '__none__');
+    const firstCol = columns[0];
+    const validIds = new Set(columns.map((c) => c.id));
     for (const t of tasks) {
-      const ids = getTaskColumnId(t);
-      let placed = false;
-      for (const id of ids) {
-        const list = map.get(id);
-        if (list) {
-          list.push(t);
-          placed = true;
-        }
-      }
-      if (!placed && otherCol) map.get(otherCol.id)!.push(t);
+      const colId = board.taskColumns[t.id];
+      const targetId = colId && validIds.has(colId) ? colId : firstCol?.id;
+      if (targetId) map.get(targetId)!.push(t);
     }
     return map;
-  }, [tasks, columns, getTaskColumnId]);
+  }, [tasks, columns, board.taskColumns]);
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
@@ -111,10 +111,20 @@ export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskD
     if (!col) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-    // Evita update no-op: se a tarefa já pertence a essa coluna
-    const currentCols = getTaskColumnId(task);
-    if (currentCols.includes(colId)) return;
-    await updateTask(taskId, col.patch as any);
+    if (board.taskColumns[taskId] === colId) return;
+    setBoard((current) => ({
+      ...current,
+      taskColumns: { ...current.taskColumns, [taskId]: colId },
+    }));
+  };
+
+  const addColumn = (title: string) => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    setBoard((current) => ({
+      ...current,
+      columns: [...current.columns, { id: `manual-${Date.now()}`, title: cleanTitle }],
+    }));
   };
 
   return (
@@ -141,6 +151,7 @@ export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskD
               onOpenTask={(id) => openTaskDetail(id)}
             />
           ))}
+          <AddKanbanColumn onAdd={addColumn} />
         </div>
       </div>
 
