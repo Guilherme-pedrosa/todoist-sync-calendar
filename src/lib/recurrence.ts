@@ -1,5 +1,5 @@
 import { RRule, rrulestr } from 'rrule';
-import { format, parseISO } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 
 /**
  * Parse a stored recurrence string. Supports a bare RRULE (e.g.
@@ -91,6 +91,29 @@ export function addExdateToRecurrence(
   exdates.push(`EXDATE:${fmt(exLocal)}`);
 
   return [dtstart, rrule, ...exdates].join('\n');
+}
+
+export function addWeekdayExdatesToRecurrence(
+  recurrenceRule: string,
+  anchorDate: string,
+  anchorTime: string | null | undefined,
+  exceptionDate: string,
+  rangeStart: string,
+  rangeEnd: string
+): string {
+  let nextRule = recurrenceRule;
+  const targetDay = parseISO(`${exceptionDate}T12:00:00`).getDay();
+  let cursor = parseISO(`${rangeStart}T12:00:00`);
+  const end = parseISO(`${rangeEnd}T12:00:00`);
+
+  while (cursor <= end) {
+    if (cursor.getDay() === targetDay) {
+      nextRule = addExdateToRecurrence(nextRule, anchorDate, anchorTime, format(cursor, 'yyyy-MM-dd'));
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return nextRule;
 }
 
 /**
