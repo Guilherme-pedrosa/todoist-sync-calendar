@@ -88,6 +88,9 @@ export default function SettingsPage() {
   const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
+  const [syncPaused, setSyncPausedState] = useState(getGcalSyncPaused());
+  const [cleaning, setCleaning] = useState(false);
+  const [dryRunResult, setDryRunResult] = useState<{ toDelete: number; toKeep: number } | null>(null);
 
   useEffect(() => {
     if (!user) return;
