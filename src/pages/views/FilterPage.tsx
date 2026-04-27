@@ -6,6 +6,9 @@ import { TaskItem } from '@/components/TaskItem';
 import { Task } from '@/types/task';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import { ViewModeToolbar } from '@/components/ViewModeToolbar';
+import { useViewPref } from '@/hooks/useViewPref';
 
 interface FilterRow {
   id: string;
