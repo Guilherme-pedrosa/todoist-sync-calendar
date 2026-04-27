@@ -9,6 +9,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Repeat } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 /**
  * Asks the user whether a change to a recurring task should apply to
@@ -19,6 +21,10 @@ export function RecurringEditDialog() {
   const resolve = useRecurringEditStore((s) => s.resolve);
 
   const open = !!pending;
+  const isDelete = pending?.operation === 'delete';
+  const weekdayLabel = pending?.occurrenceDate
+    ? format(parseISO(`${pending.occurrenceDate}T12:00:00`), 'EEEE', { locale: ptBR })
+    : 'dia da semana';
 
   return (
     <Dialog
@@ -31,13 +37,12 @@ export function RecurringEditDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Repeat className="h-4 w-4 text-primary" />
-            Editar tarefa recorrente
+            {isDelete ? 'Excluir tarefa recorrente' : 'Editar tarefa recorrente'}
           </DialogTitle>
           <DialogDescription>
-            {pending?.changeLabel
-              ? `Você está alterando: ${pending.changeLabel}.`
-              : 'Esta tarefa se repete.'}{' '}
-            Você quer aplicar a mudança apenas a esta ocorrência ou a toda a série?
+            {isDelete
+              ? 'Esta tarefa se repete. Escolha exatamente o que deve ser removido.'
+              : `${pending?.changeLabel ? `Você está alterando: ${pending.changeLabel}.` : 'Esta tarefa se repete.'} Você quer aplicar a mudança apenas a esta ocorrência ou a toda a série?`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -45,9 +50,16 @@ export function RecurringEditDialog() {
             Cancelar
           </Button>
           <Button variant="outline" onClick={() => resolve('single')}>
-            Apenas esta
+            {isDelete ? 'Só este evento' : 'Apenas esta'}
           </Button>
-          <Button onClick={() => resolve('series')}>Toda a série</Button>
+          {isDelete && (
+            <Button variant="outline" onClick={() => resolve('weekday')}>
+              Todas de {weekdayLabel}
+            </Button>
+          )}
+          <Button variant={isDelete ? 'destructive' : 'default'} onClick={() => resolve('series')}>
+            Toda a série
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

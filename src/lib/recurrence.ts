@@ -1,5 +1,5 @@
 import { RRule, rrulestr } from 'rrule';
-import { format, parseISO } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 
 /**
  * Parse a stored recurrence string. Supports a bare RRULE (e.g.
@@ -91,6 +91,68 @@ export function addExdateToRecurrence(
   exdates.push(`EXDATE:${fmt(exLocal)}`);
 
   return [dtstart, rrule, ...exdates].join('\n');
+}
+
+export function addWeekdayExdatesToRecurrence(
+  recurrenceRule: string,
+  anchorDate: string,
+  anchorTime: string | null | undefined,
+  exceptionDate: string,
+  rangeStart: string,
+  rangeEnd: string
+): string {
+  let nextRule = recurrenceRule;
+  const targetDay = parseISO(`${exceptionDate}T12:00:00`).getDay();
+  let cursor = parseISO(`${rangeStart}T12:00:00`);
+  const end = parseISO(`${rangeEnd}T12:00:00`);
+
+  while (cursor <= end) {
+    if (cursor.getDay() === targetDay) {
+      nextRule = addExdateToRecurrence(nextRule, anchorDate, anchorTime, format(cursor, 'yyyy-MM-dd'));
+    }
+    cursor = addDays(cursor, 1);
+  }
+
+  return nextRule;
+}
+
+export function removeWeekdayFromRecurrence(
+  recurrenceRule: string,
+  anchorDate: string,
+  exceptionDate: string
+): string | null | undefined {
+  const weekdayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+  const target = weekdayCodes[parseISO(`${exceptionDate}T12:00:00`).getDay()];
+  const anchorWeekday = weekdayCodes[parseISO(`${anchorDate}T12:00:00`).getDay()];
+  const lines = recurrenceRule.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const rruleIndex = lines.findIndex((line) => /^RRULE[:;]/i.test(line) || /^[A-Z]+=/i.test(line));
+  if (rruleIndex === -1) return undefined;
+
+  const hasPrefix = /^RRULE[:;]/i.test(lines[rruleIndex]);
+  const rawRule = lines[rruleIndex].replace(/^RRULE:/i, '');
+  const params = new Map<string, string>();
+  for (const part of rawRule.split(';')) {
+    const [key, value] = part.split('=');
+    if (key && value !== undefined) params.set(key.toUpperCase(), value);
+  }
+
+  const freq = params.get('FREQ');
+  if (freq === 'WEEKLY') {
+    const currentDays = params.get('BYDAY')?.split(',').filter(Boolean) ?? [anchorWeekday];
+    const nextDays = currentDays.filter((day) => day !== target);
+    if (nextDays.length === currentDays.length) return undefined;
+    if (nextDays.length === 0) return null;
+    params.set('BYDAY', nextDays.join(','));
+  } else if (freq === 'DAILY' && (!params.get('INTERVAL') || params.get('INTERVAL') === '1')) {
+    params.set('FREQ', 'WEEKLY');
+    params.set('BYDAY', weekdayCodes.filter((day) => day !== target).join(','));
+  } else {
+    return undefined;
+  }
+
+  const nextRule = Array.from(params.entries()).map(([key, value]) => `${key}=${value}`).join(';');
+  lines[rruleIndex] = hasPrefix ? `RRULE:${nextRule}` : nextRule;
+  return lines.join('\n');
 }
 
 /**

@@ -116,6 +116,9 @@ export function TaskDetailPanel() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const taskId = useTaskDetailStore((s) => s.taskId);
+  const occurrenceDate = useTaskDetailStore((s) => s.occurrenceDate);
+  const rangeStart = useTaskDetailStore((s) => s.rangeStart);
+  const rangeEnd = useTaskDetailStore((s) => s.rangeEnd);
   const close = useTaskDetailStore((s) => s.close);
   const tasks = useTaskStore((s) => s.tasks);
   const projects = useTaskStore((s) => s.projects);
@@ -252,8 +255,9 @@ export function TaskDetailPanel() {
 
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
+  const selectedOccurrenceDate = occurrenceDate ?? task.dueDate;
   const dateValue: DateValue = {
-    date: task.dueDate,
+    date: selectedOccurrenceDate,
     time: task.dueTime,
     durationMinutes: task.durationMinutes ?? null,
     recurrenceRule: task.recurrenceRule,
@@ -388,7 +392,9 @@ export function TaskDetailPanel() {
                 className="text-destructive focus:text-destructive"
                 onSelect={async () => {
                   const result = await deleteWithPrompt(task.id, {
-                    occurrenceDate: task.dueDate ?? undefined,
+                    occurrenceDate: selectedOccurrenceDate ?? undefined,
+                    rangeStart: rangeStart ?? undefined,
+                    rangeEnd: rangeEnd ?? undefined,
                   });
                   if (result !== 'cancelled') close();
                 }}
@@ -606,7 +612,7 @@ export function TaskDetailPanel() {
                       recurrenceRule: v.recurrenceRule ?? null,
                       durationMinutes: v.durationMinutes ?? null,
                     },
-                    { changeLabel: 'data e horário' }
+                    { occurrenceDate: selectedOccurrenceDate ?? undefined, changeLabel: 'data e horário' }
                   )
                 }
                 trigger={

@@ -391,6 +391,8 @@ function WeekGrid({
   const isDayMode = numDays === 1;
   const gridCols = isDayMode ? 'grid-cols-[60px_1fr]' : 'grid-cols-[60px_repeat(7,1fr)]';
   const minWidth = isDayMode ? '' : 'min-w-[900px]';
+  const visibleRangeStart = format(weekDays[0] ?? new Date(), 'yyyy-MM-dd');
+  const visibleRangeEnd = format(weekDays[weekDays.length - 1] ?? new Date(), 'yyyy-MM-dd');
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto scrollbar-thin select-none">
@@ -457,7 +459,7 @@ function WeekGrid({
                   <AllDayChip
                     key={t.id}
                     task={t}
-                    onOpen={() => openTaskDetail(t.id)}
+                    onOpen={() => openTaskDetail(t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
                       // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
                       setPreview((p) => ({
@@ -541,7 +543,7 @@ function WeekGrid({
                   }));
                   setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES, sourceDayKey: k });
                 }}
-                onOpenTask={(id) => openTaskDetail(id)}
+                onOpenTask={(id, occurrenceDate) => openTaskDetail(id, { occurrenceDate, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
               />
             );
           })}
@@ -586,7 +588,7 @@ function DayColumn({
   onClickEmpty: (startMin: number) => void;
   onStartMove: (taskId: string, pointerOffsetMin: number, durationMin: number, startMin: number) => void;
   onStartResize: (taskId: string, startTopMin: number, currentDuration: number) => void;
-  onOpenTask: (id: string) => void;
+  onOpenTask: (id: string, occurrenceDate: string) => void;
 }) {
   const localRef = useRef<HTMLDivElement | null>(null);
   const setRef = (el: HTMLDivElement | null) => {
@@ -748,7 +750,7 @@ function DayColumn({
               onPointerDownResize={() => {
                 onStartResize(task.id, startMin, durationMin);
               }}
-              onClick={() => onOpenTask(task.id)}
+              onClick={() => onOpenTask(task.id, dayKey)}
             />
           );
         });

@@ -1,13 +1,16 @@
 import { create } from 'zustand';
 import type { Task } from '@/types/task';
 
-export type RecurringEditMode = 'single' | 'series';
+export type RecurringEditMode = 'single' | 'weekday' | 'series';
 
 interface PendingEdit {
   taskId: string;
   /** The yyyy-MM-dd of the occurrence the user is editing (may differ from task.dueDate) */
   occurrenceDate: string;
+  rangeStart?: string;
+  rangeEnd?: string;
   updates: Partial<Task>;
+  operation?: 'update' | 'delete';
   /** Optional friendly description of what's changing, shown in the dialog */
   changeLabel?: string;
 }
