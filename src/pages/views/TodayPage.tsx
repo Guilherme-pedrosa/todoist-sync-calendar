@@ -8,6 +8,9 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import { ViewModeToolbar } from '@/components/ViewModeToolbar';
+import { useViewPref } from '@/hooks/useViewPref';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
