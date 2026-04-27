@@ -233,6 +233,18 @@ function buildContextBlock(p: BasePayload): string {
     .map((t) => `- ${t.completedAt ?? "?"} [P${t.priority ?? 4}] ${t.title}`)
     .join("\n");
 
+  const catalog = (p.taskCatalog ?? [])
+    .slice(0, 200)
+    .map(
+      (t) =>
+        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.completed ? " | ✓" : ""}`,
+    )
+    .join("\n");
+  const projectsBlock = (p.projectCatalog ?? [])
+    .slice(0, 50)
+    .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .join("\n");
+
   return [
     "CONTEXTO DO USUÁRIO:",
     `- now: ${p.nowIso ?? "?"} (${p.userProfile?.timezone ?? "America/Sao_Paulo"})`,
@@ -243,6 +255,12 @@ function buildContextBlock(p: BasePayload): string {
     "",
     "TASKS + EVENTS DO PERÍODO (cada item já marcado é bloqueio absoluto — eventos do Google Calendar incluídos):",
     sched || "(vazio)",
+    "",
+    catalog ? "CATÁLOGO DE TAREFAS (use estes ids em tool calls):" : "",
+    catalog,
+    "",
+    projectsBlock ? "PROJETOS DISPONÍVEIS:" : "",
+    projectsBlock,
     "",
     "FERIADOS BR:",
     hol || "(nenhum no período)",
