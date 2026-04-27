@@ -699,6 +699,127 @@ export default function SettingsPage() {
                   value={settings.delete_calendar_event_on_complete}
                   onChange={(v) => update({ delete_calendar_event_on_complete: v })}
                 />
+
+                {/* === Controle de emergência: pausa global do sync === */}
+                <div className={`rounded-xl border p-4 ${syncPaused ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5'}`}>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        Sincronização: {syncPaused ? '⏸️ Pausada' : '▶️ Ativa'}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {syncPaused
+                          ? 'Nenhum evento será criado ou atualizado no Google Calendar. Limpe duplicatas antes de retomar.'
+                          : 'Eventos são sincronizados automaticamente.'}
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={syncPaused ? 'default' : 'outline'}
+                      onClick={() => {
+                        const next = !syncPaused;
+                        setGcalSyncPaused(next);
+                        setSyncPausedState(next);
+                        toast.success(next ? 'Sync pausado' : 'Sync retomado');
+                      }}
+                    >
+                      {syncPaused ? '▶️ Retomar sync' : '⏸️ Pausar sync'}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* === Limpeza de duplicatas === */}
+                {calendarConnected && (
+                  <div className="rounded-xl border border-border p-4">
+                    <p className="text-sm font-semibold">🧹 Limpar duplicatas no Google Calendar</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Verifica os próximos 90 dias e remove eventos repetidos (mesmo título e horário). Mantém o que tem vínculo com tarefa.
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={cleaning}
+                        onClick={async () => {
+                          setCleaning(true);
+                          setDryRunResult(null);
+                          try {
+                            const { data: sessionData } = await supabase.auth.getSession();
+                            const token = sessionData.session?.access_token;
+                            if (!token) throw new Error('Sessão expirada');
+                            const res = await fetch(
+                              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                  apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({ dryRun: true }),
+                              },
+                            );
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data?.error || 'Falha ao analisar');
+                            setDryRunResult({ toDelete: data.toDelete, toKeep: data.toKeep });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : 'Falha');
+                          } finally {
+                            setCleaning(false);
+                          }
+                        }}
+                      >
+                        {cleaning ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        Analisar (preview)
+                      </Button>
+                      {dryRunResult && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={cleaning || dryRunResult.toDelete === 0}
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `Vou deletar ${dryRunResult.toDelete} eventos duplicados, manter ${dryRunResult.toKeep}. Confirmar?`,
+                            );
+                            if (!ok) return;
+                            setCleaning(true);
+                            try {
+                              const { data: sessionData } = await supabase.auth.getSession();
+                              const token = sessionData.session?.access_token;
+                              const res = await fetch(
+                                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`,
+                                {
+                                  method: 'POST',
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                                    'Content-Type': 'application/json',
+                                  },
+                                  body: JSON.stringify({}),
+                                },
+                              );
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data?.error || 'Falha');
+                              toast.success(`Deletados: ${data.deleted}. Mantidos: ${data.kept}.`);
+                              setDryRunResult(null);
+                            } catch (e) {
+                              toast.error(e instanceof Error ? e.message : 'Falha');
+                            } finally {
+                              setCleaning(false);
+                            }
+                          }}
+                        >
+                          🗑️ Deletar {dryRunResult.toDelete} duplicatas
+                        </Button>
+                      )}
+                    </div>
+                    {dryRunResult && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Análise: {dryRunResult.toDelete} a deletar, {dryRunResult.toKeep} a manter.
+                      </p>
+                    )}
+                  </div>
+                )}
               </Section>
             </TabsContent>
 
