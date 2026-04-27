@@ -255,6 +255,8 @@ function ProjectHeader({
   onDelete,
   onEdit,
   onToggleSidebar,
+  kanbanGroupBy,
+  onKanbanGroupByChange,
 }: any) {
   return (
     <header className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-border/50">
