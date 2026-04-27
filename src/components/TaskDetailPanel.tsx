@@ -76,6 +76,39 @@ interface CommentRow {
   created_at: string;
 }
 
+// Converte uma RRULE simples em texto pt-BR legível
+function formatRecurrence(rule?: string | null): string | null {
+  if (!rule) return null;
+  const r = rule.toUpperCase();
+  const freqMatch = r.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/);
+  if (!freqMatch) return null;
+  const freq = freqMatch[1] as 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+  const intervalMatch = r.match(/INTERVAL=(\d+)/);
+  const interval = intervalMatch ? parseInt(intervalMatch[1], 10) : 1;
+  const bydayMatch = r.match(/BYDAY=([A-Z,]+)/);
+  const bymonthdayMatch = r.match(/BYMONTHDAY=(\d+)/);
+
+  const DAYS_PT: Record<string, string> = {
+    MO: 'seg', TU: 'ter', WE: 'qua', TH: 'qui', FR: 'sex', SA: 'sáb', SU: 'dom',
+  };
+
+  if (freq === 'WEEKLY' && bydayMatch) {
+    if (bydayMatch[1] === 'MO,TU,WE,TH,FR') return 'Todo dia útil';
+    const days = bydayMatch[1].split(',').map((d) => DAYS_PT[d] || d).join(', ');
+    return `Toda semana (${days})`;
+  }
+  if (freq === 'MONTHLY' && bymonthdayMatch) {
+    return interval > 1
+      ? `A cada ${interval} meses no dia ${bymonthdayMatch[1]}`
+      : `Todo dia ${bymonthdayMatch[1]} do mês`;
+  }
+  if (interval === 1) {
+    return { DAILY: 'Todo dia', WEEKLY: 'Toda semana', MONTHLY: 'Todo mês', YEARLY: 'Todo ano' }[freq];
+  }
+  const unitPlural = { DAILY: 'dias', WEEKLY: 'semanas', MONTHLY: 'meses', YEARLY: 'anos' }[freq];
+  return `A cada ${interval} ${unitPlural}`;
+}
+
 export function TaskDetailPanel() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -274,6 +307,8 @@ export function TaskDetailPanel() {
     const parts: string[] = [];
     if (task.dueDate) parts.push(format(parseISO(task.dueDate), "d 'de' MMM", { locale: ptBR }));
     if (task.dueTime) parts.push(task.dueTime);
+    const rec = formatRecurrence(task.recurrenceRule);
+    if (rec) parts.push(`🔁 ${rec}`);
     return parts.join(' · ');
   })();
 
