@@ -291,9 +291,8 @@ async function createGoogleCalendarEvent(
       return { id: typeof payload?.id === 'string' ? payload.id : null };
     }
     // Detecta rate limit: edge function retorna 400 envelopando 403 do Google
-    let bodyText = '';
-    try { bodyText = await response.text(); } catch {}
-    const isRateLimit = /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+    const bodyText = await readResponseText(response);
+    const isRateLimit = isGoogleRateLimit(bodyText);
     if (isRateLimit && attempt < maxRetries) {
       const delay = 800 * Math.pow(2, attempt) + Math.random() * 400;
       await new Promise((r) => setTimeout(r, delay));
