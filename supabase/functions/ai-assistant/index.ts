@@ -33,14 +33,31 @@ type UnscheduledTask = {
 
 type Holiday = { date: string; name: string; type: string };
 
+type RecentlyCompletedTask = {
+  title: string;
+  completedAt?: string | null;
+  priority?: number;
+  project?: string;
+};
+
 interface BasePayload {
   action: "suggest-slot" | "organize-day" | "analyze-day" | "chat";
   // Comum
   today: string; // YYYY-MM-DD
+  targetDate?: string; // YYYY-MM-DD
+  nowTime?: string; // HH:mm
+  nowIso?: string;
   workdayStart?: string; // "07:00"
   workdayEnd?: string; // "20:00"
   scheduled?: ScheduledTask[]; // o que já está marcado
   holidays?: Holiday[];
+  recentlyCompleted?: RecentlyCompletedTask[];
+  userProfile?: {
+    timezone?: string;
+    workdayStart?: string;
+    workdayEnd?: string;
+    energyPattern?: string;
+  };
   // suggest-slot
   task?: {
     title: string;
@@ -57,10 +74,31 @@ interface BasePayload {
   messages?: { role: "user" | "assistant"; content: string }[];
 }
 
+function toMinutes(time?: string | null) {
+  const [h, m] = (time ?? "").slice(0, 5).split(":").map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+}
+
+function minimumTodayMinutes(p: BasePayload) {
+  const now = toMinutes(p.nowTime);
+  if (now === null) return null;
+  return Math.ceil((now + 5) / 15) * 15;
+}
+
+function isPastForToday(date: string | undefined, time: string | undefined, p: BasePayload) {
+  if (!date || !time || date !== p.today) return false;
+  const min = minimumTodayMinutes(p);
+  const slot = toMinutes(time);
+  return min !== null && slot !== null && slot < min;
+}
+
 function buildSystemPrompt(p: BasePayload): string {
   const today = p.today;
-  const ws = p.workdayStart ?? "08:00";
-  const we = p.workdayEnd ?? "19:00";
+  const targetDate = p.targetDate ?? p.date ?? p.today;
+  const ws = p.userProfile?.workdayStart ?? p.workdayStart ?? "08:00";
+  const we = p.userProfile?.workdayEnd ?? p.workdayEnd ?? "19:00";
+  const minToday = minimumTodayMinutes(p);
+  const minTodayText = minToday === null ? "agora + 5 minutos" : `${String(Math.floor(minToday / 60)).padStart(2, "0")}:${String(minToday % 60).padStart(2, "0")}`;
   const sched = (p.scheduled ?? [])
     .slice(0, 80)
     .map(
@@ -74,20 +112,31 @@ function buildSystemPrompt(p: BasePayload): string {
     .slice(0, 30)
     .map((h) => `- ${h.date}: ${h.name} (${h.type})`)
     .join("\n");
+  const completed = (p.recentlyCompleted ?? [])
+    .slice(0, 30)
+    .map((t) => `- ${t.completedAt ?? "sem horário"} [P${t.priority ?? 4}] ${t.title}${t.project ? ` · ${t.project}` : ""}`)
+    .join("\n");
 
   return [
     "Você é um assistente de produtividade integrado a um app de tarefas estilo Todoist com sincronização ao Google Calendar.",
     "Responda SEMPRE em português do Brasil, com tom direto, prático e amigável.",
-    `Hoje é ${today}. Janela de trabalho padrão: ${ws}–${we}.`,
-    "Princípios:",
-    "- Respeite feriados nacionais (não agende trabalho neles, exceto se o usuário pedir).",
-    "- Tarefas de alta prioridade (P1, P2) ficam na manhã, quando possível.",
+    `Hoje é ${today}. Data alvo: ${targetDate}. Agora: ${p.nowTime ?? "desconhecido"} (${p.userProfile?.timezone ?? "America/Sao_Paulo"}). Janela de trabalho padrão: ${ws}–${we}.`,
+    "Regras obrigatórias:",
+    `- Se a data alvo for HOJE (${today}), NUNCA sugira, organize ou recomende horário anterior a ${minTodayText}. Isso é proibido.`,
+    "- Respeite TODOS os itens da AGENDA ATUAL como bloqueios absolutos, inclusive eventos pessoais, almoço, reuniões e tarefas vindas do Google Calendar.",
+    "- Não invente horário fixo de almoço; só trate almoço como bloqueio se ele aparecer na agenda.",
+    "- Não sobreponha horários de tarefas já marcadas nem encoste blocos longos sem respiro.",
+    "- Respeite feriados nacionais; não agende trabalho neles, exceto se o usuário pedir explicitamente.",
+    "- Tarefas de alta prioridade (P1, P2) ficam na manhã, quando possível e somente se não violar bloqueios ou a regra de horário futuro.",
     "- Deixe respiros de 10–15 min entre blocos longos.",
-    "- Não sobreponha horários de tarefas já marcadas.",
     "- Use blocos arredondados em múltiplos de 15 minutos.",
+    p.userProfile?.energyPattern ? `- Perfil do usuário: ${p.userProfile.energyPattern}` : "",
     "",
-    "AGENDA ATUAL:",
+    "AGENDA ATUAL (bloqueios absolutos):",
     sched || "(sem tarefas marcadas)",
+    "",
+    "CONCLUÍDAS NAS ÚLTIMAS 48H (contexto, não são bloqueios):",
+    completed || "(sem histórico recente)",
     "",
     "FERIADOS:",
     hol || "(sem feriados no período)",
