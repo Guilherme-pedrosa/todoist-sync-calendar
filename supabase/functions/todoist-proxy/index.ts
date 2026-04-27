@@ -90,8 +90,8 @@ function dueStringToRRule(
     /\b(dia útil|dia util|dias úteis|dias uteis|workday|workdays|weekday|weekdays)\b/.test(s);
   if (!looksRecurring) return null;
 
-  // weekdays (segunda a sexta)
-  if (/(every\s+(weekday|workday)s?|todo\s+(dia\s+)?(util|útil|workday|weekday)|toda\s+semana\s+util|dias?\s+(uteis|úteis)|workdays?|weekdays?)/.test(s)) {
+  // weekdays/work days/business days = segunda a sexta
+  if (/(every\s+(weekday|work\s*day|business\s*day)s?|todo\s+(dia\s+)?(util|útil|work\s*day|business\s*day|weekday)|toda\s+semana\s+util|dias?\s+(uteis|úteis|util|útil)|work\s*days?|business\s*days?|weekdays?|seg(?:unda)?\s*(?:a|à|ate|até|-)\s*sex(?:ta)?|segunda(?:-feira)?\s*(?:a|à|ate|até|-)\s*sexta(?:-feira)?|mon(?:day)?\s*(?:to|-)\s*fri(?:day)?)/.test(s)) {
     return "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
   }
 
