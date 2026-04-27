@@ -309,7 +309,16 @@ serve(async (req) => {
 
         if (updates.title) event.summary = updates.title;
         if (updates.description !== undefined) event.description = updates.description;
-        if (updates.date) {
+
+        // Atualiza start/end se qualquer parte do horário mudou (data, hora, duração ou allDay)
+        const hasTimeChange =
+          updates.date !== undefined ||
+          updates.time !== undefined ||
+          updates.endTime !== undefined ||
+          updates.allDay !== undefined ||
+          updates.durationMinutes !== undefined;
+
+        if (hasTimeChange && updates.date) {
           event.start = updates.allDay
             ? { date: updates.date }
             : {
