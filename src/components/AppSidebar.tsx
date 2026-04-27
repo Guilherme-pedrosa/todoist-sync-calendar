@@ -13,6 +13,8 @@ import {
   Tag,
   LogOut,
   Download,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -22,6 +24,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const PROJECT_COLORS = [
   'hsl(0, 72%, 51%)',
