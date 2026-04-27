@@ -359,10 +359,10 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date").eq("user_id", user.id).eq("project_id", appInbox.id);
-      const existingKey = new Set<string>();
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description").eq("user_id", user.id).eq("project_id", appInbox.id);
+      const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}`);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -375,8 +375,22 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
+        const existing = existingByKey.get(key);
+        if (existing) {
+          const patch = mergeImportedTask(existing, {
+            description: tt.description || null,
+            priority: mapPriority(tt.priority),
+            due_date: dueDate,
+            due_time: dueTime,
+            duration_minutes: durationMinutes,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline,
+          });
+          if (patch) await supabase.from("tasks").update(patch).eq("id", existing.id);
+          continue;
+        }
+        existingByKey.set(key, { id: null });
 
         tasksToInsert.push({
           task: tt,
