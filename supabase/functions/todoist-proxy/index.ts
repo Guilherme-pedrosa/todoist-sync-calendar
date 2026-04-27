@@ -174,7 +174,8 @@ serve(async (req) => {
       const todoistProjectByTempKey = new Map<string, TodoistProject>();
 
       for (const tp of tdProjects) {
-        if (tp.is_inbox_project && inboxProject) {
+        const isInbox = tp.inbox_project || tp.is_inbox_project;
+        if (isInbox && inboxProject) {
           projectIdMap.set(tp.id, inboxProject.id);
           continue;
         }
