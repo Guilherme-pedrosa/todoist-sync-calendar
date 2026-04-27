@@ -31,6 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Input } from '@/components/ui/input';
 import {
   Collapsible,
