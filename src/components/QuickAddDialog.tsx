@@ -92,6 +92,7 @@ export function QuickAddDialog() {
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
