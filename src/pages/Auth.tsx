@@ -9,6 +9,12 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { CheckCircle2, Mail, Lock, Loader2 } from 'lucide-react';
 
+const getAuthRedirectUri = () => {
+  const publishedOrigin = 'https://calendar-todo-dance.lovable.app';
+  const origin = window.location.origin;
+  return origin.includes('lovableproject.com') || origin.includes('id-preview--') ? publishedOrigin : origin;
+};
+
 export default function Auth() {
   const { user, loading } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
@@ -47,7 +53,7 @@ export default function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: getAuthRedirectUri() },
         });
         if (error) throw error;
         toast.success('Verifique seu e-mail para confirmar o cadastro!');
@@ -61,7 +67,7 @@ export default function Auth() {
 
   const startGoogleLogin = () =>
     lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+      redirect_uri: getAuthRedirectUri(),
       extraParams: {
         prompt: 'select_account',
       },

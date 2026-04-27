@@ -108,6 +108,9 @@ const DEFAULT_SETTINGS = {
   notify_on_reminders: true,
 };
 
+const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
+const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
@@ -122,7 +125,10 @@ export default function SettingsPage() {
   const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
   const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
   const [syncPaused, setSyncPaused] = useState(
-    () => typeof window !== 'undefined' && localStorage.getItem('taskflow_google_sync_paused') !== 'false'
+    () =>
+      typeof window !== 'undefined' &&
+      (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged' ||
+        localStorage.getItem(GOOGLE_SYNC_PAUSED_KEY) !== 'false')
   );
 
   useEffect(() => {
@@ -275,7 +281,8 @@ export default function SettingsPage() {
   };
 
   const setCalendarSyncPaused = (paused: boolean) => {
-    localStorage.setItem('taskflow_google_sync_paused', paused ? 'true' : 'false');
+    if (!paused) localStorage.setItem(GOOGLE_SYNC_SAFETY_KEY, 'acknowledged');
+    localStorage.setItem(GOOGLE_SYNC_PAUSED_KEY, paused ? 'true' : 'false');
     setSyncPaused(paused);
     toast.success(paused ? 'Sync pausado' : 'Sync retomado');
   };
