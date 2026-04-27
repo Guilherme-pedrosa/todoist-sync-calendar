@@ -375,10 +375,32 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   deleteTask: async (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+
     await supabase.from('tasks').delete().eq('id', id);
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
     }));
+
+    if (task?.googleCalendarEventId) {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) return;
+        await fetch(
+          `${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(task.googleCalendarEventId)}`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+          }
+        );
+      } catch (error) {
+        console.error('Falha ao remover evento do Google Calendar:', error);
+      }
+    }
   },
 
   toggleTask: async (id) => {
