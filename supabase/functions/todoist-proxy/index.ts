@@ -522,7 +522,7 @@ serve(async (req) => {
           ? tt.due.datetime.slice(11, 19) // HH:MM:SS
           : null;
         const dueString = tt.due?.string || null;
-        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
