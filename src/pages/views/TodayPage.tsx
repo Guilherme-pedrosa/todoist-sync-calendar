@@ -7,6 +7,7 @@ import { CalendarDays, Menu, ChevronDown, ChevronRight, AlertTriangle } from 'lu
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
+import { getHolidayForDate } from '@/lib/holidays';
 import { ptBR } from 'date-fns/locale';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { ViewModeToolbar } from '@/components/ViewModeToolbar';
