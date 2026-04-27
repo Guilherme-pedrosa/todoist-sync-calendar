@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Inbox,
   CalendarDays,
@@ -7,6 +7,9 @@ import {
   Menu,
   Hash,
   Tag,
+  ChevronDown,
+  ChevronRight,
+  Plus,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
@@ -14,6 +17,23 @@ import { AddTaskForm } from '@/components/AddTaskForm';
 import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { cn } from '@/lib/utils';
 
 interface TaskListProps {
   view: ViewFilter;
@@ -21,11 +41,49 @@ interface TaskListProps {
   labelId?: string;
 }
 
+interface SectionRow {
+  id: string;
+  name: string;
+  position: number;
+  is_collapsed: boolean;
+}
+
 export function TaskList({ view, projectId, labelId }: TaskListProps) {
   const tasks = useTaskStore((s) => s.tasks);
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
+  const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+
+  const [sections, setSections] = useState<SectionRow[]>([]);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
+
+  // Load sections for project view
+  useEffect(() => {
+    setOrderOverride(null);
+    if (view !== 'project' || !projectId) {
+      setSections([]);
+      return;
+    }
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('sections')
+        .select('id,name,position,is_collapsed')
+        .eq('project_id', projectId)
+        .order('position');
+      if (active && data) {
+        setSections(data as SectionRow[]);
+        setCollapsedSections(
+          Object.fromEntries((data as SectionRow[]).map((s) => [s.id, s.is_collapsed]))
+        );
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [view, projectId]);
 
   const { title, icon: Icon, iconColor, filteredTasks, groupedTasks } = useMemo(() => {
     let title = '';
@@ -109,6 +167,55 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     return { title, icon: Icon, iconColor, filteredTasks: topLevel, groupedTasks: grouped };
   }, [tasks, view, projectId, labelId, projects, labels]);
 
+  // Group by section for project view
+  const projectGrouped = useMemo(() => {
+    if (view !== 'project') return null;
+    const noSection = filteredTasks.filter((t) => !t.sectionId);
+    const bySection: Record<string, Task[]> = {};
+    sections.forEach((s) => {
+      bySection[s.id] = filteredTasks.filter((t) => t.sectionId === s.id);
+    });
+    return { noSection, bySection };
+  }, [view, sections, filteredTasks]);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const orderedTasks = useMemo(() => {
+    if (!orderOverride) return filteredTasks;
+    const map = new Map(filteredTasks.map((t) => [t.id, t]));
+    const ordered: Task[] = [];
+    orderOverride.forEach((id) => {
+      const t = map.get(id);
+      if (t) ordered.push(t);
+    });
+    // append any new ones not in override
+    filteredTasks.forEach((t) => {
+      if (!orderOverride.includes(t.id)) ordered.push(t);
+    });
+    return ordered;
+  }, [filteredTasks, orderOverride]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = orderedTasks.map((t) => t.id);
+    const oldIdx = ids.indexOf(active.id as string);
+    const newIdx = ids.indexOf(over.id as string);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const newOrder = arrayMove(ids, oldIdx, newIdx);
+    setOrderOverride(newOrder);
+    // Persist positions
+    await Promise.all(
+      newOrder.map((id, idx) =>
+        supabase.from('tasks').update({ position: idx }).eq('id', id)
+      )
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -132,32 +239,77 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         </span>
       </header>
 
-      {/* Task list */}
+      {/* Body */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
-        {groupedTasks ? (
+        {projectGrouped ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            {/* Tasks without section */}
+            <SortableContext items={projectGrouped.noSection.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              {projectGrouped.noSection.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </SortableContext>
+
+            {sections.map((s) => {
+              const isCollapsed = collapsedSections[s.id];
+              const sTasks = projectGrouped.bySection[s.id] || [];
+              return (
+                <div key={s.id} className="mt-4">
+                  <button
+                    onClick={() =>
+                      setCollapsedSections((prev) => ({ ...prev, [s.id]: !prev[s.id] }))
+                    }
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                  >
+                    {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    {s.name}
+                    <span className="ml-1 text-muted-foreground/60 normal-case font-normal">
+                      {sTasks.length}
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <SortableContext items={sTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                      {sTasks.map((task) => (
+                        <TaskItem key={task.id} task={task} />
+                      ))}
+                    </SortableContext>
+                  )}
+                </div>
+              );
+            })}
+
+            {view !== 'completed' && <AddTaskForm defaultProjectId={projectId} />}
+          </DndContext>
+        ) : groupedTasks ? (
           Object.entries(groupedTasks).map(([group, groupTasks]) => (
             <div key={group} className="mb-4">
               <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-2 capitalize">
                 {group}
               </h3>
               {groupTasks.map((task) => (
-                <TaskItem key={task.id} task={task} />
+                <TaskItem key={task.id} task={task} enableDrag={false} />
               ))}
             </div>
           ))
         ) : (
-          <>
-            {filteredTasks.map((task) => (
-              <TaskItem key={task.id} task={task} />
-            ))}
-          </>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={orderedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+              {orderedTasks.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </SortableContext>
+            {view !== 'completed' && (
+              <AddTaskForm
+                defaultProjectId={view === 'project' ? projectId : undefined}
+                defaultDate={view === 'today' ? new Date().toISOString().split('T')[0] : undefined}
+              />
+            )}
+          </DndContext>
         )}
-
-        {view !== 'completed' && <AddTaskForm />}
 
         {filteredTasks.length === 0 && view !== 'completed' && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <div className={cn('h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4')}>
               <CheckCircle2 className="h-7 w-7 text-muted-foreground/40" />
             </div>
             <p className="text-sm font-medium text-muted-foreground">
