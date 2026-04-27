@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
-import { addExdateToRecurrence, addWeekdayExdatesToRecurrence } from '@/lib/recurrence';
+import { addExdateToRecurrence, addWeekdayExdatesToRecurrence, removeWeekdayFromRecurrence } from '@/lib/recurrence';
 import { toast } from 'sonner';
 
 /**
@@ -57,21 +57,28 @@ export function useDeleteTaskWithRecurrencePrompt() {
       }
 
       try {
-        const newRule = mode === 'weekday' && opts?.rangeStart && opts?.rangeEnd
-          ? addWeekdayExdatesToRecurrence(
-              task.recurrenceRule,
-              task.dueDate,
-              task.dueTime,
-              occurrenceDate,
-              opts.rangeStart,
-              opts.rangeEnd
-            )
+        const newRule = mode === 'weekday'
+          ? removeWeekdayFromRecurrence(task.recurrenceRule, task.dueDate, occurrenceDate) ??
+            (opts?.rangeStart && opts?.rangeEnd
+              ? addWeekdayExdatesToRecurrence(
+                  task.recurrenceRule,
+                  task.dueDate,
+                  task.dueTime,
+                  occurrenceDate,
+                  opts.rangeStart,
+                  opts.rangeEnd
+                )
+              : null)
           : addExdateToRecurrence(
               task.recurrenceRule,
               task.dueDate,
               task.dueTime,
               occurrenceDate
             );
+        if (!newRule) {
+          await deleteTask(taskId);
+          return 'deleted';
+        }
         await updateTask(taskId, { recurrenceRule: newRule });
         toast.success(mode === 'weekday' ? 'Ocorrências deste dia removidas' : 'Ocorrência removida', {
           description: mode === 'weekday'
