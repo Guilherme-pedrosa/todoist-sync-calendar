@@ -371,23 +371,23 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                 )}
               </PopoverContent>
             </Popover>
-            <div className="flex gap-2">
-              {hasValue && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="flex-1 h-7 text-xs"
-                  onClick={() => {
-                    onChange({ date: undefined, time: undefined, recurrenceRule: null });
-                  }}
-                >
-                  Limpar
-                </Button>
-              )}
-              <Button size="sm" className="flex-1 h-7 text-xs" onClick={() => setOpen(false)}>
-                <Check className="h-3 w-3 mr-1" /> OK
+          </div>
+          <div className="flex gap-2 p-2 border-t border-border bg-popover">
+            {hasValue && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="flex-1 h-8 text-xs"
+                onClick={() => {
+                  onChange({ date: undefined, time: undefined, recurrenceRule: null });
+                }}
+              >
+                Limpar
               </Button>
-            </div>
+            )}
+            <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => setOpen(false)}>
+              <Check className="h-3 w-3 mr-1" /> OK
+            </Button>
           </div>
         </PopoverContent>
       </Popover>
