@@ -248,6 +248,11 @@ Deno.serve(async (req) => {
       const args =
         data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       const parsed = args ? JSON.parse(args) : null;
+      if (parsed && isPastForToday(parsed.date, parsed.time, payload)) {
+        const min = minimumTodayMinutes(payload)!;
+        parsed.time = `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+        parsed.reason = `Ajustei para não sugerir horário no passado. ${parsed.reason ?? ""}`.trim();
+      }
       return new Response(JSON.stringify({ result: parsed }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -311,6 +316,15 @@ Deno.serve(async (req) => {
       const args =
         data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
       const parsed = args ? JSON.parse(args) : null;
+      if (parsed?.assignments?.length) {
+        const before = parsed.assignments.length;
+        parsed.assignments = parsed.assignments.filter(
+          (a: { date?: string; time?: string }) => !isPastForToday(a.date, a.time, payload),
+        );
+        if (parsed.assignments.length !== before) {
+          parsed.summary = `${parsed.summary ?? "Plano gerado."} Removi horários que caíam no passado.`;
+        }
+      }
       return new Response(JSON.stringify({ result: parsed }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
