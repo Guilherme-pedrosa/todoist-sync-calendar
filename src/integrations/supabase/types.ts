@@ -68,6 +68,30 @@ export type Database = {
         }
         Relationships: []
       }
+      labels_backup_pre_phase1: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -125,6 +149,39 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      projects_backup_pre_phase1: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string | null
+          is_inbox: boolean | null
+          name: string | null
+          position: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_inbox?: boolean | null
+          name?: string | null
+          position?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_inbox?: boolean | null
+          name?: string | null
+          position?: number | null
+          updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
