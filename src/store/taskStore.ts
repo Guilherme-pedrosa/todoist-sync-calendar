@@ -405,16 +405,68 @@ async function syncGoogleCalendarEvents(
       });
     }
 
-    if (tasksToInsert.length === 0) return nextTasks;
+    let resultTasks = nextTasks;
+    if (tasksToInsert.length > 0) {
+      const { data: insertedRows, error: insertError } = await supabase
+        .from('tasks')
+        .insert(tasksToInsert as any)
+        .select('*, task_labels(label_id)');
 
-    const { data: insertedRows, error: insertError } = await supabase
-      .from('tasks')
-      .insert(tasksToInsert as any)
-      .select('*, task_labels(label_id)');
+      if (insertError || !insertedRows) return currentTasks;
+      const syncedTasks = insertedRows.map(mapDbTaskToTask);
+      resultTasks = [...syncedTasks, ...nextTasks];
+    }
 
-    if (insertError || !insertedRows) return currentTasks;
-    const syncedTasks = insertedRows.map(mapDbTaskToTask);
-    return [...syncedTasks, ...nextTasks];
+    // ---- BACKFILL: sobe pro Google qualquer tarefa local que tenha
+    // data, esteja pendente, não seja subtarefa, e não esteja vinculada
+    // a nenhum evento (event_id null). Isso resolve tarefas que foram
+    // criadas antes da conexão com o GCal ou enquanto a chamada falhou.
+    const orphanTasks = resultTasks.filter(
+      (t) =>
+        !t.completed &&
+        !t.parentId &&
+        !!t.dueDate &&
+        !t.googleCalendarEventId,
+    );
+    if (orphanTasks.length > 0) {
+      const updates: Array<{ id: string; eventId: string }> = [];
+      // Limita concorrência (5 em paralelo) para não estourar quota do Google
+      const chunkSize = 5;
+      for (let i = 0; i < orphanTasks.length; i += chunkSize) {
+        const chunk = orphanTasks.slice(i, i + chunkSize);
+        const results = await Promise.all(
+          chunk.map(async (task) => {
+            try {
+              const eventId = await createGoogleCalendarEvent(task);
+              return eventId ? { id: task.id, eventId } : null;
+            } catch (err) {
+              console.error('Backfill: falha em', task.title, err);
+              return null;
+            }
+          }),
+        );
+        for (const r of results) if (r) updates.push(r);
+      }
+      if (updates.length > 0) {
+        // Atualiza Supabase em paralelo
+        await Promise.all(
+          updates.map((u) =>
+            supabase
+              .from('tasks')
+              .update({ google_calendar_event_id: u.eventId })
+              .eq('id', u.id),
+          ),
+        );
+        const updateMap = new Map(updates.map((u) => [u.id, u.eventId]));
+        resultTasks = resultTasks.map((t) =>
+          updateMap.has(t.id)
+            ? { ...t, googleCalendarEventId: updateMap.get(t.id)! }
+            : t,
+        );
+      }
+    }
+
+    return resultTasks;
   } catch (error) {
     console.error('Falha na sincronização com Google Calendar:', error);
     return currentTasks;
