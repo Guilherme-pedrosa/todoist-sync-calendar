@@ -297,6 +297,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   updateTask: async (id, updates) => {
+    const existing = get().tasks.find((t) => t.id === id);
+
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
@@ -321,6 +323,55 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }));
+
+    // Sincroniza com Google Calendar se a tarefa tem evento vinculado
+    if (existing?.googleCalendarEventId) {
+      const merged: Task = { ...existing, ...updates };
+      const touchesCalendar =
+        updates.title !== undefined ||
+        updates.description !== undefined ||
+        updates.dueDate !== undefined ||
+        updates.dueTime !== undefined ||
+        updates.durationMinutes !== undefined;
+
+      if (touchesCalendar && merged.dueDate) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token;
+          if (!accessToken) return;
+
+          const time = merged.dueTime || undefined;
+          const duration = merged.durationMinutes ?? 60;
+          let endTime: string | undefined;
+          if (time) {
+            const [h, m] = time.split(':').map(Number);
+            const endDate = new Date(2000, 0, 1, h, m + duration);
+            endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+          }
+
+          await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              eventId: existing.googleCalendarEventId,
+              title: merged.title,
+              description: merged.description ?? '',
+              date: merged.dueDate,
+              time,
+              endTime,
+              allDay: !time,
+              durationMinutes: duration,
+            }),
+          });
+        } catch (error) {
+          console.error('Falha ao sincronizar atualização com Google Calendar:', error);
+        }
+      }
+    }
   },
 
   deleteTask: async (id) => {
