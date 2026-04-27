@@ -41,6 +41,68 @@ const RECURRENCE_PATTERNS: Array<{
       label: 'dia útil',
     }),
   },
+  // Nth weekday of the month: "toda primeira segunda", "toda última sexta do mês",
+  // "first monday of the month", "last friday of every month"
+  {
+    re: /\b(?:toda|todo|every)\s+(primeir[ao]|segund[ao]|terceir[ao]|quart[ao]|[úu]ltim[ao]|first|second|third|fourth|last)\s+(segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s*(?:-feira))?(?:\s+(?:do|de|of)\s+(?:cada\s+)?m[êe]s|\s+of\s+(?:the\s+|every\s+)?month)?\b/i,
+    build: (m) => {
+      const ordMap: Record<string, number> = {
+        primeira: 1, primeiro: 1, first: 1,
+        segunda: 2, segundo: 2, second: 2,
+        terceira: 3, terceiro: 3, third: 3,
+        quarta: 4, quarto: 4, fourth: 4,
+        ultima: -1, última: -1, ultimo: -1, último: -1, last: -1,
+      };
+      const wdMap: Record<string, any> = {
+        segunda: RRule.MO, monday: RRule.MO,
+        terca: RRule.TU, terça: RRule.TU, tuesday: RRule.TU,
+        quarta: RRule.WE, wednesday: RRule.WE,
+        quinta: RRule.TH, thursday: RRule.TH,
+        sexta: RRule.FR, friday: RRule.FR,
+        sabado: RRule.SA, sábado: RRule.SA, saturday: RRule.SA,
+        domingo: RRule.SU, sunday: RRule.SU,
+      };
+      const ord = ordMap[m[1].toLowerCase()] ?? 1;
+      const wdKey = m[2].toLowerCase();
+      const wd = wdMap[wdKey] ?? RRule.MO;
+      const rule = new RRule({
+        freq: Frequency.MONTHLY,
+        interval: 1,
+        byweekday: [wd.nth(ord)],
+      }).toString().replace('RRULE:', '');
+      const ordLabel = ord === -1 ? 'última' : m[1].toLowerCase();
+      return { rule, label: `${ordLabel} ${wdKey} do mês` };
+    },
+  },
+  // "todo dia N" / "dia N de cada mês" / "every Nth"  → monthly by day-of-month
+  {
+    re: /\b(?:todo\s+dia\s+(\d{1,2})|dia\s+(\d{1,2})\s+de\s+(?:cada\s+)?m[êe]s|on\s+the\s+(\d{1,2})(?:st|nd|rd|th)?\s+of\s+(?:each|every)\s+month|every\s+month\s+on\s+the\s+(\d{1,2}))\b/i,
+    build: (m) => {
+      const day = parseInt(m[1] || m[2] || m[3] || m[4], 10);
+      const safeDay = Math.min(Math.max(day, 1), 31);
+      const rule = new RRule({
+        freq: Frequency.MONTHLY,
+        interval: 1,
+        bymonthday: [safeDay],
+      }).toString().replace('RRULE:', '');
+      return { rule, label: `todo dia ${safeDay}` };
+    },
+  },
+  // "a cada N dias/semanas/meses/anos"
+  {
+    re: /\b(?:a\s+cada|cada|every)\s+(\d+)\s+(dias?|semanas?|m[êe]s(?:es)?|anos?|days?|weeks?|months?|years?)\b/i,
+    build: (m) => {
+      const n = Math.max(1, parseInt(m[1], 10));
+      const unit = m[2].toLowerCase();
+      let freq = Frequency.DAILY;
+      let unitLabel = 'dias';
+      if (/semana|week/.test(unit)) { freq = Frequency.WEEKLY; unitLabel = 'semanas'; }
+      else if (/m[êe]s|month/.test(unit)) { freq = Frequency.MONTHLY; unitLabel = 'meses'; }
+      else if (/ano|year/.test(unit)) { freq = Frequency.YEARLY; unitLabel = 'anos'; }
+      const rule = new RRule({ freq, interval: n }).toString().replace('RRULE:', '');
+      return { rule, label: `a cada ${n} ${unitLabel}` };
+    },
+  },
   // todo dia / todos os dias / diariamente / every day / daily
   {
     re: /\b(todo dia|todos os dias|diariamente|every ?day|daily|cada dia)\b/i,
