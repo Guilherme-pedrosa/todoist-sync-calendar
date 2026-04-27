@@ -5,7 +5,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { Task, Project } from '@/types/task';
 import { getBrazilianHolidays } from '@/lib/holidays';
-import { format, addDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 
 type ScheduledTaskCtx = {
   title: string;
@@ -16,9 +16,13 @@ type ScheduledTaskCtx = {
   project?: string;
 };
 
-function buildContext(tasks: Task[], projects: Project[]) {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const horizonEnd = format(addDays(new Date(), 14), 'yyyy-MM-dd');
+function buildContext(tasks: Task[], projects: Project[], targetDate?: string) {
+  const now = new Date();
+  const today = format(now, 'yyyy-MM-dd');
+  const nowTime = format(now, 'HH:mm');
+  const nowIso = now.toISOString();
+  const horizonEnd = format(addDays(now, 14), 'yyyy-MM-dd');
+  const recentStart = subDays(now, 2);
   const projectName = (id?: string) =>
     projects.find((p) => p.id === id)?.name;
 
@@ -40,13 +44,37 @@ function buildContext(tasks: Task[], projects: Project[]) {
       project: projectName(t.projectId),
     }));
 
+  const recentlyCompleted = tasks
+    .filter((t) => t.completed && t.completedAt && new Date(t.completedAt) >= recentStart)
+    .slice(0, 40)
+    .map((t) => ({
+      title: t.title,
+      completedAt: t.completedAt,
+      priority: t.priority,
+      project: projectName(t.projectId),
+    }));
+
   const yearNow = new Date().getFullYear();
   const holidays = [
     ...getBrazilianHolidays(yearNow),
     ...getBrazilianHolidays(yearNow + 1),
   ].filter((h) => h.date >= today && h.date <= horizonEnd);
 
-  return { today, scheduled, holidays };
+  return {
+    today,
+    targetDate: targetDate ?? today,
+    nowTime,
+    nowIso,
+    scheduled,
+    holidays,
+    recentlyCompleted,
+    userProfile: {
+      timezone: 'America/Sao_Paulo',
+      workdayStart: '08:00',
+      workdayEnd: '19:00',
+      energyPattern: 'Priorize tarefas críticas e analíticas pela manhã.',
+    },
+  };
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
@@ -80,7 +108,7 @@ export async function suggestSlot(opts: {
   tasks: Task[];
   projects: Project[];
 }) {
-  const ctx = buildContext(opts.tasks, opts.projects);
+  const ctx = buildContext(opts.tasks, opts.projects, opts.task.deadline ?? undefined);
   return invoke<{
     date: string;
     time: string;
@@ -105,7 +133,7 @@ export async function organizeDay(opts: {
   tasks: Task[];
   projects: Project[];
 }) {
-  const ctx = buildContext(opts.tasks, opts.projects);
+  const ctx = buildContext(opts.tasks, opts.projects, opts.date);
   return invoke<{
     assignments: { id: string; date: string; time: string; durationMinutes: number }[];
     summary: string;
@@ -122,7 +150,7 @@ export async function analyzeDay(opts: {
   tasks: Task[];
   projects: Project[];
 }) {
-  const ctx = buildContext(opts.tasks, opts.projects);
+  const ctx = buildContext(opts.tasks, opts.projects, opts.date);
   return invoke<{ text: string }>({
     action: 'analyze-day',
     date: opts.date,
