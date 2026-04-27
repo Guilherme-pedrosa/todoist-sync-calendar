@@ -183,6 +183,60 @@ function recurrenceCoversCalendarEvent(task: Task, event: GoogleCalendarEvent) {
   );
 }
 
+function recurrenceCoversTask(series: Task, occurrence: Task) {
+  if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
+  const day = new Date(`${occurrence.dueDate}T12:00:00`);
+  const occurrences = expandOccurrencesInRange(
+    series.recurrenceRule,
+    series.dueDate,
+    series.dueTime,
+    day,
+    day
+  );
+  return (
+    series.id !== occurrence.id &&
+    !series.completed &&
+    !occurrence.completed &&
+    !!occurrence.googleCalendarEventId &&
+    occurrences.includes(occurrence.dueDate) &&
+    normalizeCalendarTitle(series.title) === normalizeCalendarTitle(occurrence.title) &&
+    rangesOverlap(series.dueTime, series.durationMinutes, occurrence.dueTime, occurrence.durationMinutes)
+  );
+}
+
+async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
+  const idsToDelete = new Set<string>();
+  const byGoogleId = new Map<string, Task[]>();
+
+  for (const task of tasks) {
+    if (task.googleCalendarEventId) {
+      const list = byGoogleId.get(task.googleCalendarEventId) ?? [];
+      list.push(task);
+      byGoogleId.set(task.googleCalendarEventId, list);
+    }
+  }
+
+  for (const list of byGoogleId.values()) {
+    if (list.length <= 1) continue;
+    list
+      .sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt))
+      .slice(1)
+      .forEach((task) => idsToDelete.add(task.id));
+  }
+
+  const recurring = tasks.filter((task) => task.recurrenceRule);
+  for (const task of tasks) {
+    if (idsToDelete.has(task.id) || !task.googleCalendarEventId) continue;
+    if (recurring.some((series) => recurrenceCoversTask(series, task))) {
+      idsToDelete.add(task.id);
+    }
+  }
+
+  if (idsToDelete.size === 0) return tasks;
+  await supabase.from('tasks').delete().in('id', Array.from(idsToDelete));
+  return tasks.filter((task) => !idsToDelete.has(task.id));
+}
+
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
   if (!task.dueDate) return null;
   const accessToken = await getGoogleAccessToken();
