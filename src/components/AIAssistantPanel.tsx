@@ -44,6 +44,51 @@ type ChatMsg = {
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidIsoDate = (s: string | null | undefined): s is string => {
+  if (!s || typeof s !== 'string') return false;
+  if (!ISO_DATE_RE.test(s)) return false;
+  const d = new Date(s + 'T12:00:00');
+  return !Number.isNaN(d.getTime());
+};
+
+const safeFormatDate = (s: string, fmt: string): string => {
+  try {
+    if (!isValidIsoDate(s)) return s;
+    return format(new Date(s + 'T12:00:00'), fmt, { locale: ptBR });
+  } catch {
+    return s;
+  }
+};
+
+function DebugJson({ request, response }: { request: unknown; response: unknown }) {
+  return (
+    <Collapsible className="mt-6 border-t border-border/60 pt-3">
+      <CollapsibleTrigger className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+        ▸ Ver JSON (debug)
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            Request
+          </div>
+          <pre className="text-[10px] font-mono whitespace-pre-wrap break-words bg-muted/40 border border-border rounded-md p-2 max-h-60 overflow-auto">
+{JSON.stringify(request, null, 2)}
+          </pre>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            Response
+          </div>
+          <pre className="text-[10px] font-mono whitespace-pre-wrap break-words bg-muted/40 border border-border rounded-md p-2 max-h-60 overflow-auto">
+{JSON.stringify(response, null, 2)}
+          </pre>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 const isPastTodaySlot = (date: string, time?: string | null) => {
   if (!time || date !== todayString()) return false;
   const [h, m] = time.slice(0, 5).split(':').map(Number);
