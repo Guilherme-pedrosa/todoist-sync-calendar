@@ -181,15 +181,24 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<string | null>(null);
+  const [debug, setDebug] = useState<{ request: unknown; response: unknown } | null>(null);
+
+  const dateValid = isValidIsoDate(date);
 
   const run = async () => {
+    if (!dateValid) return;
     setLoading(true);
     setText(null);
+    setDebug(null);
+    const requestPayload = { action: 'analyze-day', date, taskCount: tasks.length, projectCount: projects.length };
     try {
       const r = await analyzeDay({ date, tasks, projects });
       setText(r.text);
+      setDebug({ request: requestPayload, response: r });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha na análise');
+      const msg = e instanceof Error ? e.message : 'Falha na análise';
+      setDebug({ request: requestPayload, response: { error: msg } });
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -197,26 +206,42 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-5 py-3 flex items-center gap-2 border-b border-border/60">
-        <input
-          type="date"
-          value={date}
-          min={todayString()}
-          onChange={(e) => setDate(e.target.value)}
-          className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
-        />
-        <Button size="sm" onClick={run} disabled={loading} className="h-8 gap-1.5">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Analisar
-        </Button>
+      <div className="px-5 py-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            min={todayString()}
+            onChange={(e) => setDate(e.target.value)}
+            aria-invalid={!dateValid}
+            className={cn(
+              'bg-muted/40 border rounded-md text-xs h-8 px-2 flex-1',
+              dateValid ? 'border-border' : 'border-destructive',
+            )}
+          />
+          <Button
+            size="sm"
+            onClick={run}
+            disabled={loading || !dateValid}
+            className="h-8 gap-1.5"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Analisar
+          </Button>
+        </div>
+        {!dateValid && (
+          <div className="mt-2 text-[11px] text-destructive">
+            Data inválida. Selecione um dia no calendário.
+          </div>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="p-5">
           {!text && !loading && (
             <div className="text-sm text-muted-foreground text-center py-12">
               <CalendarDays className="h-8 w-8 mx-auto mb-3 opacity-40" />
-              Clique em <strong>Analisar</strong> para uma visão da sua agenda em{' '}
-              {format(new Date(date + 'T12:00'), "d 'de' MMMM", { locale: ptBR })}.
+              Clique em <strong>Analisar</strong> para uma visão da sua agenda
+              {dateValid ? ` em ${safeFormatDate(date, "d 'de' MMMM")}.` : '.'}
             </div>
           )}
           {loading && (
@@ -228,6 +253,9 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             <article className="prose prose-sm prose-invert max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground">
               <ReactMarkdown>{text || ''}</ReactMarkdown>
             </article>
+          )}
+          {debug && !loading && (
+            <DebugJson request={debug.request} response={debug.response} />
           )}
         </div>
       </ScrollArea>
