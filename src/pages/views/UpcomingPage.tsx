@@ -588,7 +588,7 @@ function DayColumn({
   onClickEmpty: (startMin: number) => void;
   onStartMove: (taskId: string, pointerOffsetMin: number, durationMin: number, startMin: number) => void;
   onStartResize: (taskId: string, startTopMin: number, currentDuration: number) => void;
-  onOpenTask: (id: string) => void;
+  onOpenTask: (id: string, occurrenceDate: string) => void;
 }) {
   const localRef = useRef<HTMLDivElement | null>(null);
   const setRef = (el: HTMLDivElement | null) => {
@@ -750,7 +750,7 @@ function DayColumn({
               onPointerDownResize={() => {
                 onStartResize(task.id, startMin, durationMin);
               }}
-              onClick={() => onOpenTask(task.id)}
+              onClick={() => onOpenTask(task.id, dayKey)}
             />
           );
         });
