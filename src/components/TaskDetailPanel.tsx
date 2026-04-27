@@ -587,12 +587,16 @@ export function TaskDetailPanel() {
               <DatePickerPopover
                 value={dateValue}
                 onChange={(v) =>
-                  updateTask(task.id, {
-                    dueDate: v.date ?? null as any,
-                    dueTime: v.time ?? null as any,
-                    recurrenceRule: v.recurrenceRule ?? null,
-                    durationMinutes: v.durationMinutes ?? null,
-                  })
+                  updateWithPrompt(
+                    task.id,
+                    {
+                      dueDate: v.date ?? null as any,
+                      dueTime: v.time ?? null as any,
+                      recurrenceRule: v.recurrenceRule ?? null,
+                      durationMinutes: v.durationMinutes ?? null,
+                    },
+                    { changeLabel: 'data e horário' }
+                  )
                 }
                 trigger={
                   <button className="w-full text-left text-sm hover:text-primary">
