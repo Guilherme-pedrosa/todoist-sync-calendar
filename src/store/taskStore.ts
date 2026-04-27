@@ -124,6 +124,18 @@ function getTaskEndTime(task: Pick<Task, 'dueTime' | 'durationMinutes'>): string
   return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 }
 
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+}
+
+function isGoogleRateLimit(bodyText: string): boolean {
+  return /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+}
+
 function normalizeCalendarTitle(value?: string | null) {
   return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
 }
@@ -153,10 +165,14 @@ function rangesOverlap(startA?: string | null, durationA?: number | null, startB
   return aStart < bEnd && bStart < aEnd;
 }
 
-function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+function taskMatchesCalendarEvent(
+  task: Task,
+  event: GoogleCalendarEvent,
+  opts: { includeCompleted?: boolean } = {},
+) {
   const parsed = getCalendarDateAndTime(event);
   return (
-    !task.completed &&
+    (opts.includeCompleted || !task.completed) &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
     (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
@@ -275,9 +291,8 @@ async function createGoogleCalendarEvent(
       return { id: typeof payload?.id === 'string' ? payload.id : null };
     }
     // Detecta rate limit: edge function retorna 400 envelopando 403 do Google
-    let bodyText = '';
-    try { bodyText = await response.text(); } catch {}
-    const isRateLimit = /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+    const bodyText = await readResponseText(response);
+    const isRateLimit = isGoogleRateLimit(bodyText);
     if (isRateLimit && attempt < maxRetries) {
       const delay = 800 * Math.pow(2, attempt) + Math.random() * 400;
       await new Promise((r) => setTimeout(r, delay));
@@ -396,16 +411,21 @@ async function syncGoogleCalendarEvents(
           await supabase.from('tasks').delete().in('id', duplicateIds);
           nextTasks = nextTasks.filter((task) => !duplicateIds.includes(task.id));
         }
-        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
-        nextTasks = nextTasks.map((task) =>
-          task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
-        );
+        if (!linkedTask.completed) {
+          await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+          nextTasks = nextTasks.map((task) =>
+            task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
+          );
+        }
         continue;
       }
 
       if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
         continue;
       }
+
+      const completedMatch = nextTasks.find((task) => task.completed && taskMatchesCalendarEvent(task, event, { includeCompleted: true }));
+      if (completedMatch) continue;
 
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
@@ -798,10 +818,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
-    await supabase
+    const { error: updateError } = await supabase
       .from('tasks')
       .update({ completed, completed_at: completedAt })
       .eq('id', id);
+
+    if (updateError) {
+      console.error('Falha ao salvar conclusão da tarefa:', updateError);
+      return;
+    }
 
     set((state) => ({
       tasks: state.tasks.map((t) =>
@@ -830,7 +855,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         const accessToken = sessionData.session?.access_token;
         if (!accessToken) return;
 
-        await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
+        const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -842,6 +867,14 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
             completed,
           }),
         });
+        if (!response.ok) {
+          const bodyText = await readResponseText(response);
+          if (isGoogleRateLimit(bodyText)) {
+            console.warn('Google Calendar rate limit ao sincronizar conclusão. Mantendo conclusão local.', bodyText);
+            return;
+          }
+          console.error('Falha ao sincronizar conclusão com Google Calendar:', bodyText);
+        }
       } catch (error) {
         console.error('Falha ao sincronizar conclusão com Google Calendar:', error);
       }
