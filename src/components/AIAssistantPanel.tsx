@@ -73,50 +73,52 @@ export function AIAssistantPanel() {
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as typeof tab)}
-          className="flex-1 flex flex-col min-h-0"
-        >
-          <TabsList className="mx-5 mt-3 grid grid-cols-3">
-            <TabsTrigger value="analyze" className="text-xs gap-1">
-              <CalendarDays className="h-3.5 w-3.5" /> Análise
-            </TabsTrigger>
-            <TabsTrigger value="organize" className="text-xs gap-1">
-              <Wand2 className="h-3.5 w-3.5" /> Organizar
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="text-xs gap-1">
-              <MessageSquare className="h-3.5 w-3.5" /> Chat
-            </TabsTrigger>
-          </TabsList>
+        <AIAssistantErrorBoundary onReset={() => setTab(initialTab)}>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => setTab(v as typeof tab)}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <TabsList className="mx-5 mt-3 grid grid-cols-3">
+              <TabsTrigger value="analyze" className="text-xs gap-1">
+                <CalendarDays className="h-3.5 w-3.5" /> Análise
+              </TabsTrigger>
+              <TabsTrigger value="organize" className="text-xs gap-1">
+                <Wand2 className="h-3.5 w-3.5" /> Organizar
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="text-xs gap-1">
+                <MessageSquare className="h-3.5 w-3.5" /> Chat
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="analyze" className="flex-1 min-h-0 m-0">
-            <AnalyzeTab tasks={tasks} projects={projects} />
-          </TabsContent>
+            <TabsContent value="analyze" className="flex-1 min-h-0 m-0">
+              <AnalyzeTab tasks={tasks} projects={projects} />
+            </TabsContent>
 
-          <TabsContent value="organize" className="flex-1 min-h-0 m-0">
-            <OrganizeTab
-              tasks={tasks}
-              projects={projects}
-              onApply={(assignments) => {
-                let applied = 0;
-                for (const a of assignments) {
-                  updateTask(a.id, {
-                    dueDate: a.date,
-                    dueTime: a.time,
-                    durationMinutes: a.durationMinutes,
-                  });
-                  applied++;
-                }
-                toast.success(`${applied} tarefas organizadas pela IA`);
-              }}
-            />
-          </TabsContent>
+            <TabsContent value="organize" className="flex-1 min-h-0 m-0">
+              <OrganizeTab
+                tasks={tasks}
+                projects={projects}
+                onApply={(assignments) => {
+                  let applied = 0;
+                  for (const a of assignments) {
+                    updateTask(a.id, {
+                      dueDate: a.date,
+                      dueTime: a.time,
+                      durationMinutes: a.durationMinutes,
+                    });
+                    applied++;
+                  }
+                  toast.success(`${applied} tarefas organizadas pela IA`);
+                }}
+              />
+            </TabsContent>
 
-          <TabsContent value="chat" className="flex-1 min-h-0 m-0">
-            <ChatTab tasks={tasks} projects={projects} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="chat" className="flex-1 min-h-0 m-0">
+              <ChatTab tasks={tasks} projects={projects} />
+            </TabsContent>
+          </Tabs>
+        </AIAssistantErrorBoundary>
       </SheetContent>
     </Sheet>
   );
