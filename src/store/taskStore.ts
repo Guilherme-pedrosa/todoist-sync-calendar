@@ -58,22 +58,8 @@ interface GoogleCalendarEvent {
 
 const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
 
-// ====== PAUSA GLOBAL DO SYNC GCAL ======
-// Default: PAUSADO. O usuário precisa clicar em "Retomar sync" em Configurações
-// após limpar duplicatas no Google Calendar.
-const SYNC_PAUSED_KEY = 'gcal:sync-paused';
-function isGcalSyncPaused(): boolean {
-  if (typeof window === 'undefined') return true;
-  const v = window.localStorage.getItem(SYNC_PAUSED_KEY);
-  if (v === null) return true; // default: pausado
-  return v !== 'false';
-}
-export function setGcalSyncPaused(paused: boolean) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(SYNC_PAUSED_KEY, paused ? 'true' : 'false');
-}
-export function getGcalSyncPaused(): boolean {
-  return isGcalSyncPaused();
+function isGoogleSyncPaused() {
+  return typeof window !== 'undefined' && localStorage.getItem('taskflow_google_sync_paused') !== 'false';
 }
 
 function mapDbTaskToTask(t: any): Task {
@@ -142,18 +128,6 @@ function getTaskEndTime(task: Pick<Task, 'dueTime' | 'durationMinutes'>): string
   return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 }
 
-async function readResponseText(response: Response): Promise<string> {
-  try {
-    return await response.text();
-  } catch {
-    return '';
-  }
-}
-
-function isGoogleRateLimit(bodyText: string): boolean {
-  return /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
-}
-
 function normalizeCalendarTitle(value?: string | null) {
   return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
 }
@@ -183,14 +157,10 @@ function rangesOverlap(startA?: string | null, durationA?: number | null, startB
   return aStart < bEnd && bStart < aEnd;
 }
 
-function taskMatchesCalendarEvent(
-  task: Task,
-  event: GoogleCalendarEvent,
-  opts: { includeCompleted?: boolean } = {},
-) {
+function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
   const parsed = getCalendarDateAndTime(event);
   return (
-    (opts.includeCompleted || !task.completed) &&
+    !task.completed &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
     (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
@@ -278,60 +248,38 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   return tasks.filter((task) => !idsToDelete.has(task.id));
 }
 
-async function createGoogleCalendarEvent(
-  task: Task,
-  opts: { retries?: number } = {},
-): Promise<{ id: string | null; rateLimited?: boolean }> {
-  if (!task.dueDate) return { id: null };
-  if (isGcalSyncPaused()) {
-    console.info('[gcal] sync pausado — create-event ignorado para', task.title);
-    return { id: null };
-  }
+async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
+  if (isGoogleSyncPaused()) return null;
+  if (!task.dueDate) return null;
   const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return { id: null };
-  const maxRetries = opts.retries ?? 3;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        taskId: task.id, // <-- chave da idempotência
-        title: task.title,
-        description: task.description ?? '',
-        date: task.dueDate,
-        time: task.dueTime,
-        endTime: getTaskEndTime(task),
-        allDay: !task.dueTime,
-        durationMinutes: task.durationMinutes ?? 60,
-      }),
-    });
-    if (response.ok) {
-      const payload = await response.json();
-      return { id: typeof payload?.id === 'string' ? payload.id : null };
-    }
-    const bodyText = await readResponseText(response);
-    const isRateLimit = isGoogleRateLimit(bodyText);
-    if (isRateLimit && attempt < maxRetries) {
-      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 400;
-      await new Promise((r) => setTimeout(r, Math.min(delay, 30000)));
-      continue;
-    }
-    if (isRateLimit) return { id: null, rateLimited: true };
-    return { id: null };
-  }
-  return { id: null };
+  if (!accessToken) return null;
+  const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title: task.title,
+      description: task.description ?? '',
+      date: task.dueDate,
+      time: task.dueTime,
+      endTime: getTaskEndTime(task),
+      allDay: !task.dueTime,
+      durationMinutes: task.durationMinutes ?? 60,
+      taskId: task.id,
+    }),
+  });
+  if (!response.ok) return null;
+  const payload = await response.json();
+  if (payload?.error) return null;
+  return typeof payload?.id === 'string' ? payload.id : null;
 }
 
 async function updateGoogleCalendarEvent(task: Task): Promise<void> {
+  if (isGoogleSyncPaused()) return;
   if (!task.googleCalendarEventId || !task.dueDate) return;
-  if (isGcalSyncPaused()) {
-    console.info('[gcal] sync pausado — update-event ignorado para', task.title);
-    return;
-  }
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return;
   await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
@@ -343,7 +291,6 @@ async function updateGoogleCalendarEvent(task: Task): Promise<void> {
     },
     body: JSON.stringify({
       eventId: task.googleCalendarEventId,
-      taskId: task.id,
       title: task.title,
       description: task.description ?? '',
       date: task.dueDate,
@@ -356,6 +303,7 @@ async function updateGoogleCalendarEvent(task: Task): Promise<void> {
 }
 
 async function deleteGoogleCalendarEvent(eventId?: string | null): Promise<void> {
+  if (isGoogleSyncPaused()) return;
   if (!eventId) return;
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return;
@@ -373,10 +321,8 @@ async function syncGoogleCalendarEvents(
   currentTasks: Task[],
   inboxProjectId?: string
 ): Promise<Task[]> {
-  if (isGcalSyncPaused()) {
-    console.info('[gcal] sync pausado — pull/backfill desativado');
-    return currentTasks;
-  }
+  if (isGoogleSyncPaused()) return currentTasks;
+
   const { data: tokenRows, error: tokenError } = await supabase
     .from('google_tokens')
     .select('id')
@@ -442,21 +388,16 @@ async function syncGoogleCalendarEvents(
           await supabase.from('tasks').delete().in('id', duplicateIds);
           nextTasks = nextTasks.filter((task) => !duplicateIds.includes(task.id));
         }
-        if (!linkedTask.completed) {
-          await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
-          nextTasks = nextTasks.map((task) =>
-            task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
-          );
-        }
+        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        nextTasks = nextTasks.map((task) =>
+          task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
+        );
         continue;
       }
 
       if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
         continue;
       }
-
-      const completedMatch = nextTasks.find((task) => task.completed && taskMatchesCalendarEvent(task, event, { includeCompleted: true }));
-      if (completedMatch) continue;
 
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
@@ -500,25 +441,25 @@ async function syncGoogleCalendarEvents(
     );
     if (orphanTasks.length > 0) {
       const updates: Array<{ id: string; eventId: string }> = [];
-      // Serializa com pequeno delay para não estourar quota do Google (403 rateLimitExceeded)
-      let stoppedByRateLimit = false;
-      for (const task of orphanTasks) {
-        try {
-          const { id: eventId, rateLimited } = await createGoogleCalendarEvent(task);
-          if (eventId) {
-            updates.push({ id: task.id, eventId });
-          } else if (rateLimited) {
-            stoppedByRateLimit = true;
-            console.warn('Backfill interrompido por rate limit do Google Calendar.');
-            break;
-          }
-        } catch (err) {
-          console.error('Backfill: falha em', task.title, err);
-        }
-        // throttle leve: ~3 req/s
-        await new Promise((r) => setTimeout(r, 350));
+      // Limita concorrência (5 em paralelo) para não estourar quota do Google
+      const chunkSize = 5;
+      for (let i = 0; i < orphanTasks.length; i += chunkSize) {
+        const chunk = orphanTasks.slice(i, i + chunkSize);
+        const results = await Promise.all(
+          chunk.map(async (task) => {
+            try {
+              const eventId = await createGoogleCalendarEvent(task);
+              return eventId ? { id: task.id, eventId } : null;
+            } catch (err) {
+              console.error('Backfill: falha em', task.title, err);
+              return null;
+            }
+          }),
+        );
+        for (const r of results) if (r) updates.push(r);
       }
       if (updates.length > 0) {
+        // Atualiza Supabase em paralelo
         await Promise.all(
           updates.map((u) =>
             supabase
@@ -533,9 +474,6 @@ async function syncGoogleCalendarEvents(
             ? { ...t, googleCalendarEventId: updateMap.get(t.id)! }
             : t,
         );
-      }
-      if (stoppedByRateLimit) {
-        // Sinal não-fatal — próxima sincronização tenta os restantes
       }
     }
 
@@ -657,7 +595,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (newTask.googleCalendarEventId) {
           await updateGoogleCalendarEvent(newTask);
         } else {
-          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(newTask);
+          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
           if (googleCalendarEventId) {
           await supabase
             .from('tasks')
@@ -767,7 +705,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (merged.dueDate && existing.googleCalendarEventId) {
           await updateGoogleCalendarEvent(merged);
         } else if (merged.dueDate && !existing.googleCalendarEventId && !merged.completed) {
-          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(merged);
+          const googleCalendarEventId = await createGoogleCalendarEvent(merged);
           if (googleCalendarEventId) {
             await supabase.from('tasks').update({ google_calendar_event_id: googleCalendarEventId }).eq('id', id);
             set((state) => ({
@@ -849,15 +787,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
-    const { error: updateError } = await supabase
+    await supabase
       .from('tasks')
       .update({ completed, completed_at: completedAt })
       .eq('id', id);
-
-    if (updateError) {
-      console.error('Falha ao salvar conclusão da tarefa:', updateError);
-      return;
-    }
 
     set((state) => ({
       tasks: state.tasks.map((t) =>
@@ -886,7 +819,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         const accessToken = sessionData.session?.access_token;
         if (!accessToken) return;
 
-        const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
+        await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -898,14 +831,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
             completed,
           }),
         });
-        if (!response.ok) {
-          const bodyText = await readResponseText(response);
-          if (isGoogleRateLimit(bodyText)) {
-            console.warn('Google Calendar rate limit ao sincronizar conclusão. Mantendo conclusão local.', bodyText);
-            return;
-          }
-          console.error('Falha ao sincronizar conclusão com Google Calendar:', bodyText);
-        }
       } catch (error) {
         console.error('Falha ao sincronizar conclusão com Google Calendar:', error);
       }

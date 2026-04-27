@@ -28,7 +28,6 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { setGcalSyncPaused, getGcalSyncPaused } from '@/store/taskStore';
 import { toast } from 'sonner';
 import { useDebouncedEffect } from '@/hooks/useDebouncedEffect';
 import {
@@ -77,6 +76,38 @@ const TAB_ITEMS = [
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
 
+const DEFAULT_SETTINGS = {
+  language: 'pt-BR',
+  timezone: 'America/Sao_Paulo',
+  time_format: '24h',
+  date_format: 'DD-MM-YYYY',
+  week_start: 1,
+  next_week_start: 'monday',
+  home_page: 'today',
+  smart_date_recognition: true,
+  theme: 'todoist',
+  auto_dark_mode: false,
+  color_mode: 'system',
+  show_sidebar_counts: true,
+  show_calendar_status: true,
+  default_reminder_minutes: 30,
+  reminder_channels: ['push', 'email'],
+  daily_goal: 5,
+  weekly_goal: 30,
+  vacation_mode: false,
+  days_off: ['6', '0'],
+  karma_enabled: true,
+  quick_add_chips: ['date', 'deadline', 'assignee', 'attachment', 'priority', 'reminders'],
+  sidebar_order: ['inbox', 'today', 'upcoming', 'completed', 'more'],
+  sidebar_hidden: [],
+  show_task_description: true,
+  celebrations: true,
+  delete_calendar_event_on_complete: true,
+  notify_on_task_complete: true,
+  notify_on_comments: true,
+  notify_on_reminders: true,
+};
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
@@ -88,21 +119,36 @@ export default function SettingsPage() {
   const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
-  const [syncPaused, setSyncPausedState] = useState(getGcalSyncPaused());
-  const [cleaning, setCleaning] = useState(false);
-  const [dryRunResult, setDryRunResult] = useState<{ toDelete: number; toKeep: number } | null>(null);
+  const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
+  const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
+  const [syncPaused, setSyncPaused] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('taskflow_google_sync_paused') !== 'false'
+  );
 
   useEffect(() => {
     if (!user) return;
     let active = true;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
       if (!active) return;
-      setSettings(data);
+      if (error) {
+        toast.error('Falha ao carregar configurações');
+        setSettings({ ...DEFAULT_SETTINGS, user_id: user.id });
+      } else if (data) {
+        setSettings({ ...DEFAULT_SETTINGS, ...data });
+      } else {
+        const { data: created } = await supabase
+          .from('user_settings')
+          .insert({ user_id: user.id })
+          .select('*')
+          .maybeSingle();
+        if (!active) return;
+        setSettings({ ...DEFAULT_SETTINGS, ...(created || {}), user_id: user.id });
+      }
       setLoading(false);
     })();
     return () => {
@@ -225,6 +271,42 @@ export default function SettingsPage() {
       toast.error('Erro ao apagar etiquetas: ' + (e?.message || ''));
     } finally {
       setWiping(false);
+    }
+  };
+
+  const setCalendarSyncPaused = (paused: boolean) => {
+    localStorage.setItem('taskflow_google_sync_paused', paused ? 'true' : 'false');
+    setSyncPaused(paused);
+    toast.success(paused ? 'Sync pausado' : 'Sync retomado');
+  };
+
+  const cleanupCalendarDuplicates = async (dryRun: boolean) => {
+    const mode = dryRun ? 'analyze' : 'delete';
+    setCalendarMaintenanceLoading(mode);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dryRun }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.error) throw new Error(payload?.error || 'Falha ao limpar duplicatas');
+
+      const count = Number(payload?.duplicateCount || 0);
+      setCalendarDuplicateCount(dryRun ? count : 0);
+      toast.success(dryRun ? `${count} duplicatas encontradas` : `${count} duplicatas removidas`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao limpar duplicatas');
+    } finally {
+      setCalendarMaintenanceLoading(null);
     }
   };
 
@@ -699,127 +781,41 @@ export default function SettingsPage() {
                   value={settings.delete_calendar_event_on_complete}
                   onChange={(v) => update({ delete_calendar_event_on_complete: v })}
                 />
-
-                {/* === Controle de emergência: pausa global do sync === */}
-                <div className={`rounded-xl border p-4 ${syncPaused ? 'border-warning/40 bg-warning/5' : 'border-success/40 bg-success/5'}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">
-                        Sincronização: {syncPaused ? '⏸️ Pausada' : '▶️ Ativa'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {syncPaused
-                          ? 'Nenhum evento será criado ou atualizado no Google Calendar. Limpe duplicatas antes de retomar.'
-                          : 'Eventos são sincronizados automaticamente.'}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={syncPaused ? 'default' : 'outline'}
-                      onClick={() => {
-                        const next = !syncPaused;
-                        setGcalSyncPaused(next);
-                        setSyncPausedState(next);
-                        toast.success(next ? 'Sync pausado' : 'Sync retomado');
-                      }}
-                    >
-                      {syncPaused ? '▶️ Retomar sync' : '⏸️ Pausar sync'}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* === Limpeza de duplicatas === */}
-                {calendarConnected && (
-                  <div className="rounded-xl border border-border p-4">
-                    <p className="text-sm font-semibold">🧹 Limpar duplicatas no Google Calendar</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Verifica os próximos 90 dias e remove eventos repetidos (mesmo título e horário). Mantém o que tem vínculo com tarefa.
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-3">
+                <Section title="Manutenção do sync">
+                  <div className="rounded-xl border border-border p-4 space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={syncPaused ? 'default' : 'outline'}
+                        onClick={() => setCalendarSyncPaused(!syncPaused)}
+                      >
+                        {syncPaused ? '▶️ Retomar sync' : '⏸️ Pausar sync'}
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={cleaning}
-                        onClick={async () => {
-                          setCleaning(true);
-                          setDryRunResult(null);
-                          try {
-                            const { data: sessionData } = await supabase.auth.getSession();
-                            const token = sessionData.session?.access_token;
-                            if (!token) throw new Error('Sessão expirada');
-                            const res = await fetch(
-                              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`,
-                              {
-                                method: 'POST',
-                                headers: {
-                                  Authorization: `Bearer ${token}`,
-                                  apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                                  'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({ dryRun: true }),
-                              },
-                            );
-                            const data = await res.json();
-                            if (!res.ok) throw new Error(data?.error || 'Falha ao analisar');
-                            setDryRunResult({ toDelete: data.toDelete, toKeep: data.toKeep });
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : 'Falha');
-                          } finally {
-                            setCleaning(false);
-                          }
-                        }}
+                        disabled={calendarMaintenanceLoading !== null || !calendarConnected}
+                        onClick={() => cleanupCalendarDuplicates(true)}
                       >
-                        {cleaning ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                        Analisar (preview)
+                        {calendarMaintenanceLoading === 'analyze' ? 'Analisando…' : '🧹 Analisar duplicatas'}
                       </Button>
-                      {dryRunResult && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          disabled={cleaning || dryRunResult.toDelete === 0}
-                          onClick={async () => {
-                            const ok = window.confirm(
-                              `Vou deletar ${dryRunResult.toDelete} eventos duplicados, manter ${dryRunResult.toKeep}. Confirmar?`,
-                            );
-                            if (!ok) return;
-                            setCleaning(true);
-                            try {
-                              const { data: sessionData } = await supabase.auth.getSession();
-                              const token = sessionData.session?.access_token;
-                              const res = await fetch(
-                                `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`,
-                                {
-                                  method: 'POST',
-                                  headers: {
-                                    Authorization: `Bearer ${token}`,
-                                    apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-                                    'Content-Type': 'application/json',
-                                  },
-                                  body: JSON.stringify({}),
-                                },
-                              );
-                              const data = await res.json();
-                              if (!res.ok) throw new Error(data?.error || 'Falha');
-                              toast.success(`Deletados: ${data.deleted}. Mantidos: ${data.kept}.`);
-                              setDryRunResult(null);
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'Falha');
-                            } finally {
-                              setCleaning(false);
-                            }
-                          }}
-                        >
-                          🗑️ Deletar {dryRunResult.toDelete} duplicatas
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={calendarMaintenanceLoading !== null || !calendarConnected || !calendarDuplicateCount}
+                        onClick={() => cleanupCalendarDuplicates(false)}
+                      >
+                        {calendarMaintenanceLoading === 'delete'
+                          ? 'Deletando…'
+                          : `🗑️ Deletar ${calendarDuplicateCount || 0} duplicatas`}
+                      </Button>
                     </div>
-                    {dryRunResult && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Análise: {dryRunResult.toDelete} a deletar, {dryRunResult.toKeep} a manter.
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Status do sync: {syncPaused ? 'pausado' : 'ativo'}.
+                      {calendarDuplicateCount !== null ? ` Última análise: ${calendarDuplicateCount} duplicatas.` : ''}
+                    </p>
                   </div>
-                )}
+                </Section>
               </Section>
             </TabsContent>
 

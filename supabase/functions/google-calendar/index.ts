@@ -25,6 +25,31 @@ const parseJsonBody = async (req: Request): Promise<JsonBody> => {
   }
 };
 
+const normalizeEventText = (value: unknown) =>
+  String(value || "")
+    .replace(/^✅\s*/, "")
+    .trim()
+    .toLowerCase();
+
+const eventDateKey = (event: Record<string, any>, field: "start" | "end") =>
+  event?.[field]?.dateTime || event?.[field]?.date || "";
+
+const eventDedupeKey = (event: Record<string, any>) => {
+  const taskId = event?.extendedProperties?.private?.taskId;
+  if (typeof taskId === "string" && taskId.trim()) return `task:${taskId.trim()}`;
+  return `slot:${normalizeEventText(event.summary)}|${eventDateKey(event, "start")}|${eventDateKey(event, "end")}`;
+};
+
+const safeGoogleJson = async (res: Response) => {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -288,9 +313,11 @@ serve(async (req) => {
       }
 
       case "create-event": {
+        const taskId = typeof body.taskId === "string" ? body.taskId.trim() : "";
         const normalizeTime = (t: unknown, fallback: string): string => {
           const s = typeof t === "string" ? t.trim() : "";
           if (!s) return fallback;
+          // Aceita HH:mm ou HH:mm:ss; sempre devolve HH:mm:ss
           const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
           if (!m) return fallback;
           const hh = m[1].padStart(2, "0");
@@ -300,9 +327,7 @@ serve(async (req) => {
         };
         const startTime = normalizeTime(body.time, "09:00:00");
         const endTime = normalizeTime(body.endTime ?? body.time, "10:00:00");
-        const taskId = typeof body.taskId === "string" ? body.taskId : "";
-
-        const buildEvent = () => ({
+        const event = {
           summary: body.title,
           description: body.description || "",
           start: body.allDay
@@ -319,151 +344,49 @@ serve(async (req) => {
               },
           reminders: { useDefault: true },
           extendedProperties: taskId ? { private: { taskId } } : undefined,
-        });
+        };
 
-        // IDEMPOTÊNCIA: se já existe evento com este taskId, faça PATCH em vez de INSERT.
-        // Isto previne duplicatas mesmo se o cliente perdeu o googleEventId localmente.
         if (taskId) {
           const lookupParams = new URLSearchParams({
             privateExtendedProperty: `taskId=${taskId}`,
-            maxResults: "10",
             showDeleted: "false",
-            singleEvents: "true",
+            singleEvents: "false",
+            maxResults: "10",
           });
-          const lookupRes = await fetch(
-            `${calendarBase}/calendars/primary/events?${lookupParams.toString()}`,
-            { headers },
-          );
-          if (lookupRes.ok) {
-            const lookupData = await lookupRes.json();
-            const items: any[] = Array.isArray(lookupData.items) ? lookupData.items : [];
-            if (items.length >= 1) {
-              // Mantém o primeiro, deleta extras (dedupe legacy).
-              const keep = items[0];
-              for (const extra of items.slice(1)) {
-                if (extra?.id) {
-                  await fetch(
-                    `${calendarBase}/calendars/primary/events/${extra.id}`,
-                    { method: "DELETE", headers },
-                  );
-                }
-              }
-              const patchRes = await fetch(
-                `${calendarBase}/calendars/primary/events/${keep.id}`,
-                { method: "PATCH", headers, body: JSON.stringify(buildEvent()) },
-              );
-              const patched = await patchRes.json();
-              return jsonResponse(patched, patchRes.ok ? 200 : 400);
-            }
+          const lookupRes = await fetch(`${calendarBase}/calendars/primary/events?${lookupParams.toString()}`, { headers });
+          const lookupData = await safeGoogleJson(lookupRes);
+          if (!lookupRes.ok) return jsonResponse(lookupData, 200);
+
+          const matches = Array.isArray(lookupData.items) ? lookupData.items : [];
+          if (matches.length > 0) {
+            const [primary, ...extras] = matches;
+            const patchRes = await fetch(`${calendarBase}/calendars/primary/events/${primary.id}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify(event),
+            });
+            const patchData = await safeGoogleJson(patchRes);
+
+            await Promise.all(
+              extras
+                .filter((extra: any) => extra?.id)
+                .map((extra: any) =>
+                  fetch(`${calendarBase}/calendars/primary/events/${extra.id}`, { method: "DELETE", headers }).catch(() => null),
+                ),
+            );
+
+            return jsonResponse(patchRes.ok ? patchData : { ...patchData, id: primary.id }, 200);
           }
         }
 
         const res = await fetch(`${calendarBase}/calendars/primary/events`, {
           method: "POST",
           headers,
-          body: JSON.stringify(buildEvent()),
+          body: JSON.stringify(event),
         });
 
-        const data = await res.json();
-        return jsonResponse(data, res.ok ? 200 : 400);
-      }
-
-      case "find-by-task": {
-        const taskId = typeof body.taskId === "string" ? body.taskId : url.searchParams.get("taskId") || "";
-        if (!taskId) return jsonResponse({ error: "taskId é obrigatório" }, 400);
-        const lookupParams = new URLSearchParams({
-          privateExtendedProperty: `taskId=${taskId}`,
-          maxResults: "10",
-          showDeleted: "false",
-          singleEvents: "true",
-        });
-        const res = await fetch(
-          `${calendarBase}/calendars/primary/events?${lookupParams.toString()}`,
-          { headers },
-        );
-        const data = await res.json();
-        return jsonResponse(data, res.ok ? 200 : 400);
-      }
-
-      case "cleanup-duplicates": {
-        // Lista próximos 90 dias, agrupa por (summary + start), mantém 1, deleta resto.
-        const now = new Date();
-        const endRange = new Date();
-        endRange.setDate(endRange.getDate() + 90);
-        const dryRun = body.dryRun === true || url.searchParams.get("dryRun") === "true";
-
-        let pageToken: string | undefined;
-        const all: any[] = [];
-        let safety = 20;
-        do {
-          const params = new URLSearchParams({
-            timeMin: now.toISOString(),
-            timeMax: endRange.toISOString(),
-            singleEvents: "true",
-            orderBy: "startTime",
-            maxResults: "2500",
-          });
-          if (pageToken) params.set("pageToken", pageToken);
-          const res = await fetch(
-            `${calendarBase}/calendars/primary/events?${params.toString()}`,
-            { headers },
-          );
-          if (!res.ok) {
-            const err = await res.json();
-            return jsonResponse(err, 400);
-          }
-          const data = await res.json();
-          if (Array.isArray(data.items)) all.push(...data.items);
-          pageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;
-          safety -= 1;
-        } while (pageToken && safety > 0);
-
-        const groups = new Map<string, any[]>();
-        for (const ev of all) {
-          const summary = (ev.summary || "").trim().toLowerCase();
-          const start = ev.start?.dateTime || ev.start?.date || "";
-          if (!summary || !start) continue;
-          const key = `${summary}|${start}`;
-          const arr = groups.get(key) || [];
-          arr.push(ev);
-          groups.set(key, arr);
-        }
-
-        let toDelete = 0;
-        let toKeep = 0;
-        const deletions: string[] = [];
-        for (const [, arr] of groups) {
-          if (arr.length < 2) {
-            toKeep += arr.length;
-            continue;
-          }
-          // Prefere o que tem extendedProperties.private.taskId; senão o mais antigo.
-          arr.sort((a, b) => {
-            const aHas = a.extendedProperties?.private?.taskId ? 1 : 0;
-            const bHas = b.extendedProperties?.private?.taskId ? 1 : 0;
-            if (aHas !== bHas) return bHas - aHas;
-            return (a.created || "").localeCompare(b.created || "");
-          });
-          toKeep += 1;
-          for (const extra of arr.slice(1)) {
-            toDelete += 1;
-            if (extra?.id) deletions.push(extra.id);
-          }
-        }
-
-        if (dryRun) {
-          return jsonResponse({ toDelete, toKeep, totalScanned: all.length });
-        }
-
-        let deleted = 0;
-        for (const id of deletions) {
-          const r = await fetch(
-            `${calendarBase}/calendars/primary/events/${id}`,
-            { method: "DELETE", headers },
-          );
-          if (r.ok || r.status === 410) deleted += 1;
-        }
-        return jsonResponse({ deleted, kept: toKeep, totalScanned: all.length });
+        const data = await safeGoogleJson(res);
+        return jsonResponse(data, 200);
       }
 
       case "update-event": {
@@ -506,12 +429,6 @@ serve(async (req) => {
                 dateTime: `${updates.date}T${endTime}`,
                 timeZone: updates.timeZone || "America/Sao_Paulo",
               };
-        }
-
-        // Garante que o evento legado fique marcado com taskId pra próximas idempotências
-        const taskId = typeof body.taskId === "string" ? body.taskId : "";
-        if (taskId) {
-          event.extendedProperties = { private: { taskId } };
         }
 
         const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
@@ -580,10 +497,56 @@ serve(async (req) => {
         return jsonResponse(data, res.ok ? 200 : 400);
       }
 
+      case "cleanup-duplicates": {
+        const dryRun = body.dryRun !== false;
+        const now = new Date();
+        const timeMin = typeof body.timeMin === "string" ? body.timeMin : new Date(now.getFullYear() - 1, 0, 1).toISOString();
+        const timeMax = typeof body.timeMax === "string" ? body.timeMax : new Date(now.getFullYear() + 1, 11, 31).toISOString();
+        let pageToken: string | undefined;
+        const allItems: Record<string, any>[] = [];
+        let safety = 50;
+
+        do {
+          const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", maxResults: "2500", showDeleted: "false" });
+          if (pageToken) params.set("pageToken", pageToken);
+          const res = await fetch(`${calendarBase}/calendars/primary/events?${params.toString()}`, { headers });
+          const data = await safeGoogleJson(res);
+          if (!res.ok) return jsonResponse({ error: "Falha ao listar eventos", details: data }, 200);
+          if (Array.isArray(data.items)) allItems.push(...data.items);
+          pageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;
+          safety -= 1;
+        } while (pageToken && safety > 0);
+
+        const groups = new Map<string, Record<string, any>[]>();
+        for (const event of allItems) {
+          if (!event?.id || event.status === "cancelled") continue;
+          const key = eventDedupeKey(event);
+          if (!key.includes("task:") && !normalizeEventText(event.summary)) continue;
+          const group = groups.get(key) ?? [];
+          group.push(event);
+          groups.set(key, group);
+        }
+
+        const duplicates: Record<string, any>[] = [];
+        for (const group of groups.values()) {
+          if (group.length <= 1) continue;
+          group.sort((a, b) => String(a.created || a.updated || "").localeCompare(String(b.created || b.updated || "")));
+          duplicates.push(...group.slice(1));
+        }
+
+        if (!dryRun && duplicates.length > 0) {
+          for (const duplicate of duplicates) {
+            await fetch(`${calendarBase}/calendars/primary/events/${duplicate.id}`, { method: "DELETE", headers }).catch(() => null);
+          }
+        }
+
+        return jsonResponse({ success: true, dryRun, scanned: allItems.length, duplicateCount: duplicates.length, duplicates: duplicates.map((event) => ({ id: event.id, summary: event.summary, start: event.start })) });
+      }
+
       default:
-        return jsonResponse({ error: "Ação inválida" }, 400);
+        return jsonResponse({ error: "Ação inválida", action }, 200);
     }
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : "Erro inesperado" }, 500);
+    return jsonResponse({ error: err instanceof Error ? err.message : "Erro inesperado" }, 200);
   }
 });
