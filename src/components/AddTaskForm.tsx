@@ -245,10 +245,10 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
         <Button
           size="sm"
           onClick={handleSubmit}
-          disabled={!(parsed?.cleanedTitle || title).trim()}
+          disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
           className="h-7 text-xs"
         >
-          Adicionar
+          {submitting ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </div>
     </div>
