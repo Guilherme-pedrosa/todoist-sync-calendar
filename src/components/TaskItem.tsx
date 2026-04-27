@@ -395,7 +395,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </motion.div>
 
       {/* Subtasks - aninhadas visualmente dentro do pai */}
       {hasSubtasks && !collapsed && (
