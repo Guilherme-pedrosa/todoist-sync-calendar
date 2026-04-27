@@ -206,8 +206,8 @@ export default function UpcomingPage() {
 // ---------- Week grid (Google Calendar–style) ----------
 
 type DragState =
-  | { kind: 'move'; taskId: string; pointerOffsetMin: number; durationMin: number }
-  | { kind: 'resize'; taskId: string; startTopMin: number; minDuration: number }
+  | { kind: 'move'; taskId: string; pointerOffsetMin: number; durationMin: number; sourceDayKey: string }
+  | { kind: 'resize'; taskId: string; startTopMin: number; minDuration: number; sourceDayKey: string }
   | { kind: 'create'; dayKey: string; startMin: number };
 
 function timeToMinutes(t?: string | null): number {
