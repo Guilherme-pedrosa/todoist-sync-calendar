@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
 type SortBy = 'manual' | 'date' | 'priority' | 'alpha' | 'added';
 
