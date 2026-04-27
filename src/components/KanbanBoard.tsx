@@ -23,11 +23,20 @@ import { ptBR } from 'date-fns/locale';
 
 export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status';
 
+export interface KanbanSection {
+  id: string;
+  name: string;
+  position: number;
+  projectId: string;
+}
+
 interface KanbanBoardProps {
   tasks: Task[];
   groupBy: GroupBy;
   /** Para projetos: limita seções/colunas a este projeto */
   projectId?: string;
+  /** Seções disponíveis (necessário quando groupBy='section') */
+  sections?: KanbanSection[];
   /** defaults aplicados ao criar nova tarefa numa coluna (ex.: defaultDate em "Hoje") */
   newTaskDefaults?: Partial<{ projectId: string; sectionId: string; defaultDate: string }>;
 }
