@@ -81,6 +81,7 @@ export function QuickAddDialog() {
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
 
   const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
   const hasContent = title.trim() || description.trim();
