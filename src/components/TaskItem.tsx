@@ -231,7 +231,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             className={cn(
               'text-sm font-medium leading-snug',
               task.recurrenceRule && !task.completed && 'text-recurring',
-              task.completed && 'line-through text-muted-foreground'
+              task.completed && 'line-through text-success'
             )}
           >
             {task.title}

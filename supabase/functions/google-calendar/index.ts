@@ -481,10 +481,10 @@ serve(async (req) => {
 
         const newSummary = completed ? `${DONE_PREFIX}${cleanSummary}` : cleanSummary;
 
-        // colorId 8 = Graphite (cinza, indica concluído); null restaura cor padrão
+        // colorId 10 = Basil (verde, indica concluído); null restaura cor padrão
         const patchBody: Record<string, unknown> = {
           summary: newSummary,
-          colorId: completed ? "8" : null,
+          colorId: completed ? "10" : null,
         };
 
         const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
