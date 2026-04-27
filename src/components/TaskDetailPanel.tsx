@@ -613,6 +613,49 @@ export function TaskDetailPanel() {
               />
             </DetailRow>
 
+            <DetailRow icon={FolderInput} label="Projeto">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="w-full text-left text-sm hover:text-primary flex items-center gap-2">
+                    {project?.isInbox ? (
+                      <Inbox className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: project?.color }} />
+                    )}
+                    <span className="truncate">
+                      {project?.name ?? <span className="text-muted-foreground">Selecionar projeto</span>}
+                    </span>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-60 p-1 max-h-72 overflow-y-auto" align="end">
+                  {projects
+                    .slice()
+                    .sort((a, b) => {
+                      if (a.isInbox) return -1;
+                      if (b.isInbox) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => updateTask(task.id, { projectId: p.id })}
+                        className={cn(
+                          'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left',
+                          p.id === task.projectId && 'bg-muted font-medium'
+                        )}
+                      >
+                        {p.isInbox ? (
+                          <Inbox className="h-3.5 w-3.5 shrink-0" />
+                        ) : (
+                          <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: p.color }} />
+                        )}
+                        <span className="truncate">{p.name}</span>
+                      </button>
+                    ))}
+                </PopoverContent>
+              </Popover>
+            </DetailRow>
+
             <DetailRow icon={Flag} label="Prioridade">
               <Popover>
                 <PopoverTrigger asChild>
