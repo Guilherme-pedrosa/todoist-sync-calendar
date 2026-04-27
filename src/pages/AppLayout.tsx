@@ -5,6 +5,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
 import { QuickAddDialog } from '@/components/QuickAddDialog';
 import { MobileFab } from '@/components/MobileFab';
+import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -126,6 +127,7 @@ export default function AppLayout() {
       <Outlet />
       <QuickAddDialog />
       <MobileFab />
+      <TaskDetailPanel />
     </div>
   );
 }
