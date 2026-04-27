@@ -572,7 +572,7 @@ function DayColumn({
         <div
           className="absolute left-1 right-1 z-10 rounded-md bg-primary/30 border border-primary/60 pointer-events-none"
           style={{
-            top: (createBox.startMin / 60) * HOUR_HEIGHT,
+            top: ((createBox.startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT,
             height: Math.max(
               (SNAP_MINUTES / 60) * HOUR_HEIGHT,
               ((createBox.endMin - createBox.startMin) / 60) * HOUR_HEIGHT
