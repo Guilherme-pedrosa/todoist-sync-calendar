@@ -125,14 +125,58 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
       ref={setNodeRef}
       style={style}
       className={cn(
-        'select-none',
-        depth > 0 && 'relative ml-6 pl-4 border-l border-border/60'
+        'select-none relative overflow-hidden',
+        depth > 0 && 'ml-6 pl-4 border-l border-border/60'
       )}
     >
-      <div
+      {/* Swipe action backgrounds (mobile) */}
+      <div className="lg:hidden absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
+        <span className="text-xs font-semibold text-success-foreground bg-success px-3 py-1 rounded-full">✓ Concluir</span>
+        <span className="text-xs font-semibold text-destructive-foreground bg-destructive px-3 py-1 rounded-full">Excluir</span>
+      </div>
+      <motion.div
+        drag={!enableDrag ? false : 'x'}
+        dragConstraints={{ left: -120, right: 120 }}
+        dragElastic={0.2}
+        onDragEnd={(_, info) => {
+          const w = (info.point.x ? 1 : 1) && 200; // arbitrary base
+          if (info.offset.x > 80) {
+            // swipe direita → concluir
+            complete(task.id);
+          } else if (info.offset.x < -80) {
+            // swipe esquerda → excluir (com undo)
+            const snapshot = { ...task };
+            void deleteTask(task.id).then(() => {
+              toast('Tarefa excluída', {
+                duration: 6000,
+                action: {
+                  label: 'Desfazer',
+                  onClick: async () => {
+                    await useTaskStore.getState().addTask({
+                      title: snapshot.title,
+                      description: snapshot.description,
+                      priority: snapshot.priority,
+                      dueDate: snapshot.dueDate ?? null,
+                      dueTime: snapshot.dueTime ?? null,
+                      durationMinutes: snapshot.durationMinutes ?? null,
+                      dueString: snapshot.dueString ?? null,
+                      deadline: snapshot.deadline ?? null,
+                      recurrenceRule: snapshot.recurrenceRule ?? null,
+                      projectId: snapshot.projectId ?? null,
+                      sectionId: snapshot.sectionId ?? null,
+                      parentId: snapshot.parentId ?? null,
+                      labels: snapshot.labels,
+                      position: 0,
+                    } as any);
+                  },
+                },
+              });
+            });
+          }
+        }}
         onClick={handleClick}
         className={cn(
-          'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer',
+          'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer bg-background',
           'hover:bg-muted/50',
           task.completed && 'opacity-50'
         )}
