@@ -188,7 +188,7 @@ function WeekGrid({
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = 7 * HOUR_HEIGHT;
+      scrollRef.current.scrollTop = 0;
     }
   }, []);
 
@@ -198,8 +198,8 @@ function WeekGrid({
   const pointerToMinutes = useCallback((dayEl: HTMLDivElement, clientY: number) => {
     const rect = dayEl.getBoundingClientRect();
     const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
-    const min = (y / HOUR_HEIGHT) * 60;
-    return Math.max(0, Math.min(24 * 60 - SNAP_MINUTES, snap(min)));
+    const min = DAY_START_MIN + (y / HOUR_HEIGHT) * 60;
+    return Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - SNAP_MINUTES, snap(min)));
   }, []);
 
   const findDayUnderPointer = useCallback((clientX: number, clientY: number): string | null => {
