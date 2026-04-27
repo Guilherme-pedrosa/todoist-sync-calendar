@@ -119,6 +119,7 @@ export function TaskDetailPanel() {
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const updateTask = useTaskStore((s) => s.updateTask);
+  const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
