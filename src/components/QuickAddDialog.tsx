@@ -62,7 +62,15 @@ export function QuickAddDialog() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const params = useParams();
-  const { open, defaultProjectId, defaultParentId, defaultDueDate, closeQuickAdd } = useQuickAddStore();
+  const {
+    open,
+    defaultProjectId,
+    defaultParentId,
+    defaultDueDate,
+    defaultDueTime,
+    defaultDurationMinutes,
+    closeQuickAdd,
+  } = useQuickAddStore();
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
   const addTask = useTaskStore((s) => s.addTask);
