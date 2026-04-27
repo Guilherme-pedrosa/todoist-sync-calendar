@@ -274,6 +274,8 @@ export function TaskDetailPanel() {
     const parts: string[] = [];
     if (task.dueDate) parts.push(format(parseISO(task.dueDate), "d 'de' MMM", { locale: ptBR }));
     if (task.dueTime) parts.push(task.dueTime);
+    const rec = formatRecurrence(task.recurrenceRule);
+    if (rec) parts.push(`🔁 ${rec}`);
     return parts.join(' · ');
   })();
 
