@@ -9,6 +9,7 @@ interface AuthContextType {
   calendarConnected: boolean | null;
   signOut: () => Promise<void>;
   connectCalendar: () => Promise<void>;
+  reconnectCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   calendarConnected: null,
   signOut: async () => {},
   connectCalendar: async () => {},
+  reconnectCalendar: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const redirectUri = `${window.location.origin}/`;
+      const redirectUri = `${window.location.origin}/calendar-callback`;
       const params = new URLSearchParams({
         action: 'connect-url',
         redirectUri,
@@ -145,8 +147,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await requestGoogleCalendarConsent();
   };
 
+  const reconnectCalendar = async () => {
+    if (user?.id) {
+      await supabase.from('google_tokens').delete().eq('user_id', user.id);
+      setCalendarConnected(false);
+    }
+    await requestGoogleCalendarConsent();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut, connectCalendar }}>
+    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut, connectCalendar, reconnectCalendar }}>
       {children}
     </AuthContext.Provider>
   );
