@@ -57,6 +57,7 @@ export function AppSidebar() {
   const [newLabelName, setNewLabelName] = useState('');
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const [importingTodoist, setImportingTodoist] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter(
