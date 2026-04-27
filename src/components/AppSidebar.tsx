@@ -31,7 +31,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
-  const { signOut, calendarConnected, connectCalendar } = useAuth();
+  const { signOut, calendarConnected, connectCalendar, reconnectCalendar } = useAuth();
   const {
     tasks,
     projects,
@@ -85,6 +85,15 @@ export function AppSidebar() {
     setConnectingCalendar(true);
     try {
       await connectCalendar();
+    } finally {
+      setConnectingCalendar(false);
+    }
+  };
+
+  const handleReconnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      await reconnectCalendar();
     } finally {
       setConnectingCalendar(false);
     }
@@ -280,6 +289,16 @@ export function AppSidebar() {
             className="w-full h-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium hover:bg-sidebar-accent/80 transition-colors disabled:opacity-60"
           >
             {connectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}
+          </button>
+        )}
+
+        {calendarConnected && (
+          <button
+            onClick={handleReconnectCalendar}
+            disabled={connectingCalendar}
+            className="w-full h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/60 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+          >
+            {connectingCalendar ? 'Reconectando...' : 'Reconectar Google Calendar'}
           </button>
         )}
 
