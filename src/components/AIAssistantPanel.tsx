@@ -34,6 +34,17 @@ import { cn } from '@/lib/utils';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string };
 
+const todayString = () => format(new Date(), 'yyyy-MM-dd');
+
+const isPastTodaySlot = (date: string, time?: string | null) => {
+  if (!time || date !== todayString()) return false;
+  const [h, m] = time.slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return false;
+  const now = new Date();
+  const minAllowed = Math.ceil((now.getHours() * 60 + now.getMinutes() + 5) / 15) * 15;
+  return h * 60 + m < minAllowed;
+};
+
 export function AIAssistantPanel() {
   const isOpen = useAIAssistantStore((s) => s.isOpen);
   const initialTab = useAIAssistantStore((s) => s.initialTab);
@@ -112,8 +123,7 @@ export function AIAssistantPanel() {
 
 // -------------- Análise --------------
 function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const [date, setDate] = useState(() => todayStr);
+  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<string | null>(null);
 
@@ -136,7 +146,7 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
         <input
           type="date"
           value={date}
-          min={todayStr}
+          min={todayString()}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
@@ -180,8 +190,7 @@ function OrganizeTab({
   projects: any[];
   onApply: (a: { id: string; date: string; time: string; durationMinutes: number }[]) => void;
 }) {
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const [date, setDate] = useState(() => today);
+  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     assignments: { id: string; date: string; time: string; durationMinutes: number }[];
@@ -215,25 +224,15 @@ function OrganizeTab({
         tasks,
         projects,
       });
-
-      // Filtra horários no passado se o dia alvo for hoje
-      if (date === today) {
-        const now = new Date();
-        const nowMin = now.getHours() * 60 + now.getMinutes();
-        const valid = r.assignments.filter((a) => {
-          const [h, m] = a.time.split(':').map(Number);
-          return h * 60 + m >= nowMin;
-        });
-        const dropped = r.assignments.length - valid.length;
-        if (dropped > 0) {
-          toast.warning(
-            `${dropped} sugestão(ões) no passado foram descartadas. Tente de novo se quiser preencher.`,
-          );
-        }
-        setResult({ ...r, assignments: valid });
-      } else {
-        setResult(r);
+      const assignments = r.assignments.filter((a) => !isPastTodaySlot(a.date, a.time));
+      if (assignments.length !== r.assignments.length) {
+        toast.warning('Removi sugestões da IA que caíam em horário passado.');
       }
+      if (assignments.length === 0) {
+        toast.error('A IA não encontrou horários futuros válidos para este dia.');
+        return;
+      }
+      setResult({ ...r, assignments });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao organizar');
     } finally {
@@ -247,7 +246,7 @@ function OrganizeTab({
         <input
           type="date"
           value={date}
-          min={today}
+          min={todayString()}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
