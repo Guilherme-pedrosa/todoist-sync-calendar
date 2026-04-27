@@ -64,6 +64,7 @@ export function AppSidebar() {
     setActiveProjectId,
     setActiveLabelId,
     addProject,
+    deleteProject,
     addLabel,
     fetchData,
   } = useTaskStore();
