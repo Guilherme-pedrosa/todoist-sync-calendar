@@ -16,7 +16,7 @@ export function useCompleteTask() {
   const toggleTask = useTaskStore((s) => s.toggleTask);
 
   return useCallback(
-    async (taskId: string) => {
+    async (taskId: string, options?: { endRecurring?: boolean }) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
 
@@ -26,8 +26,8 @@ export function useCompleteTask() {
         return;
       }
 
-      // If recurring → advance
-      if (task.recurrenceRule) {
+      // If recurring → advance, unless caller asked to end the series
+      if (task.recurrenceRule && !options?.endRecurring) {
         const next = nextOccurrence(task.recurrenceRule, task.dueDate, task.dueTime);
         if (next) {
           await updateTask(taskId, {
@@ -61,8 +61,13 @@ export function useCompleteTask() {
         // If null → recurrence ended, mark as truly done below
       }
 
+      // End-recurring path: clear the rule then mark completed below
+      if (task.recurrenceRule && options?.endRecurring) {
+        await updateTask(taskId, { recurrenceRule: null });
+      }
+
       await toggleTask(taskId);
-      toast('Tarefa concluída', {
+      toast(options?.endRecurring ? 'Tarefa finalizada para sempre' : 'Tarefa concluída', {
         duration: 5000,
         action: {
           label: 'Desfazer',

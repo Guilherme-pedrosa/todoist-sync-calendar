@@ -353,6 +353,11 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
               >
                 <FolderInput className="h-4 w-4 mr-2" /> Ir para projeto
               </DropdownMenuItem>
+              {task.recurrenceRule && !task.completed && (
+                <DropdownMenuItem onSelect={() => complete(task.id, { endRecurring: true })}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Finalizar recorrência
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive"
