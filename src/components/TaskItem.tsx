@@ -229,6 +229,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           <p
             className={cn(
               'text-sm font-medium leading-snug',
+              task.recurrenceRule && !task.completed && 'text-recurring',
               task.completed && 'line-through text-muted-foreground'
             )}
           >
