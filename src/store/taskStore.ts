@@ -58,6 +58,24 @@ interface GoogleCalendarEvent {
 
 const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
 
+// ====== PAUSA GLOBAL DO SYNC GCAL ======
+// Default: PAUSADO. O usuário precisa clicar em "Retomar sync" em Configurações
+// após limpar duplicatas no Google Calendar.
+const SYNC_PAUSED_KEY = 'gcal:sync-paused';
+function isGcalSyncPaused(): boolean {
+  if (typeof window === 'undefined') return true;
+  const v = window.localStorage.getItem(SYNC_PAUSED_KEY);
+  if (v === null) return true; // default: pausado
+  return v !== 'false';
+}
+export function setGcalSyncPaused(paused: boolean) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(SYNC_PAUSED_KEY, paused ? 'true' : 'false');
+}
+export function getGcalSyncPaused(): boolean {
+  return isGcalSyncPaused();
+}
+
 function mapDbTaskToTask(t: any): Task {
   return {
     id: t.id,
