@@ -473,7 +473,7 @@ serve(async (req) => {
         await Promise.all([
           supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
-          supabase.from("tasks").select("id, title, due_date, project_id").eq("user_id", user.id),
+          supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id").eq("user_id", user.id),
         ]);
 
       // 3. Sync projects (dedup by name; map Todoist Inbox -> app Inbox)
@@ -544,9 +544,9 @@ serve(async (req) => {
       }
 
       // 5. Sync tasks — dedup by (title + due_date + project_id)
-      const existingKey = new Set<string>();
+      const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}`);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}|`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -563,8 +563,22 @@ serve(async (req) => {
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
+        const existing = existingByKey.get(key);
+        if (existing) {
+          const patch = mergeImportedTask(existing, {
+            description: tt.description || null,
+            priority: mapPriority(tt.priority),
+            due_date: dueDate,
+            due_time: dueTime,
+            duration_minutes: durationMinutes,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline,
+          });
+          if (patch) await supabase.from("tasks").update(patch).eq("id", existing.id);
+          continue;
+        }
+        existingByKey.set(key, { id: null });
 
         tasksToInsert.push({
           task: tt,
