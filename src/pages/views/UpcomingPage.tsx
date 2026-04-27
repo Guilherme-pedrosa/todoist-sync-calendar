@@ -327,7 +327,7 @@ function WeekGrid({
         </div>
 
         {/* All-day row */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-muted/20">
+        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur">
           <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
             Dia todo
           </div>
@@ -335,7 +335,10 @@ function WeekGrid({
             const k = format(day, 'yyyy-MM-dd');
             const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
             return (
-              <div key={k} className="border-l border-border px-1 py-1 min-h-[36px] space-y-0.5">
+              <div
+                key={k}
+                className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
+              >
                 {allDay.map((t) => (
                   <button
                     key={t.id}
