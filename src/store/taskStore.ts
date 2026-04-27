@@ -449,25 +449,25 @@ async function syncGoogleCalendarEvents(
     );
     if (orphanTasks.length > 0) {
       const updates: Array<{ id: string; eventId: string }> = [];
-      // Limita concorrência (5 em paralelo) para não estourar quota do Google
-      const chunkSize = 5;
-      for (let i = 0; i < orphanTasks.length; i += chunkSize) {
-        const chunk = orphanTasks.slice(i, i + chunkSize);
-        const results = await Promise.all(
-          chunk.map(async (task) => {
-            try {
-              const eventId = await createGoogleCalendarEvent(task);
-              return eventId ? { id: task.id, eventId } : null;
-            } catch (err) {
-              console.error('Backfill: falha em', task.title, err);
-              return null;
-            }
-          }),
-        );
-        for (const r of results) if (r) updates.push(r);
+      // Serializa com pequeno delay para não estourar quota do Google (403 rateLimitExceeded)
+      let stoppedByRateLimit = false;
+      for (const task of orphanTasks) {
+        try {
+          const { id: eventId, rateLimited } = await createGoogleCalendarEvent(task);
+          if (eventId) {
+            updates.push({ id: task.id, eventId });
+          } else if (rateLimited) {
+            stoppedByRateLimit = true;
+            console.warn('Backfill interrompido por rate limit do Google Calendar.');
+            break;
+          }
+        } catch (err) {
+          console.error('Backfill: falha em', task.title, err);
+        }
+        // throttle leve: ~3 req/s
+        await new Promise((r) => setTimeout(r, 350));
       }
       if (updates.length > 0) {
-        // Atualiza Supabase em paralelo
         await Promise.all(
           updates.map((u) =>
             supabase
@@ -482,6 +482,9 @@ async function syncGoogleCalendarEvents(
             ? { ...t, googleCalendarEventId: updateMap.get(t.id)! }
             : t,
         );
+      }
+      if (stoppedByRateLimit) {
+        // Sinal não-fatal — próxima sincronização tenta os restantes
       }
     }
 
