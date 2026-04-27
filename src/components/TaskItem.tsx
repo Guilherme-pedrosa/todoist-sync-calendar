@@ -174,8 +174,9 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         }}
         onClick={handleClick}
         className={cn(
-          'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer bg-background',
+          'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer bg-background border-l-2 border-transparent',
           'hover:bg-muted/50',
+          task.recurrenceRule && !task.completed && 'border-recurring bg-recurring/5 hover:bg-recurring/10',
           task.completed && 'opacity-50'
         )}
       >
