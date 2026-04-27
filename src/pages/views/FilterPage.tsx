@@ -60,6 +60,7 @@ export default function FilterPage() {
   const labels = useTaskStore((s) => s.labels);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [filter, setFilter] = useState<FilterRow | null>(null);
+  const [viewPref, setViewPref] = useViewPref(`filter:${filterId}`, { mode: 'list', groupBy: 'priority' });
 
   useEffect(() => {
     if (!user || !filterId) return;
