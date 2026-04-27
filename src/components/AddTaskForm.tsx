@@ -33,6 +33,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
   const [projectId, setProjectId] = useState(defaultProjectId || inboxProject?.id || '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [nlpSet, setNlpSet] = useState({ date: false, time: false, rec: false, prio: false });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (defaultProjectId) setProjectId(defaultProjectId);
@@ -74,27 +75,34 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
   }, [title]);
 
   const handleSubmit = async () => {
+    if (submitting) return;
     const finalTitle = (parsed?.cleanedTitle || title).trim();
     if (!finalTitle) return;
+    setSubmitting(true);
+    try {
+      await addTask({
+        title: finalTitle,
+        description: description.trim() || undefined,
+        priority,
+        dueDate: date.date,
+        dueTime: date.time,
+        recurrenceRule: date.recurrenceRule || null,
+        projectId,
+        parentId: defaultParentId,
+        labels: selectedLabels,
+      });
 
-    await addTask({
-      title: finalTitle,
-      description: description.trim() || undefined,
-      priority,
-      dueDate: date.date,
-      dueTime: date.time,
-      recurrenceRule: date.recurrenceRule || null,
-      projectId,
-      parentId: defaultParentId,
-      labels: selectedLabels,
-    });
-
-    setTitle('');
-    setDescription('');
-    setPriority(4);
-    setDate({ date: defaultDate });
-    setSelectedLabels([]);
-    setIsOpen(false);
+      setTitle('');
+      setDescription('');
+      setPriority(4);
+      setDate({ date: defaultDate });
+      setSelectedLabels([]);
+      setIsOpen(false);
+    } catch (err) {
+      console.error('addTask failed', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleLabel = (id: string) => {
@@ -237,10 +245,10 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
         <Button
           size="sm"
           onClick={handleSubmit}
-          disabled={!(parsed?.cleanedTitle || title).trim()}
+          disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
           className="h-7 text-xs"
         >
-          Adicionar
+          {submitting ? 'Adicionando...' : 'Adicionar'}
         </Button>
       </div>
     </div>

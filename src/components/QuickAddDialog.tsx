@@ -92,6 +92,7 @@ export function QuickAddDialog() {
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
@@ -221,50 +222,59 @@ export function QuickAddDialog() {
   }, [title]);
 
   const submit = async (closeAfter = false) => {
+    if (submitting) return;
     const finalTitle = (parsed?.cleanedTitle || title).trim();
     if (!finalTitle) return;
-    // Use first relative reminder for the legacy single-reminder column
-    const firstRelative = reminders.find((r) => r.type === 'relative');
-    const created = await addTask({
-      title: finalTitle,
-      description: description.trim() || undefined,
-      priority,
-      dueDate: date.date,
-      dueTime: date.time,
-      durationMinutes: date.durationMinutes ?? null,
-      recurrenceRule: date.recurrenceRule || null,
-      projectId,
-      parentId: defaultParentId || undefined,
-      labels: selectedLabels,
-      reminderMinutes: firstRelative?.relative_minutes ?? null,
-    });
-    // Insert any additional absolute reminders (besides the auto one)
-    if (created && reminders.length > 0) {
-      const additional = reminders.filter((r) => r.type === 'absolute');
-      if (additional.length > 0) {
-        await supabase.from('reminders').insert(
-          additional.map((r) => ({
-            task_id: created.id,
-            type: 'absolute',
-            channel: r.channel,
-            trigger_at: r.trigger_at!,
-            relative_minutes: null,
-          }))
-        );
+    setSubmitting(true);
+    try {
+      // Use first relative reminder for the legacy single-reminder column
+      const firstRelative = reminders.find((r) => r.type === 'relative');
+      const created = await addTask({
+        title: finalTitle,
+        description: description.trim() || undefined,
+        priority,
+        dueDate: date.date,
+        dueTime: date.time,
+        durationMinutes: date.durationMinutes ?? null,
+        recurrenceRule: date.recurrenceRule || null,
+        projectId,
+        parentId: defaultParentId || undefined,
+        labels: selectedLabels,
+        reminderMinutes: firstRelative?.relative_minutes ?? null,
+      });
+      // Insert any additional absolute reminders (besides the auto one)
+      if (created && reminders.length > 0) {
+        const additional = reminders.filter((r) => r.type === 'absolute');
+        if (additional.length > 0) {
+          await supabase.from('reminders').insert(
+            additional.map((r) => ({
+              task_id: created.id,
+              type: 'absolute',
+              channel: r.channel,
+              trigger_at: r.trigger_at!,
+              relative_minutes: null,
+            }))
+          );
+        }
       }
+      toast.success('Tarefa adicionada');
+      // Reset for next entry (Todoist behavior)
+      setTitle('');
+      setDescription('');
+      setDate({ date: defaultDueDate ?? routeContext.date ?? undefined });
+      setPriority(4);
+      setSelectedLabels([]);
+      setReminders([]);
+      setLocation_('');
+      setShowLocation(false);
+      setTimeout(() => inputRef.current?.focus(), 30);
+      if (closeAfter) closeQuickAdd();
+    } catch (err) {
+      console.error('addTask failed', err);
+      toast.error(err instanceof Error ? err.message : 'Falha ao criar tarefa');
+    } finally {
+      setSubmitting(false);
     }
-    toast.success('Tarefa adicionada');
-    // Reset for next entry (Todoist behavior)
-    setTitle('');
-    setDescription('');
-    setDate({ date: defaultDueDate ?? routeContext.date ?? undefined });
-    setPriority(4);
-    setSelectedLabels([]);
-    setReminders([]);
-    setLocation_('');
-    setShowLocation(false);
-    setTimeout(() => inputRef.current?.focus(), 30);
-    if (closeAfter) closeQuickAdd();
   };
 
   const requestClose = () => {
@@ -594,10 +604,11 @@ export function QuickAddDialog() {
           <Button
             size="sm"
             onClick={() => submit(false)}
-            disabled={!(parsed?.cleanedTitle || title).trim()}
-            className="h-8 text-xs"
+            disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
+            className="h-8 text-xs gap-1.5"
           >
-            Adicionar tarefa
+            {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {submitting ? 'Adicionando...' : 'Adicionar tarefa'}
           </Button>
         </div>
       </div>
