@@ -26,7 +26,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
-type Mode = 'list' | 'week';
+type Mode = 'list' | 'week' | 'day';
 
 const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
