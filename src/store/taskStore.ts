@@ -244,30 +244,49 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   return tasks.filter((task) => !idsToDelete.has(task.id));
 }
 
-async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
-  if (!task.dueDate) return null;
+async function createGoogleCalendarEvent(
+  task: Task,
+  opts: { retries?: number } = {},
+): Promise<{ id: string | null; rateLimited?: boolean }> {
+  if (!task.dueDate) return { id: null };
   const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return null;
-  const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title: task.title,
-      description: task.description ?? '',
-      date: task.dueDate,
-      time: task.dueTime,
-      endTime: getTaskEndTime(task),
-      allDay: !task.dueTime,
-      durationMinutes: task.durationMinutes ?? 60,
-    }),
-  });
-  if (!response.ok) return null;
-  const payload = await response.json();
-  return typeof payload?.id === 'string' ? payload.id : null;
+  if (!accessToken) return { id: null };
+  const maxRetries = opts.retries ?? 3;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: task.title,
+        description: task.description ?? '',
+        date: task.dueDate,
+        time: task.dueTime,
+        endTime: getTaskEndTime(task),
+        allDay: !task.dueTime,
+        durationMinutes: task.durationMinutes ?? 60,
+      }),
+    });
+    if (response.ok) {
+      const payload = await response.json();
+      return { id: typeof payload?.id === 'string' ? payload.id : null };
+    }
+    // Detecta rate limit: edge function retorna 400 envelopando 403 do Google
+    let bodyText = '';
+    try { bodyText = await response.text(); } catch {}
+    const isRateLimit = /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+    if (isRateLimit && attempt < maxRetries) {
+      const delay = 800 * Math.pow(2, attempt) + Math.random() * 400;
+      await new Promise((r) => setTimeout(r, delay));
+      continue;
+    }
+    if (isRateLimit) return { id: null, rateLimited: true };
+    return { id: null };
+  }
+  return { id: null };
 }
 
 async function updateGoogleCalendarEvent(task: Task): Promise<void> {
