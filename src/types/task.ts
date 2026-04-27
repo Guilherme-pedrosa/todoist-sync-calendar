@@ -15,6 +15,7 @@ export interface Task {
   priority: Priority;
   dueDate?: string;
   dueTime?: string;
+  durationMinutes?: number | null;
   dueString?: string | null;
   deadline?: string | null;
   recurrenceRule?: string | null;
