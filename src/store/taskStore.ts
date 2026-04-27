@@ -355,13 +355,11 @@ async function syncGoogleCalendarEvents(
 
       const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
       if (linkedTask) {
-        const duplicateIds = nextTasks
-          .filter((task) => task.id !== linkedTask.id && taskMatchesCalendarEvent(task, event))
-          .map((task) => task.id);
-        if (duplicateIds.length > 0) {
-          await supabase.from('tasks').delete().in('id', duplicateIds);
-          nextTasks = nextTasks.filter((task) => !duplicateIds.includes(task.id));
-        }
+        // ⚠️ NÃO deletamos mais "duplicatas" detectadas por título+data+hora.
+        // Isso estava apagando tarefas legítimas que o usuário criou
+        // separadamente (ex.: "Reunião Jonas" para o mesmo horário de
+        // outra tarefa). O sync agora só atualiza o campo vinculado,
+        // nunca remove linhas do banco.
         await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
         nextTasks = nextTasks.map((task) =>
           task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
