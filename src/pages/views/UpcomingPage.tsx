@@ -676,7 +676,7 @@ function EventBlock({
         }
       }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight truncate">
+      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
         {task.dueTime && (
           <span className="text-muted-foreground mr-1">{task.dueTime}</span>
         )}
