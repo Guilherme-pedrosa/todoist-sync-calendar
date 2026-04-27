@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+const getCalendarRedirectUri = () => `${window.location.origin}/calendar-callback`;
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const redirectUri = `${window.location.origin}/calendar-callback`;
+      const redirectUri = getCalendarRedirectUri();
       const params = new URLSearchParams({
         action: 'connect-url',
         redirectUri,
