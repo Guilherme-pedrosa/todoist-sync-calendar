@@ -124,6 +124,18 @@ function getTaskEndTime(task: Pick<Task, 'dueTime' | 'durationMinutes'>): string
   return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
 }
 
+async function readResponseText(response: Response): Promise<string> {
+  try {
+    return await response.text();
+  } catch {
+    return '';
+  }
+}
+
+function isGoogleRateLimit(bodyText: string): boolean {
+  return /rateLimitExceeded|Rate Limit Exceeded|userRateLimitExceeded|quotaExceeded/i.test(bodyText);
+}
+
 function normalizeCalendarTitle(value?: string | null) {
   return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
 }
@@ -153,10 +165,14 @@ function rangesOverlap(startA?: string | null, durationA?: number | null, startB
   return aStart < bEnd && bStart < aEnd;
 }
 
-function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+function taskMatchesCalendarEvent(
+  task: Task,
+  event: GoogleCalendarEvent,
+  opts: { includeCompleted?: boolean } = {},
+) {
   const parsed = getCalendarDateAndTime(event);
   return (
-    !task.completed &&
+    (opts.includeCompleted || !task.completed) &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
     (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
