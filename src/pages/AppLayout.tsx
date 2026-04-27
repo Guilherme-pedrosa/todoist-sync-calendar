@@ -117,16 +117,43 @@ export default function AppLayout() {
     );
   }
 
+  const closeSidebar = () => useTaskStore.setState({ sidebarOpen: false });
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Desktop sidebar: inline, takes width */}
       <div
         className={cn(
-          'shrink-0 transition-all duration-300 ease-in-out overflow-hidden border-r border-sidebar-border',
+          'hidden lg:block shrink-0 transition-all duration-300 ease-in-out overflow-hidden border-r border-sidebar-border',
           sidebarOpen ? 'w-[280px]' : 'w-0'
         )}
       >
         <AppSidebar />
       </div>
+
+      {/* Mobile sidebar: overlay drawer with backdrop */}
+      <div
+        className={cn(
+          'lg:hidden fixed inset-0 z-50 transition-opacity duration-200',
+          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        )}
+        aria-hidden={!sidebarOpen}
+      >
+        <button
+          aria-label="Fechar menu"
+          onClick={closeSidebar}
+          className="absolute inset-0 bg-black/50"
+        />
+        <div
+          className={cn(
+            'absolute inset-y-0 left-0 w-[280px] max-w-[85vw] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out',
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          )}
+        >
+          <AppSidebar />
+        </div>
+      </div>
+
       <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
         <Outlet />
       </div>
