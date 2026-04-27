@@ -168,6 +168,48 @@ const mapPriority = (p?: number) => {
   }
 };
 
+// Insert tasks in topological waves so parent_id can be mapped Todoist -> app.
+// Returns map of todoist task id -> created app task id (only for newly inserted).
+async function insertTasksWithHierarchy(
+  supabase: any,
+  items: { task: TodoistTask; row: any }[],
+): Promise<{ idMap: Map<string, string>; insertedRows: { todoistId: string; appId: string; task: TodoistTask }[] }> {
+  const idMap = new Map<string, string>(); // todoist id -> app id
+  const insertedRows: { todoistId: string; appId: string; task: TodoistTask }[] = [];
+  const remaining = new Map<string, { task: TodoistTask; row: any }>();
+  for (const it of items) remaining.set(it.task.id, it);
+
+  let safety = 0;
+  while (remaining.size > 0 && safety < 50) {
+    safety++;
+    const wave: { task: TodoistTask; row: any }[] = [];
+    for (const it of remaining.values()) {
+      const pid = it.task.parent_id;
+      // ready if: no parent OR parent not in this batch (orphan -> root) OR parent already inserted
+      if (!pid || (!remaining.has(pid) && !idMap.has(pid)) || idMap.has(pid)) {
+        wave.push(it);
+      }
+    }
+    if (wave.length === 0) {
+      // cycle / unresolvable — promote everything else to root and break
+      for (const it of remaining.values()) wave.push(it);
+    }
+    const rows = wave.map((it) => ({
+      ...it.row,
+      parent_id: it.task.parent_id ? idMap.get(it.task.parent_id) || null : null,
+    }));
+    const { data: inserted, error } = await supabase.from("tasks").insert(rows).select("id");
+    if (error) throw new Error(`Erro ao criar tarefas: ${error.message}`);
+    (inserted || []).forEach((r: any, i: number) => {
+      const td = wave[i].task;
+      idMap.set(td.id, r.id);
+      insertedRows.push({ todoistId: td.id, appId: r.id, task: td });
+      remaining.delete(td.id);
+    });
+  }
+  return { idMap, insertedRows };
+}
+
 async function todoistFetch<T>(path: string, apiKey: string): Promise<T[]> {
   const results: T[] = [];
   let cursor: string | null = null;
@@ -280,7 +322,7 @@ serve(async (req) => {
         const dueString = tt.due?.string || null;
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
         const deadline = tt.deadline?.date || null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
 
@@ -304,23 +346,21 @@ serve(async (req) => {
       let createdTasks = 0;
       let createdTaskLabels = 0;
       if (tasksToInsert.length > 0) {
-        const { data: insertedTasks, error: tErr } = await supabase
-          .from("tasks").insert(tasksToInsert.map((x) => x.row)).select("id");
-        if (tErr) throw new Error(`Erro ao criar tarefas: ${tErr.message}`);
+        const { idMap, insertedRows } = await insertTasksWithHierarchy(supabase, tasksToInsert);
 
         const linkRows: { task_id: string; label_id: string }[] = [];
-        (insertedTasks || []).forEach((row, idx) => {
-          const td = tasksToInsert[idx].task;
-          for (const labelName of td.labels || []) {
+        for (const r of insertedRows) {
+          for (const labelName of r.task.labels || []) {
             const lid = labelIdByName.get(labelName.toLowerCase());
-            if (lid) linkRows.push({ task_id: row.id, label_id: lid });
+            if (lid) linkRows.push({ task_id: r.appId, label_id: lid });
           }
-        });
+        }
         if (linkRows.length > 0) {
           const { error: linkErr } = await supabase.from("task_labels").insert(linkRows);
           if (!linkErr) createdTaskLabels = linkRows.length;
         }
-        createdTasks = insertedTasks?.length || 0;
+        createdTasks = insertedRows.length;
+        void idMap;
       }
 
       return json({
@@ -454,7 +494,7 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
 
@@ -478,24 +518,21 @@ serve(async (req) => {
       let createdTasks = 0;
       let createdTaskLabels = 0;
       if (tasksToInsert.length > 0) {
-        const { data: insertedTasks, error: tErr } = await supabase
-          .from("tasks").insert(tasksToInsert.map((x) => x.row)).select("id");
-        if (tErr) throw new Error(`Erro ao criar tarefas: ${tErr.message}`);
+        const { insertedRows } = await insertTasksWithHierarchy(supabase, tasksToInsert);
 
         // Attach labels via task_labels
         const linkRows: { task_id: string; label_id: string }[] = [];
-        (insertedTasks || []).forEach((row, idx) => {
-          const td = tasksToInsert[idx].task;
-          for (const labelName of td.labels || []) {
+        for (const r of insertedRows) {
+          for (const labelName of r.task.labels || []) {
             const lid = labelIdByName.get(labelName.toLowerCase());
-            if (lid) linkRows.push({ task_id: row.id, label_id: lid });
+            if (lid) linkRows.push({ task_id: r.appId, label_id: lid });
           }
-        });
+        }
         if (linkRows.length > 0) {
           const { error: tlErr } = await supabase.from("task_labels").insert(linkRows);
           if (!tlErr) createdTaskLabels = linkRows.length;
         }
-        createdTasks = insertedTasks?.length || 0;
+        createdTasks = insertedRows.length;
       }
 
       return json({
