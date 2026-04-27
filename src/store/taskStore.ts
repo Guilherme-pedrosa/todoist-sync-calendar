@@ -291,7 +291,7 @@ async function syncGoogleCalendarEvents(
 
     const { data: insertedRows, error: insertError } = await supabase
       .from('tasks')
-      .insert(tasksToInsert)
+      .insert(tasksToInsert as any)
       .select('*, task_labels(label_id)');
 
     if (insertError || !insertedRows) return currentTasks;
@@ -347,7 +347,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
     const inboxProjectId = projects.find((p) => p.isInbox)?.id;
-    const syncedTasks = await syncTodayGoogleCalendarEvents(userId, tasks, inboxProjectId);
+    const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
     set({ projects, labels, tasks: syncedTasks, loading: false });
   },
