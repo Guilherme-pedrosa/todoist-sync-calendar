@@ -62,8 +62,9 @@ const RECURRENCE_PATTERNS: Array<{
         sabado: RRule.SA, sábado: RRule.SA, saturday: RRule.SA,
         domingo: RRule.SU, sunday: RRule.SU,
       };
-      const ord = ordMap[m[1].toLowerCase()] ?? 1;
-      const wdKey = m[2].toLowerCase();
+      const ordRaw = (m[1] || m[3] || '').toLowerCase();
+      const wdKey = (m[2] || m[4] || '').toLowerCase();
+      const ord = ordMap[ordRaw] ?? 1;
       const wd = wdMap[wdKey] ?? RRule.MO;
       const rule = new RRule({
         freq: Frequency.MONTHLY,
