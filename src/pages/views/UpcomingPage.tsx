@@ -162,6 +162,15 @@ function snap(min: number) {
   return Math.round(min / SNAP_MINUTES) * SNAP_MINUTES;
 }
 
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const normalized = ((total % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const nh = Math.floor(normalized / 60);
+  const nm = normalized % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
 function WeekGrid({
   weekDays,
   hours,
@@ -656,7 +665,9 @@ function EventBlock({
     >
       <div className="px-1.5 py-1 text-[11px] font-medium leading-tight truncate">
         {task.dueTime && (
-          <span className="text-muted-foreground mr-1">{task.dueTime}</span>
+          <span className="text-muted-foreground mr-1">
+            {task.durationMinutes ? `${task.dueTime}–${addMinutesToTime(task.dueTime, task.durationMinutes)}` : task.dueTime}
+          </span>
         )}
         {task.title}
       </div>
