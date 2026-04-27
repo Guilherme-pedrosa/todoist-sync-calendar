@@ -243,7 +243,7 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
         <button
           onClick={(e) => {
             e.stopPropagation();
-            completeTask(task);
+            completeTask(task.id);
           }}
           className={cn(
             'mt-0.5 h-4 w-4 rounded-full border-[1.5px] shrink-0 flex items-center justify-center hover:bg-muted',
