@@ -59,7 +59,10 @@ export default function UpcomingPage() {
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
-  const hours = useMemo(() => Array.from({ length: 24 - 7 }, (_, i) => i + 7), []);
+  const hours = useMemo(
+    () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
+    []
+  );
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
