@@ -68,13 +68,23 @@ const DAY_MAP_PT: Record<string, string> = {
 };
 const DAY_MAP = { ...DAY_MAP_EN, ...DAY_MAP_PT };
 
-function dueStringToRRule(dueString?: string, dueDate?: string | null): string | null {
-  if (!dueString) return null;
-  const s = dueString.toLowerCase().trim();
+function dueStringToRRule(
+  dueString?: string,
+  dueDate?: string | null,
+  isRecurring?: boolean,
+): string | null {
+  // Trigger: confiar no flag oficial do Todoist quando disponível.
+  // Quando não tem due_string mas é recurring, devolve fallback diário.
+  if (!isRecurring && !dueString) return null;
+  const s = (dueString || "").toLowerCase().trim();
 
-  // Heuristic: only treat as recurring if it starts with "every" / "todo" / "toda" / "cada" / "a cada"
-  const isRecurring = /^(every|todo|toda|cada|a cada)\b/.test(s);
-  if (!isRecurring) return null;
+  // Heurística adicional: alguns clientes não setam is_recurring corretamente.
+  const looksRecurring =
+    isRecurring === true ||
+    /^(every|todo|toda|cada|a cada)\b/.test(s) ||
+    /(diariamente|semanalmente|mensalmente|anualmente|quinzenalmente)/.test(s) ||
+    /\b(dia útil|dia util|dias úteis|dias uteis)\b/.test(s);
+  if (!looksRecurring) return null;
 
   // weekdays
   if (/(every weekday|todo dia util|todo dia útil|toda semana util|dias uteis|dias úteis)/.test(s)) {
@@ -82,7 +92,9 @@ function dueStringToRRule(dueString?: string, dueDate?: string | null): string |
   }
 
   // every N (days|weeks|months|years) — also "a cada N dias"
-  const intervalMatch = s.match(/(?:every|cada|a cada)\s+(\d+)\s*(day|days|week|weeks|month|months|year|years|dia|dias|semana|semanas|mes|meses|mês|ano|anos)/);
+  const intervalMatch = s.match(
+    /(?:every|cada|a cada)\s+(\d+)\s*(day|days|week|weeks|month|months|year|years|dia|dias|semana|semanas|mes|meses|mês|ano|anos)/,
+  );
   if (intervalMatch) {
     const n = parseInt(intervalMatch[1], 10);
     const unit = intervalMatch[2];
@@ -92,19 +104,32 @@ function dueStringToRRule(dueString?: string, dueDate?: string | null): string |
     if (/year|ano/.test(unit)) return `FREQ=YEARLY;INTERVAL=${n}`;
   }
 
+  // quinzenal
+  if (/quinzenalmente|a cada 2 semanas|every 2 weeks/.test(s)) {
+    return "FREQ=WEEKLY;INTERVAL=2";
+  }
+
   // every day / todo dia / diariamente
   if (/^(every day|todo dia|toda dia|cada dia|diariamente)/.test(s)) {
     return "FREQ=DAILY";
   }
 
-  // every week / toda semana
+  // every week / toda semana / semanalmente
   if (/^(every week|toda semana|cada semana|semanalmente)/.test(s) && !/\bevery\s+\w+day\b/.test(s)) {
     return "FREQ=WEEKLY";
   }
 
-  // every month / todo mes
+  // todo dia <N> (do mês) / every <N>th
+  const monthDayMatch = s.match(/(?:todo dia|every)\s+(\d{1,2})(?:st|nd|rd|th|º)?\b/);
+  if (monthDayMatch) {
+    const day = parseInt(monthDayMatch[1], 10);
+    if (!isNaN(day) && day >= 1 && day <= 31) {
+      return `FREQ=MONTHLY;BYMONTHDAY=${day}`;
+    }
+  }
+
+  // every month / todo mes / mensalmente
   if (/^(every month|todo mes|todo mês|cada mes|cada mês|mensalmente)/.test(s)) {
-    // optional "on the Nth" — derive from dueDate when possible
     if (dueDate) {
       const day = parseInt(dueDate.slice(8, 10), 10);
       if (!isNaN(day)) return `FREQ=MONTHLY;BYMONTHDAY=${day}`;
@@ -112,13 +137,13 @@ function dueStringToRRule(dueString?: string, dueDate?: string | null): string |
     return "FREQ=MONTHLY";
   }
 
-  // every year / todo ano
+  // every year / todo ano / anualmente
   if (/^(every year|todo ano|cada ano|anualmente)/.test(s)) {
     return "FREQ=YEARLY";
   }
 
   // every <weekday> (e.g. "every monday", "toda segunda")
-  const tokens = s.split(/[\s,]+/).slice(1); // drop the leading "every"/"toda"/"todo"
+  const tokens = s.split(/[\s,]+/).slice(1);
   const days: string[] = [];
   for (const tok of tokens) {
     const cleaned = tok.replace(/[^a-zçãáéíóúâêô-]/g, "");
@@ -128,8 +153,15 @@ function dueStringToRRule(dueString?: string, dueDate?: string | null): string |
     return `FREQ=WEEKLY;BYDAY=${days.join(",")}`;
   }
 
+  // Fallback: Todoist diz que é recorrente mas não conseguimos parsear.
+  // Salvamos como diária pra não perder a info; due_string original fica intacto pra display.
+  if (isRecurring) {
+    return "FREQ=DAILY";
+  }
+
   return null;
 }
+
 
 // Todoist color name -> approximate HSL
 const TODOIST_COLOR_MAP: Record<string, string> = {
