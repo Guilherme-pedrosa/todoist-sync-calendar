@@ -346,6 +346,50 @@ serve(async (req) => {
         return jsonResponse({ success: res.ok }, res.ok ? 200 : 400);
       }
 
+      case "complete-event": {
+        const eventId = typeof body.eventId === "string" ? body.eventId : "";
+        if (!eventId) return jsonResponse({ error: "eventId é obrigatório" }, 400);
+
+        const completed = Boolean(body.completed);
+
+        // Busca o evento atual para preservar o título original
+        const getRes = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
+          headers,
+        });
+
+        if (!getRes.ok) {
+          const errPayload = await getRes.json().catch(() => null);
+          return jsonResponse(
+            { error: "Falha ao buscar evento no Google Calendar", details: errPayload },
+            getRes.status,
+          );
+        }
+
+        const currentEvent = await getRes.json();
+        const currentSummary: string = currentEvent.summary || "";
+        const DONE_PREFIX = "✅ ";
+        const cleanSummary = currentSummary.startsWith(DONE_PREFIX)
+          ? currentSummary.slice(DONE_PREFIX.length)
+          : currentSummary;
+
+        const newSummary = completed ? `${DONE_PREFIX}${cleanSummary}` : cleanSummary;
+
+        // colorId 8 = Graphite (cinza, indica concluído); null restaura cor padrão
+        const patchBody: Record<string, unknown> = {
+          summary: newSummary,
+          colorId: completed ? "8" : null,
+        };
+
+        const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(patchBody),
+        });
+
+        const data = await res.json();
+        return jsonResponse(data, res.ok ? 200 : 400);
+      }
+
       default:
         return jsonResponse({ error: "Ação inválida" }, 400);
     }
