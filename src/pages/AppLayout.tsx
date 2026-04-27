@@ -77,7 +77,7 @@ export default function AppLayout() {
             },
             body: JSON.stringify({
               code,
-              redirectUri: `${window.location.origin}/`,
+              redirectUri: `${window.location.origin}/calendar-callback`,
             }),
           }
         );
