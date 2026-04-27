@@ -509,11 +509,103 @@ Deno.serve(async (req) => {
           { role: "system", content: system },
           ...messages,
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "create_task",
+              description: "Cria uma nova tarefa. Use quando o usuário pedir para adicionar/criar/marcar uma tarefa nova.",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "Título da tarefa" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD; opcional" },
+                  time: { type: "string", description: "HH:mm 24h; opcional" },
+                  durationMinutes: { type: "number" },
+                  priority: { type: "number", description: "1=baixa, 4=urgente" },
+                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS); opcional" },
+                  recurrenceRule: { type: "string", description: "RRULE iCal; opcional. Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR" },
+                },
+                required: ["title"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "update_task",
+              description: "Edita uma tarefa existente (mover horário, mudar prioridade, renomear, mudar duração, etc.). Só use com id real do CATÁLOGO.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                  time: { type: "string", description: "HH:mm" },
+                  clearTime: { type: "boolean", description: "true para remover horário" },
+                  clearDate: { type: "boolean", description: "true para remover data" },
+                  durationMinutes: { type: "number" },
+                  priority: { type: "number" },
+                  projectId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "complete_task",
+              description: "Marca uma tarefa como concluída (ou desmarca se já estiver concluída).",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "delete_task",
+              description: "Exclui uma tarefa. Operação destrutiva — o usuário sempre confirma antes.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
       });
       if (!aiResp.ok) return aiResp;
       const data = await aiResp.json();
-      const text = data?.choices?.[0]?.message?.content ?? "";
-      return new Response(JSON.stringify({ result: { text } }), {
+      const msg = data?.choices?.[0]?.message;
+      const text = msg?.content ?? "";
+      const toolCalls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : [];
+      const actions = toolCalls
+        .map((tc: any) => {
+          try {
+            const args = tc?.function?.arguments
+              ? JSON.parse(tc.function.arguments)
+              : {};
+            return { type: tc?.function?.name, args };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      return new Response(JSON.stringify({ result: { text, actions } }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
