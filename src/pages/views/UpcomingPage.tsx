@@ -316,11 +316,16 @@ function WeekGrid({
   }, []);
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
+  const numDays = weekDays.length;
+  const isDayMode = numDays === 1;
+  const gridCols = isDayMode ? 'grid-cols-[60px_1fr]' : 'grid-cols-[60px_repeat(7,1fr)]';
+  const minWidth = isDayMode ? '' : 'min-w-[900px]';
+
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto scrollbar-thin select-none">
-      <div className="min-w-[900px]">
+      <div className={minWidth}>
         {/* Day header */}
-        <div className="sticky top-0 z-20 grid grid-cols-[60px_repeat(7,1fr)] bg-background border-b border-border">
+        <div className={cn('sticky top-0 z-20 grid bg-background border-b border-border', gridCols)}>
           <div />
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
