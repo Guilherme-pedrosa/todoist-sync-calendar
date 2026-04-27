@@ -137,7 +137,7 @@ export function TaskDetailPanel() {
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
   useEffect(() => {
@@ -145,6 +145,13 @@ export function TaskDetailPanel() {
     setTitleDraft(task.title);
     setDescDraft(task.description ?? '');
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [titleDraft, task?.id]);
 
   // Load comments + realtime subscription
   useEffect(() => {
@@ -442,7 +449,7 @@ export function TaskDetailPanel() {
                   </DropdownMenu>
                 )}
               </div>
-              <Input
+              <Textarea
                 ref={titleRef}
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
@@ -451,11 +458,11 @@ export function TaskDetailPanel() {
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     persistTitle();
-                    (e.target as HTMLInputElement).blur();
+                    (e.target as HTMLTextAreaElement).blur();
                   }
                 }}
                 className={cn(
-                  'border-0 px-0 text-lg font-semibold focus-visible:ring-0 h-auto py-0',
+                  'min-h-0 resize-none overflow-hidden border-0 px-0 py-0 text-lg font-semibold leading-snug focus-visible:ring-0 break-words whitespace-pre-wrap',
                   task.completed && 'line-through text-muted-foreground'
                 )}
               />
