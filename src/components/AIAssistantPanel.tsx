@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AIAssistantErrorBoundary } from '@/components/AIAssistantErrorBoundary';
 import {
   Sparkles,
@@ -42,6 +43,51 @@ type ChatMsg = {
 };
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isValidIsoDate = (s: string | null | undefined): s is string => {
+  if (!s || typeof s !== 'string') return false;
+  if (!ISO_DATE_RE.test(s)) return false;
+  const d = new Date(s + 'T12:00:00');
+  return !Number.isNaN(d.getTime());
+};
+
+const safeFormatDate = (s: string, fmt: string): string => {
+  try {
+    if (!isValidIsoDate(s)) return s;
+    return format(new Date(s + 'T12:00:00'), fmt, { locale: ptBR });
+  } catch {
+    return s;
+  }
+};
+
+function DebugJson({ request, response }: { request: unknown; response: unknown }) {
+  return (
+    <Collapsible className="mt-6 border-t border-border/60 pt-3">
+      <CollapsibleTrigger className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+        ▸ Ver JSON (debug)
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-2 space-y-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            Request
+          </div>
+          <pre className="text-[10px] font-mono whitespace-pre-wrap break-words bg-muted/40 border border-border rounded-md p-2 max-h-60 overflow-auto">
+{JSON.stringify(request, null, 2)}
+          </pre>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+            Response
+          </div>
+          <pre className="text-[10px] font-mono whitespace-pre-wrap break-words bg-muted/40 border border-border rounded-md p-2 max-h-60 overflow-auto">
+{JSON.stringify(response, null, 2)}
+          </pre>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
 
 const isPastTodaySlot = (date: string, time?: string | null) => {
   if (!time || date !== todayString()) return false;
@@ -135,15 +181,24 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<string | null>(null);
+  const [debug, setDebug] = useState<{ request: unknown; response: unknown } | null>(null);
+
+  const dateValid = isValidIsoDate(date);
 
   const run = async () => {
+    if (!dateValid) return;
     setLoading(true);
     setText(null);
+    setDebug(null);
+    const requestPayload = { action: 'analyze-day', date, taskCount: tasks.length, projectCount: projects.length };
     try {
       const r = await analyzeDay({ date, tasks, projects });
       setText(r.text);
+      setDebug({ request: requestPayload, response: r });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha na análise');
+      const msg = e instanceof Error ? e.message : 'Falha na análise';
+      setDebug({ request: requestPayload, response: { error: msg } });
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -151,26 +206,42 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-5 py-3 flex items-center gap-2 border-b border-border/60">
-        <input
-          type="date"
-          value={date}
-          min={todayString()}
-          onChange={(e) => setDate(e.target.value)}
-          className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
-        />
-        <Button size="sm" onClick={run} disabled={loading} className="h-8 gap-1.5">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Analisar
-        </Button>
+      <div className="px-5 py-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            min={todayString()}
+            onChange={(e) => setDate(e.target.value)}
+            aria-invalid={!dateValid}
+            className={cn(
+              'bg-muted/40 border rounded-md text-xs h-8 px-2 flex-1',
+              dateValid ? 'border-border' : 'border-destructive',
+            )}
+          />
+          <Button
+            size="sm"
+            onClick={run}
+            disabled={loading || !dateValid}
+            className="h-8 gap-1.5"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Analisar
+          </Button>
+        </div>
+        {!dateValid && (
+          <div className="mt-2 text-[11px] text-destructive">
+            Data inválida. Selecione um dia no calendário.
+          </div>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="p-5">
           {!text && !loading && (
             <div className="text-sm text-muted-foreground text-center py-12">
               <CalendarDays className="h-8 w-8 mx-auto mb-3 opacity-40" />
-              Clique em <strong>Analisar</strong> para uma visão da sua agenda em{' '}
-              {format(new Date(date + 'T12:00'), "d 'de' MMMM", { locale: ptBR })}.
+              Clique em <strong>Analisar</strong> para uma visão da sua agenda
+              {dateValid ? ` em ${safeFormatDate(date, "d 'de' MMMM")}.` : '.'}
             </div>
           )}
           {loading && (
@@ -182,6 +253,9 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             <article className="prose prose-sm prose-invert max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground">
               <ReactMarkdown>{text || ''}</ReactMarkdown>
             </article>
+          )}
+          {debug && !loading && (
+            <DebugJson request={debug.request} response={debug.response} />
           )}
         </div>
       </ScrollArea>
@@ -205,45 +279,51 @@ function OrganizeTab({
     assignments: { id: string; date: string; time: string; durationMinutes: number }[];
     summary: string;
   } | null>(null);
+  const [debug, setDebug] = useState<{ request: unknown; response: unknown } | null>(null);
+
+  const dateValid = isValidIsoDate(date);
 
   // Tarefas do dia sem horário (candidatas à organização)
   const candidates = useMemo(() => {
+    if (!dateValid) return [];
     return tasks.filter(
       (t) => !t.completed && !t.parentId && t.dueDate === date && !t.dueTime,
     );
-  }, [tasks, date]);
+  }, [tasks, date, dateValid]);
 
   const run = async () => {
+    if (!dateValid) return;
     if (candidates.length === 0) {
       toast.info('Nenhuma tarefa sem horário neste dia.');
       return;
     }
     setLoading(true);
     setResult(null);
+    setDebug(null);
+    const unscheduled = candidates.map((t) => ({
+      id: t.id,
+      title: t.title,
+      durationMinutes: t.durationMinutes,
+      priority: t.priority,
+      project: projects.find((p) => p.id === t.projectId)?.name,
+    }));
+    const requestPayload = { action: 'organize-day', date, unscheduled };
     try {
-      const r = await organizeDay({
-        date,
-        unscheduled: candidates.map((t) => ({
-          id: t.id,
-          title: t.title,
-          durationMinutes: t.durationMinutes,
-          priority: t.priority,
-          project: projects.find((p) => p.id === t.projectId)?.name,
-        })),
-        tasks,
-        projects,
-      });
+      const r = await organizeDay({ date, unscheduled, tasks, projects });
       const assignments = r.assignments.filter((a) => !isPastTodaySlot(a.date, a.time));
       if (assignments.length !== r.assignments.length) {
         toast.warning('Removi sugestões da IA que caíam em horário passado.');
       }
+      setDebug({ request: requestPayload, response: r });
       if (assignments.length === 0) {
         toast.error('A IA não encontrou horários futuros válidos para este dia.');
         return;
       }
       setResult({ ...r, assignments });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao organizar');
+      const msg = e instanceof Error ? e.message : 'Falha ao organizar';
+      setDebug({ request: requestPayload, response: { error: msg } });
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -251,22 +331,38 @@ function OrganizeTab({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-5 py-3 flex items-center gap-2 border-b border-border/60">
-        <input
-          type="date"
-          value={date}
-          min={todayString()}
-          onChange={(e) => setDate(e.target.value)}
-          className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
-        />
-        <Button size="sm" onClick={run} disabled={loading} className="h-8 gap-1.5">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-          Organizar
-        </Button>
+      <div className="px-5 py-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            min={todayString()}
+            onChange={(e) => setDate(e.target.value)}
+            aria-invalid={!dateValid}
+            className={cn(
+              'bg-muted/40 border rounded-md text-xs h-8 px-2 flex-1',
+              dateValid ? 'border-border' : 'border-destructive',
+            )}
+          />
+          <Button
+            size="sm"
+            onClick={run}
+            disabled={loading || !dateValid}
+            className="h-8 gap-1.5"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            Organizar
+          </Button>
+        </div>
+        {!dateValid && (
+          <div className="mt-2 text-[11px] text-destructive">
+            Data inválida. Selecione um dia no calendário.
+          </div>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="p-5 space-y-4">
-          {!result && !loading && (
+          {!result && !loading && dateValid && (
             <>
               <p className="text-xs text-muted-foreground">
                 A IA vai pegar as tarefas <strong>sem horário</strong> deste dia e
@@ -331,6 +427,10 @@ function OrganizeTab({
                 <CheckCircle2 className="h-4 w-4" /> Aplicar ao calendário
               </Button>
             </div>
+          )}
+
+          {debug && !loading && (
+            <DebugJson request={debug.request} response={debug.response} />
           )}
         </div>
       </ScrollArea>
