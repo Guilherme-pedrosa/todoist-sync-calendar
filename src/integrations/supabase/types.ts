@@ -121,36 +121,53 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived_at: string | null
           color: string
           created_at: string
           id: string
+          is_favorite: boolean
           is_inbox: boolean
           name: string
+          parent_id: string | null
           position: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           is_inbox?: boolean
           name: string
+          parent_id?: string | null
           position?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived_at?: string | null
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           is_inbox?: boolean
           name?: string
+          parent_id?: string | null
           position?: number
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       projects_backup_pre_phase1: {
         Row: {
@@ -220,8 +237,11 @@ export type Database = {
           completed: boolean
           completed_at: string | null
           created_at: string
+          deadline: string | null
           description: string | null
           due_date: string | null
+          due_datetime: string | null
+          due_string: string | null
           due_time: string | null
           google_calendar_event_id: string | null
           id: string
@@ -230,7 +250,9 @@ export type Database = {
           priority: number
           project_id: string | null
           recurrence_interval: number | null
+          recurrence_rule: string | null
           recurrence_type: string | null
+          section_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -239,8 +261,11 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          deadline?: string | null
           description?: string | null
           due_date?: string | null
+          due_datetime?: string | null
+          due_string?: string | null
           due_time?: string | null
           google_calendar_event_id?: string | null
           id?: string
@@ -249,7 +274,9 @@ export type Database = {
           priority?: number
           project_id?: string | null
           recurrence_interval?: number | null
+          recurrence_rule?: string | null
           recurrence_type?: string | null
+          section_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -258,8 +285,11 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          deadline?: string | null
           description?: string | null
           due_date?: string | null
+          due_datetime?: string | null
+          due_string?: string | null
           due_time?: string | null
           google_calendar_event_id?: string | null
           id?: string
@@ -268,7 +298,9 @@ export type Database = {
           priority?: number
           project_id?: string | null
           recurrence_interval?: number | null
+          recurrence_rule?: string | null
           recurrence_type?: string | null
+          section_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
