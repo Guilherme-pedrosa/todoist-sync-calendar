@@ -224,7 +224,15 @@ function OrganizeTab({
         tasks,
         projects,
       });
-      setResult(r);
+      const assignments = r.assignments.filter((a) => !isPastTodaySlot(a.date, a.time));
+      if (assignments.length !== r.assignments.length) {
+        toast.warning('Removi sugestões da IA que caíam em horário passado.');
+      }
+      if (assignments.length === 0) {
+        toast.error('A IA não encontrou horários futuros válidos para este dia.');
+        return;
+      }
+      setResult({ ...r, assignments });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Falha ao organizar');
     } finally {
