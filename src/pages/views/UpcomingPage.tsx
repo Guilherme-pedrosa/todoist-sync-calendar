@@ -28,10 +28,14 @@ import { toast } from 'sonner';
 
 type Mode = 'list' | 'week';
 
+const DAY_START_HOUR = 7; // grid começa às 07:00
+const DAY_END_HOUR = 24; // até meia-noite
 const HOUR_HEIGHT = 48; // px por hora
 const MIN_TASK_MINUTES = 15;
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION = 60;
+const DAY_START_MIN = DAY_START_HOUR * 60;
+const DAY_END_MIN = DAY_END_HOUR * 60;
 
 export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
@@ -55,7 +59,10 @@ export default function UpcomingPage() {
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
-  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
+  const hours = useMemo(
+    () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
+    []
+  );
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -181,7 +188,7 @@ function WeekGrid({
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = 7 * HOUR_HEIGHT;
+      scrollRef.current.scrollTop = 0;
     }
   }, []);
 
@@ -191,8 +198,8 @@ function WeekGrid({
   const pointerToMinutes = useCallback((dayEl: HTMLDivElement, clientY: number) => {
     const rect = dayEl.getBoundingClientRect();
     const y = Math.max(0, Math.min(rect.height, clientY - rect.top));
-    const min = (y / HOUR_HEIGHT) * 60;
-    return Math.max(0, Math.min(24 * 60 - SNAP_MINUTES, snap(min)));
+    const min = DAY_START_MIN + (y / HOUR_HEIGHT) * 60;
+    return Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - SNAP_MINUTES, snap(min)));
   }, []);
 
   const findDayUnderPointer = useCallback((clientX: number, clientY: number): string | null => {
@@ -216,7 +223,7 @@ function WeekGrid({
         if (!dayKey) return;
         const dayEl = dayColumnsRef.current.get(dayKey)!;
         const min = pointerToMinutes(dayEl, e.clientY) - drag.pointerOffsetMin;
-        const clamped = Math.max(0, Math.min(24 * 60 - drag.durationMin, snap(min)));
+        const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - drag.durationMin, snap(min)));
         setPreview((p) => ({
           ...p,
           [drag.taskId]: { dayKey, startMin: clamped, durationMin: drag.durationMin },
@@ -468,7 +475,7 @@ function DayColumn({
     const el = localRef.current!;
     const rect = el.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const min = snap((y / HOUR_HEIGHT) * 60);
+    const min = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
     downStateRef.current = { y, moved: false, startMin: min };
   };
 
@@ -521,10 +528,10 @@ function DayColumn({
       ))}
 
       {/* Now indicator */}
-      {nowMin !== null && (
+      {nowMin !== null && nowMin >= DAY_START_MIN && nowMin <= DAY_END_MIN && (
         <div
           className="absolute left-0 right-0 z-[5] pointer-events-none"
-          style={{ top: (nowMin / 60) * HOUR_HEIGHT }}
+          style={{ top: ((nowMin - DAY_START_MIN) / 60) * HOUR_HEIGHT }}
         >
           <div className="h-px bg-primary" />
           <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-primary" />
@@ -536,7 +543,7 @@ function DayColumn({
         const p = preview[task.id];
         const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
         const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
-        const top = (startMin / 60) * HOUR_HEIGHT;
+        const top = ((startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT;
         const height = Math.max(20, (durationMin / 60) * HOUR_HEIGHT);
         const isDragging = !!p;
         return (
@@ -565,7 +572,7 @@ function DayColumn({
         <div
           className="absolute left-1 right-1 z-10 rounded-md bg-primary/30 border border-primary/60 pointer-events-none"
           style={{
-            top: (createBox.startMin / 60) * HOUR_HEIGHT,
+            top: ((createBox.startMin - DAY_START_MIN) / 60) * HOUR_HEIGHT,
             height: Math.max(
               (SNAP_MINUTES / 60) * HOUR_HEIGHT,
               ((createBox.endMin - createBox.startMin) / 60) * HOUR_HEIGHT
