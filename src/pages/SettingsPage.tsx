@@ -311,13 +311,34 @@ export default function SettingsPage() {
                 </Button>
               </Section>
               <Section title="Zona perigosa">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Excluir conta
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmWipeTasks(true)}
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Apagar todas as tarefas
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmWipeLabels(true)}
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Apagar todas as etiquetas
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Excluir conta
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Apagar tarefas/etiquetas é irreversível. Projetos, configurações e integrações são preservados.
+                </p>
               </Section>
             </TabsContent>
 
