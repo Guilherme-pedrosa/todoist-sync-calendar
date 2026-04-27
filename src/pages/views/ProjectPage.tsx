@@ -66,6 +66,7 @@ export default function ProjectPage() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('section');
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
