@@ -399,22 +399,47 @@ export function TaskDetailPanel() {
           {/* Main */}
           <div className="flex-1 px-5 py-4 space-y-4 min-w-0">
             <div className="flex items-start gap-3">
-              <button
-                onClick={() => complete(task.id)}
-                className={cn(
-                  'mt-1 h-5 w-5 rounded-full border-2 shrink-0 flex items-center justify-center',
-                  task.completed
-                    ? 'bg-primary border-primary'
-                    : 'border-muted-foreground/30 hover:border-primary'
+              <div className="mt-1 flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => complete(task.id)}
+                  className={cn(
+                    'h-5 w-5 rounded-full border-2 flex items-center justify-center',
+                    task.completed
+                      ? 'bg-primary border-primary'
+                      : 'border-muted-foreground/30 hover:border-primary'
+                  )}
+                  aria-label="Concluir"
+                >
+                  {task.completed && (
+                    <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                {task.recurrenceRule && !task.completed && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="h-5 w-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
+                        aria-label="Opções de conclusão"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuItem onClick={() => complete(task.id)}>
+                        Concluir esta ocorrência
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => complete(task.id, { endRecurring: true })}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Finalizar para sempre
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
-                aria-label="Concluir"
-              >
-                {task.completed && (
-                  <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
+              </div>
               <Input
                 ref={titleRef}
                 value={titleDraft}
