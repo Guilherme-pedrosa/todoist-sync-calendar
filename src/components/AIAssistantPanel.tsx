@@ -171,7 +171,7 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           )}
           {text && (
             <article className="prose prose-sm prose-invert max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground">
-              <ReactMarkdown>{text}</ReactMarkdown>
+              <ReactMarkdown>{text || ''}</ReactMarkdown>
             </article>
           )}
         </div>
