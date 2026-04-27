@@ -101,9 +101,18 @@ export default function UpcomingPage() {
         <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center rounded-md border border-border bg-card overflow-hidden">
             <button
-              onClick={() => setMode('week')}
+              onClick={() => { setMode('day'); setWeekOffset(0); }}
               className={cn(
                 'px-2.5 h-8 text-xs flex items-center gap-1.5',
+                mode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <CalendarClock className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Hoje</span>
+            </button>
+            <button
+              onClick={() => setMode('week')}
+              className={cn(
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
                 mode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
@@ -112,33 +121,35 @@ export default function UpcomingPage() {
             <button
               onClick={() => setMode('list')}
               className={cn(
-                'px-2.5 h-8 text-xs flex items-center gap-1.5',
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
                 mode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
               <ListIcon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-xs px-2"
-              onClick={() => setWeekOffset(0)}
-            >
-              Hoje
-            </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          {mode !== 'day' && (
+            <div className="flex items-center gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-xs px-2"
+                onClick={() => setWeekOffset(0)}
+              >
+                Hoje
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
-      {mode === 'week' ? (
+      {mode === 'week' || mode === 'day' ? (
         <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
       ) : (
         <ListView tasks={upcoming} />
