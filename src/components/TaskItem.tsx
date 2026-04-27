@@ -275,6 +275,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                     dueDate: v.date ?? null as any,
                     dueTime: v.time ?? null as any,
                     recurrenceRule: v.recurrenceRule ?? null,
+                    durationMinutes: v.durationMinutes ?? null,
                   })
                 }
                 trigger={<span />}
