@@ -735,6 +735,18 @@ export function AppSidebar() {
           </div>
         )}
 
+        {calendarConnected && (
+          <button
+            onClick={handleForceSyncCalendar}
+            disabled={syncingCalendar}
+            className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+            title="Forçar sincronização agora"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', syncingCalendar && 'animate-spin')} />
+            {syncingCalendar ? 'Sincronizando...' : 'Sincronizar agora'}
+          </button>
+        )}
+
         <button
           onClick={handleImportTodoist}
           disabled={importingTodoist}
