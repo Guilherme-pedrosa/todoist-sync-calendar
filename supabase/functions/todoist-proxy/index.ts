@@ -359,10 +359,10 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description").eq("user_id", user.id).eq("project_id", appInbox.id);
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", appInbox.id);
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|`, t);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.parent_id || ""}`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -473,7 +473,7 @@ serve(async (req) => {
         await Promise.all([
           supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
-          supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id").eq("user_id", user.id),
+          supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id, parent_id").eq("user_id", user.id),
         ]);
 
       // 3. Sync projects (dedup by name; map Todoist Inbox -> app Inbox)
@@ -546,7 +546,7 @@ serve(async (req) => {
       // 5. Sync tasks — dedup by (title + due_date + project_id)
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}|`, t);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}|${t.parent_id || ""}`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
