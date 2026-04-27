@@ -157,13 +157,7 @@ export default function ProjectPage() {
     );
   }
 
-  // Board (Kanban) view
-  const noSection = projectTasks.filter((t) => !t.sectionId);
-  const bySection: Record<string, Task[]> = {};
-  sections.forEach((s) => {
-    bySection[s.id] = projectTasks.filter((t) => t.sectionId === s.id);
-  });
-
+  // Board (Kanban) view — usa KanbanBoard genérico com agrupamento configurável
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <ProjectHeader
@@ -175,6 +169,8 @@ export default function ProjectPage() {
         onViewChange={handleViewChange}
         onSortChange={setSortBy}
         onLabelFilterChange={setLabelFilter}
+        kanbanGroupBy={kanbanGroupBy}
+        onKanbanGroupByChange={setKanbanGroupBy}
         onArchive={async () => {
           await archiveProject(project.id);
           toast.success('Projeto arquivado');
@@ -185,29 +181,13 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
-      <div className="flex-1 overflow-x-auto overflow-y-hidden p-4">
-        <div className="flex gap-3 h-full min-w-max">
-          <Column
-            title="Sem seção"
-            tasks={noSection}
-            onAdd={() =>
-              openQuickAdd({ defaultProjectId: projectId, defaultDueDate: undefined })
-            }
-          />
-          {sections.map((s) => (
-            <Column
-              key={s.id}
-              title={s.name}
-              tasks={bySection[s.id] || []}
-              onAdd={() =>
-                openQuickAdd({
-                  defaultProjectId: projectId,
-                })
-              }
-            />
-          ))}
-        </div>
-      </div>
+      <KanbanBoard
+        tasks={projectTasks}
+        groupBy={kanbanGroupBy}
+        projectId={projectId}
+        sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
+        newTaskDefaults={{ projectId }}
+      />
 
       <DeleteDialog
         open={confirmDelete}
