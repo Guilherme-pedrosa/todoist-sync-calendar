@@ -7,7 +7,7 @@ export function MobileFab() {
     <button
       onClick={() => openQuickAdd()}
       aria-label="Adicionar tarefa"
-      className="lg:hidden fixed bottom-5 right-5 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-40"
+      className="lg:hidden fixed bottom-[68px] left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-40 ring-4 ring-background"
     >
       <Plus className="h-6 w-6" />
     </button>

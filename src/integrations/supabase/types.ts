@@ -585,6 +585,7 @@ export type Database = {
         Row: {
           auto_dark_mode: boolean
           celebrations: boolean
+          color_mode: string
           created_at: string
           daily_goal: number
           date_format: string
@@ -595,8 +596,14 @@ export type Database = {
           home_page: string
           karma_enabled: boolean
           language: string
+          next_week_start: string
+          notify_on_comments: boolean
+          notify_on_reminders: boolean
+          notify_on_task_complete: boolean
           quick_add_chips: Json
           reminder_channels: Json
+          show_calendar_status: boolean
+          show_sidebar_counts: boolean
           show_task_description: boolean
           sidebar_hidden: Json
           sidebar_order: Json
@@ -613,6 +620,7 @@ export type Database = {
         Insert: {
           auto_dark_mode?: boolean
           celebrations?: boolean
+          color_mode?: string
           created_at?: string
           daily_goal?: number
           date_format?: string
@@ -623,8 +631,14 @@ export type Database = {
           home_page?: string
           karma_enabled?: boolean
           language?: string
+          next_week_start?: string
+          notify_on_comments?: boolean
+          notify_on_reminders?: boolean
+          notify_on_task_complete?: boolean
           quick_add_chips?: Json
           reminder_channels?: Json
+          show_calendar_status?: boolean
+          show_sidebar_counts?: boolean
           show_task_description?: boolean
           sidebar_hidden?: Json
           sidebar_order?: Json
@@ -641,6 +655,7 @@ export type Database = {
         Update: {
           auto_dark_mode?: boolean
           celebrations?: boolean
+          color_mode?: string
           created_at?: string
           daily_goal?: number
           date_format?: string
@@ -651,8 +666,14 @@ export type Database = {
           home_page?: string
           karma_enabled?: boolean
           language?: string
+          next_week_start?: string
+          notify_on_comments?: boolean
+          notify_on_reminders?: boolean
+          notify_on_task_complete?: boolean
           quick_add_chips?: Json
           reminder_channels?: Json
+          show_calendar_status?: boolean
+          show_sidebar_counts?: boolean
           show_task_description?: boolean
           sidebar_hidden?: Json
           sidebar_order?: Json

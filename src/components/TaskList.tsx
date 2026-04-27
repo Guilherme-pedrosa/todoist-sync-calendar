@@ -12,8 +12,10 @@ import {
   Plus,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
+import { useQuickAddStore } from '@/store/quickAddStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
+import { EmptyState } from '@/components/EmptyState';
 import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -308,17 +310,16 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         )}
 
         {filteredTasks.length === 0 && view !== 'completed' && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className={cn('h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4')}>
-              <CheckCircle2 className="h-7 w-7 text-muted-foreground/40" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Tudo limpo por aqui! 🎉
-            </p>
-            <p className="text-xs text-muted-foreground/60 mt-1">
-              Adicione uma tarefa acima para começar
-            </p>
-          </div>
+          <EmptyState
+            icon={<CheckCircle2 className="h-9 w-9" />}
+            title="Tudo limpo por aqui! 🎉"
+            description="Adicione uma tarefa para começar a organizar seu dia."
+            actionLabel="Adicionar tarefa"
+            onAction={() => useQuickAddStore.getState().openQuickAdd({
+              defaultProjectId: view === 'project' ? projectId : undefined,
+              defaultDueDate: view === 'today' ? new Date().toISOString().split('T')[0] : undefined,
+            })}
+          />
         )}
       </div>
     </div>

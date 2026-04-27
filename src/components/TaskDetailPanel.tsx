@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   ChevronUp,
@@ -676,21 +677,31 @@ export function TaskDetailPanel() {
 
   // Portal: side panel (desktop) or fullscreen (mobile)
   return createPortal(
-    <div className="fixed inset-0 z-50 flex">
-      <div
-        className="flex-1 bg-foreground/40 backdrop-blur-sm"
-        onClick={close}
-        aria-label="Fechar painel"
-      />
-      <div
-        className={cn(
-          'bg-background shadow-2xl border-l border-border flex flex-col',
-          isMobile ? 'w-full' : 'w-[480px]'
-        )}
-      >
-        {content}
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 flex">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18 }}
+          className="flex-1 bg-foreground/40 backdrop-blur-sm"
+          onClick={close}
+          aria-label="Fechar painel"
+        />
+        <motion.div
+          initial={{ x: isMobile ? 0 : 480, y: isMobile ? 60 : 0, opacity: 0 }}
+          animate={{ x: 0, y: 0, opacity: 1 }}
+          exit={{ x: isMobile ? 0 : 480, y: isMobile ? 60 : 0, opacity: 0 }}
+          transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+          className={cn(
+            'bg-background shadow-2xl border-l border-border flex flex-col',
+            isMobile ? 'w-full' : 'w-[480px]'
+          )}
+        >
+          {content}
+        </motion.div>
       </div>
-    </div>,
+    </AnimatePresence>,
     document.body
   );
 }
