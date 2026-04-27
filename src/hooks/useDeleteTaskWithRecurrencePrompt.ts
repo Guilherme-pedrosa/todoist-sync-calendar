@@ -40,7 +40,7 @@ export function useDeleteTaskWithRecurrencePrompt() {
         taskId,
         occurrenceDate: occurrenceDate || '',
         updates: {},
-        changeLabel: 'excluir tarefa recorrente',
+        changeLabel: 'exclusão de uma ocorrência',
       });
 
       if (mode === null) return 'cancelled';
