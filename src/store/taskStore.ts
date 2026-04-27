@@ -58,6 +58,10 @@ interface GoogleCalendarEvent {
 
 const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
 
+function isGoogleSyncPaused() {
+  return typeof window !== 'undefined' && localStorage.getItem('taskflow_google_sync_paused') !== 'false';
+}
+
 function mapDbTaskToTask(t: any): Task {
   return {
     id: t.id,
@@ -245,6 +249,7 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
 }
 
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
+  if (isGoogleSyncPaused()) return null;
   if (!task.dueDate) return null;
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return null;
@@ -273,6 +278,7 @@ async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
 }
 
 async function updateGoogleCalendarEvent(task: Task): Promise<void> {
+  if (isGoogleSyncPaused()) return;
   if (!task.googleCalendarEventId || !task.dueDate) return;
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return;
@@ -297,6 +303,7 @@ async function updateGoogleCalendarEvent(task: Task): Promise<void> {
 }
 
 async function deleteGoogleCalendarEvent(eventId?: string | null): Promise<void> {
+  if (isGoogleSyncPaused()) return;
   if (!eventId) return;
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return;
@@ -314,6 +321,8 @@ async function syncGoogleCalendarEvents(
   currentTasks: Task[],
   inboxProjectId?: string
 ): Promise<Task[]> {
+  if (isGoogleSyncPaused()) return currentTasks;
+
   const { data: tokenRows, error: tokenError } = await supabase
     .from('google_tokens')
     .select('id')
