@@ -14,6 +14,7 @@ import {
   CalendarClock,
   LayoutGrid,
   Sparkles,
+  Check,
 } from 'lucide-react';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
@@ -801,11 +802,18 @@ function EventBlock({
   onClick: () => void;
 }) {
   const project = useTaskStore((s) => s.projects.find((p) => p.id === task.projectId));
+  const toggleTask = useTaskStore((s) => s.toggleTask);
   const priorityBorder: Record<number, string> = {
     1: 'border-l-priority-1',
     2: 'border-l-priority-2',
     3: 'border-l-priority-3',
     4: 'border-l-muted-foreground/40',
+  };
+  const priorityRing: Record<number, string> = {
+    1: 'border-priority-1 hover:bg-priority-1/10',
+    2: 'border-priority-2 hover:bg-priority-2/10',
+    3: 'border-priority-3 hover:bg-priority-3/10',
+    4: 'border-muted-foreground/40 hover:bg-muted',
   };
   const downRef = useRef<{
     x: number;
@@ -879,14 +887,38 @@ function EventBlock({
         if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
+      <div className="px-1.5 py-1 pl-6 text-[11px] font-medium leading-tight break-words whitespace-normal">
         {task.dueTime && (
           <span className="text-muted-foreground mr-1">
             {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
           </span>
         )}
-        {task.title}
+        <span className={cn(task.completed && 'line-through text-muted-foreground')}>
+          {task.title}
+        </span>
       </div>
+      {/* Complete checkbox */}
+      <button
+        type="button"
+        aria-label={task.completed ? 'Reabrir tarefa' : 'Concluir tarefa'}
+        className={cn(
+          'absolute top-1 left-1 z-20 h-3.5 w-3.5 rounded-full border flex items-center justify-center transition-colors',
+          priorityRing[task.priority],
+          task.completed && 'bg-primary border-primary text-primary-foreground'
+        )}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleTask(task.id);
+        }}
+      >
+        {task.completed && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+      </button>
       {project && !project.isInbox && height > 32 && (
         <div className="px-1.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
           <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: project.color }} />
