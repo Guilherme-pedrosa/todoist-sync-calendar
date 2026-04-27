@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { LABEL_COLORS } from '@/constants/colors';
+import { TODOIST_COLORS } from '@/constants/colors';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
