@@ -717,6 +717,8 @@ function EventBlock({
   top,
   height,
   durationMin,
+  col,
+  cols,
   isDragging,
   onStartMoveAt,
   onPointerDownResize,
@@ -726,6 +728,8 @@ function EventBlock({
   top: number;
   height: number;
   durationMin: number;
+  col: number;
+  cols: number;
   isDragging: boolean;
   onStartMoveAt: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerDownResize: (e: React.PointerEvent<HTMLDivElement>) => void;
