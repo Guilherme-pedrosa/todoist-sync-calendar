@@ -349,9 +349,12 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     setLoading(true);
     try {
       const r = await chatWithAssistant({ messages: next, tasks, projects });
-      setMessages([...next, { role: 'assistant', content: r.text }]);
+      const replyText = (r && typeof r.text === 'string' && r.text.trim())
+        ? r.text
+        : 'A IA respondeu vazio. Tente reformular a pergunta.';
+      setMessages([...next, { role: 'assistant', content: replyText }]);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha no chat');
+      toast.error(e instanceof Error ? e.message : 'IA indisponível agora, tente em alguns segundos.');
       setMessages(next.slice(0, -1));
       setInput(text);
     } finally {
