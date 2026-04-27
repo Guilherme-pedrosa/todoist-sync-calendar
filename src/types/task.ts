@@ -30,12 +30,19 @@ export interface Project {
   color: string;
   isInbox?: boolean;
   icon?: string;
+  parentId?: string | null;
+  isFavorite?: boolean;
+  viewType?: 'list' | 'board';
+  description?: string | null;
+  archivedAt?: string | null;
+  position?: number;
 }
 
 export interface Label {
   id: string;
   name: string;
   color: string;
+  isFavorite?: boolean;
 }
 
 export type ViewFilter = 'inbox' | 'today' | 'upcoming' | 'project' | 'label' | 'completed';
