@@ -28,10 +28,14 @@ import { toast } from 'sonner';
 
 type Mode = 'list' | 'week';
 
+const DAY_START_HOUR = 7; // grid começa às 07:00
+const DAY_END_HOUR = 24; // até meia-noite
 const HOUR_HEIGHT = 48; // px por hora
 const MIN_TASK_MINUTES = 15;
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION = 60;
+const DAY_START_MIN = DAY_START_HOUR * 60;
+const DAY_END_MIN = DAY_END_HOUR * 60;
 
 export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
