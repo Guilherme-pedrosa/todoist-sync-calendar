@@ -164,7 +164,8 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
             </button>
           )}
         </PopoverTrigger>
-        <PopoverContent className="w-[320px] p-0" align={align}>
+        <PopoverContent className="w-[320px] p-0 max-h-[85vh] flex flex-col overflow-hidden" align={align}>
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
           {/* Free-text NLP input */}
           <div className="p-2 border-b border-border">
             <Input
