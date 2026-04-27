@@ -210,7 +210,7 @@ function KanbanColumn({
 function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
-  const { completeTask } = useCompleteTask();
+  const completeTask = useCompleteTask();
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
 
