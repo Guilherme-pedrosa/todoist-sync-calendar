@@ -223,6 +223,24 @@ export function AppSidebar() {
       setConnectingCalendar(false);
     }
   };
+  const handleForceSyncCalendar = async () => {
+    setSyncingCalendar(true);
+    const before = useTaskStore.getState().tasks.length;
+    try {
+      await fetchData();
+      const after = useTaskStore.getState().tasks.length;
+      const diff = after - before;
+      if (diff > 0) {
+        toast.success(`Sincronizado: ${diff} novo(s) evento(s) importado(s)`);
+      } else {
+        toast.success('Calendário sincronizado — tudo em dia');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar');
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
 
   const handleImportTodoist = async () => {
     setImportingTodoist(true);
