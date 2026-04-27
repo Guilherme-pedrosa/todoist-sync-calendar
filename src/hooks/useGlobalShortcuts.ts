@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
+import { useUndoStore } from '@/store/undoStore';
+import { toast } from 'sonner';
 
 function isTypingTarget(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
