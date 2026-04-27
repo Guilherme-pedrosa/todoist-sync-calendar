@@ -423,6 +423,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   deleteTask: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
+    const children = get().tasks.filter((t) => t.parentId === id);
 
     await supabase.from('tasks').delete().eq('id', id);
     set((state) => ({
@@ -433,20 +434,58 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-        await fetch(
-          `${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(task.googleCalendarEventId)}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-          }
-        );
+        if (accessToken) {
+          await fetch(
+            `${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(task.googleCalendarEventId)}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+            }
+          );
+        }
       } catch (error) {
         console.error('Falha ao remover evento do Google Calendar:', error);
       }
+    }
+
+    if (task) {
+      const userId = await getUserId();
+      const snapshot = { ...task };
+      const childrenSnap = children.map((c) => ({ ...c }));
+      useUndoStore.getState().push({
+        label: `Excluir "${task.title}"`,
+        undo: async () => {
+          if (!userId) return;
+          const buildPayload = (t: Task) => ({
+            id: t.id,
+            user_id: userId,
+            title: t.title,
+            description: t.description ?? null,
+            priority: t.priority,
+            due_date: t.dueDate ?? null,
+            due_time: t.dueTime ? `${t.dueTime}:00` : null,
+            duration_minutes: t.durationMinutes ?? null,
+            due_string: t.dueString ?? null,
+            deadline: t.deadline ?? null,
+            recurrence_rule: t.recurrenceRule ?? null,
+            project_id: t.projectId ?? null,
+            section_id: t.sectionId ?? null,
+            parent_id: t.parentId ?? null,
+            completed: t.completed,
+            completed_at: t.completedAt ?? null,
+          });
+          await supabase.from('tasks').insert([buildPayload(snapshot), ...childrenSnap.map(buildPayload)] as any);
+          if (snapshot.labels.length > 0) {
+            await supabase.from('task_labels').insert(
+              snapshot.labels.map((labelId) => ({ task_id: snapshot.id, label_id: labelId }))
+            );
+          }
+          set((state) => ({ tasks: [snapshot, ...childrenSnap, ...state.tasks] }));
+        },
+      });
     }
   },
 
@@ -454,6 +493,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
 
+    const prevCompleted = task.completed;
+    const prevCompletedAt = task.completedAt;
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
@@ -467,6 +508,21 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
       ),
     }));
+
+    useUndoStore.getState().push({
+      label: completed ? `Desmarcar "${task.title}"` : `Marcar "${task.title}"`,
+      undo: async () => {
+        await supabase
+          .from('tasks')
+          .update({ completed: prevCompleted, completed_at: prevCompletedAt ?? null })
+          .eq('id', id);
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt } : t
+          ),
+        }));
+      },
+    });
 
     if (task.googleCalendarEventId) {
       try {
