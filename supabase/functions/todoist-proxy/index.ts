@@ -449,6 +449,9 @@ serve(async (req) => {
         const dueTime = tt.due?.datetime
           ? tt.due.datetime.slice(11, 19) // HH:MM:SS
           : null;
+        const dueString = tt.due?.string || null;
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const deadline = tt.deadline?.date || null;
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
@@ -464,6 +467,9 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline: deadline,
             project_id: projectId,
           },
         });
