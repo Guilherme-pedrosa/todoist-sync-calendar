@@ -279,45 +279,51 @@ function OrganizeTab({
     assignments: { id: string; date: string; time: string; durationMinutes: number }[];
     summary: string;
   } | null>(null);
+  const [debug, setDebug] = useState<{ request: unknown; response: unknown } | null>(null);
+
+  const dateValid = isValidIsoDate(date);
 
   // Tarefas do dia sem horário (candidatas à organização)
   const candidates = useMemo(() => {
+    if (!dateValid) return [];
     return tasks.filter(
       (t) => !t.completed && !t.parentId && t.dueDate === date && !t.dueTime,
     );
-  }, [tasks, date]);
+  }, [tasks, date, dateValid]);
 
   const run = async () => {
+    if (!dateValid) return;
     if (candidates.length === 0) {
       toast.info('Nenhuma tarefa sem horário neste dia.');
       return;
     }
     setLoading(true);
     setResult(null);
+    setDebug(null);
+    const unscheduled = candidates.map((t) => ({
+      id: t.id,
+      title: t.title,
+      durationMinutes: t.durationMinutes,
+      priority: t.priority,
+      project: projects.find((p) => p.id === t.projectId)?.name,
+    }));
+    const requestPayload = { action: 'organize-day', date, unscheduled };
     try {
-      const r = await organizeDay({
-        date,
-        unscheduled: candidates.map((t) => ({
-          id: t.id,
-          title: t.title,
-          durationMinutes: t.durationMinutes,
-          priority: t.priority,
-          project: projects.find((p) => p.id === t.projectId)?.name,
-        })),
-        tasks,
-        projects,
-      });
+      const r = await organizeDay({ date, unscheduled, tasks, projects });
       const assignments = r.assignments.filter((a) => !isPastTodaySlot(a.date, a.time));
       if (assignments.length !== r.assignments.length) {
         toast.warning('Removi sugestões da IA que caíam em horário passado.');
       }
+      setDebug({ request: requestPayload, response: r });
       if (assignments.length === 0) {
         toast.error('A IA não encontrou horários futuros válidos para este dia.');
         return;
       }
       setResult({ ...r, assignments });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao organizar');
+      const msg = e instanceof Error ? e.message : 'Falha ao organizar';
+      setDebug({ request: requestPayload, response: { error: msg } });
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -325,22 +331,38 @@ function OrganizeTab({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="px-5 py-3 flex items-center gap-2 border-b border-border/60">
-        <input
-          type="date"
-          value={date}
-          min={todayString()}
-          onChange={(e) => setDate(e.target.value)}
-          className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
-        />
-        <Button size="sm" onClick={run} disabled={loading} className="h-8 gap-1.5">
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-          Organizar
-        </Button>
+      <div className="px-5 py-3 border-b border-border/60">
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={date}
+            min={todayString()}
+            onChange={(e) => setDate(e.target.value)}
+            aria-invalid={!dateValid}
+            className={cn(
+              'bg-muted/40 border rounded-md text-xs h-8 px-2 flex-1',
+              dateValid ? 'border-border' : 'border-destructive',
+            )}
+          />
+          <Button
+            size="sm"
+            onClick={run}
+            disabled={loading || !dateValid}
+            className="h-8 gap-1.5"
+          >
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+            Organizar
+          </Button>
+        </div>
+        {!dateValid && (
+          <div className="mt-2 text-[11px] text-destructive">
+            Data inválida. Selecione um dia no calendário.
+          </div>
+        )}
       </div>
       <ScrollArea className="flex-1">
         <div className="p-5 space-y-4">
-          {!result && !loading && (
+          {!result && !loading && dateValid && (
             <>
               <p className="text-xs text-muted-foreground">
                 A IA vai pegar as tarefas <strong>sem horário</strong> deste dia e
@@ -405,6 +427,10 @@ function OrganizeTab({
                 <CheckCircle2 className="h-4 w-4" /> Aplicar ao calendário
               </Button>
             </div>
+          )}
+
+          {debug && !loading && (
+            <DebugJson request={debug.request} response={debug.response} />
           )}
         </div>
       </ScrollArea>
