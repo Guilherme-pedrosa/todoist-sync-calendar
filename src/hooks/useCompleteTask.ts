@@ -62,6 +62,15 @@ export function useCompleteTask() {
       }
 
       await toggleTask(taskId);
+      toast('Tarefa concluída', {
+        duration: 5000,
+        action: {
+          label: 'Desfazer',
+          onClick: () => {
+            void toggleTask(taskId);
+          },
+        },
+      });
     },
     [tasks, toggleTask, updateTask]
   );
