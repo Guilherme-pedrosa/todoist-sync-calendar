@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS public.tasks_backup_pre_phase1 AS SELECT * FROM public.tasks;

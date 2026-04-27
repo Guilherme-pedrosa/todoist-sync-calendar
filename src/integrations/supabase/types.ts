@@ -14,6 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          action: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          payload: Json | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          payload?: Json | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          payload?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      filters: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          is_favorite: boolean
+          name: string
+          position: number
+          query: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          name: string
+          position?: number
+          query: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          is_favorite?: boolean
+          name?: string
+          position?: number
+          query?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_tokens: {
         Row: {
           access_token: string
@@ -68,6 +166,30 @@ export type Database = {
         }
         Relationships: []
       }
+      labels_backup_pre_phase1: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string | null
+          name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -97,36 +219,156 @@ export type Database = {
       }
       projects: {
         Row: {
+          archived_at: string | null
           color: string
           created_at: string
           id: string
+          is_favorite: boolean
           is_inbox: boolean
           name: string
+          parent_id: string | null
           position: number
           updated_at: string
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           is_inbox?: boolean
           name: string
+          parent_id?: string | null
           position?: number
           updated_at?: string
           user_id: string
         }
         Update: {
+          archived_at?: string | null
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           is_inbox?: boolean
           name?: string
+          parent_id?: string | null
           position?: number
           updated_at?: string
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "projects_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects_backup_pre_phase1: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          id: string | null
+          is_inbox: boolean | null
+          name: string | null
+          position: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_inbox?: boolean | null
+          name?: string | null
+          position?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_inbox?: boolean | null
+          name?: string | null
+          position?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
         Relationships: []
+      }
+      reminders: {
+        Row: {
+          created_at: string
+          id: string
+          notification_sent: boolean
+          task_id: string
+          trigger_at: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notification_sent?: boolean
+          task_id: string
+          trigger_at: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notification_sent?: boolean
+          task_id?: string
+          trigger_at?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sections: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          position: number
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          position?: number
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       task_labels: {
         Row: {
@@ -163,8 +405,11 @@ export type Database = {
           completed: boolean
           completed_at: string | null
           created_at: string
+          deadline: string | null
           description: string | null
           due_date: string | null
+          due_datetime: string | null
+          due_string: string | null
           due_time: string | null
           google_calendar_event_id: string | null
           id: string
@@ -173,7 +418,9 @@ export type Database = {
           priority: number
           project_id: string | null
           recurrence_interval: number | null
+          recurrence_rule: string | null
           recurrence_type: string | null
+          section_id: string | null
           title: string
           updated_at: string
           user_id: string
@@ -182,8 +429,11 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          deadline?: string | null
           description?: string | null
           due_date?: string | null
+          due_datetime?: string | null
+          due_string?: string | null
           due_time?: string | null
           google_calendar_event_id?: string | null
           id?: string
@@ -192,7 +442,9 @@ export type Database = {
           priority?: number
           project_id?: string | null
           recurrence_interval?: number | null
+          recurrence_rule?: string | null
           recurrence_type?: string | null
+          section_id?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -201,8 +453,11 @@ export type Database = {
           completed?: boolean
           completed_at?: string | null
           created_at?: string
+          deadline?: string | null
           description?: string | null
           due_date?: string | null
+          due_datetime?: string | null
+          due_string?: string | null
           due_time?: string | null
           google_calendar_event_id?: string | null
           id?: string
@@ -211,7 +466,9 @@ export type Database = {
           priority?: number
           project_id?: string | null
           recurrence_interval?: number | null
+          recurrence_rule?: string | null
           recurrence_type?: string | null
+          section_id?: string | null
           title?: string
           updated_at?: string
           user_id?: string
@@ -231,7 +488,74 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "tasks_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      tasks_backup_pre_phase1: {
+        Row: {
+          completed: boolean | null
+          completed_at: string | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          due_time: string | null
+          google_calendar_event_id: string | null
+          id: string | null
+          parent_id: string | null
+          position: number | null
+          priority: number | null
+          project_id: string | null
+          recurrence_interval: number | null
+          recurrence_type: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          google_calendar_event_id?: string | null
+          id?: string | null
+          parent_id?: string | null
+          position?: number | null
+          priority?: number | null
+          project_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completed?: boolean | null
+          completed_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          due_time?: string | null
+          google_calendar_event_id?: string | null
+          id?: string | null
+          parent_id?: string | null
+          position?: number | null
+          priority?: number | null
+          project_id?: string | null
+          recurrence_interval?: number | null
+          recurrence_type?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
