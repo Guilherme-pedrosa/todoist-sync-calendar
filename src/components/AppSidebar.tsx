@@ -362,6 +362,15 @@ export function AppSidebar() {
         )}
 
         <button
+          onClick={handleImportTodoist}
+          disabled={importingTodoist}
+          className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+        >
+          <Download className="h-3.5 w-3.5" />
+          {importingTodoist ? 'Importando...' : 'Importar do Todoist'}
+        </button>
+
+        <button
           onClick={signOut}
           className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
         >
