@@ -263,10 +263,12 @@ async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
       endTime: getTaskEndTime(task),
       allDay: !task.dueTime,
       durationMinutes: task.durationMinutes ?? 60,
+      taskId: task.id,
     }),
   });
   if (!response.ok) return null;
   const payload = await response.json();
+  if (payload?.error) return null;
   return typeof payload?.id === 'string' ? payload.id : null;
 }
 
