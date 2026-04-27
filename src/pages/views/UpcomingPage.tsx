@@ -26,7 +26,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
-type Mode = 'list' | 'week';
+type Mode = 'list' | 'week' | 'day';
 
 const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
@@ -56,8 +56,11 @@ export default function UpcomingPage() {
     [weekOffset]
   );
   const weekDays = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart]
+    () =>
+      mode === 'day'
+        ? [new Date()]
+        : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart, mode]
   );
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
@@ -86,18 +89,30 @@ export default function UpcomingPage() {
         </button>
         <CalendarRange className="h-5 w-5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">Em breve</h2>
+          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">
+            {mode === 'day' ? 'Hoje' : 'Em breve'}
+          </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
-            {format(weekStart, "d 'de' MMM", { locale: ptBR })} —{' '}
-            {format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}
+            {mode === 'day'
+              ? format(new Date(), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
+              : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}`}
           </p>
         </div>
         <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center rounded-md border border-border bg-card overflow-hidden">
             <button
-              onClick={() => setMode('week')}
+              onClick={() => { setMode('day'); setWeekOffset(0); }}
               className={cn(
                 'px-2.5 h-8 text-xs flex items-center gap-1.5',
+                mode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <CalendarClock className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Hoje</span>
+            </button>
+            <button
+              onClick={() => setMode('week')}
+              className={cn(
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
                 mode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
@@ -106,33 +121,35 @@ export default function UpcomingPage() {
             <button
               onClick={() => setMode('list')}
               className={cn(
-                'px-2.5 h-8 text-xs flex items-center gap-1.5',
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
                 mode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
               <ListIcon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
             </button>
           </div>
-          <div className="flex items-center gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 text-xs px-2"
-              onClick={() => setWeekOffset(0)}
-            >
-              Hoje
-            </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          {mode !== 'day' && (
+            <div className="flex items-center gap-1">
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-xs px-2"
+                onClick={() => setWeekOffset(0)}
+              >
+                Hoje
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
       </header>
 
-      {mode === 'week' ? (
+      {mode === 'week' || mode === 'day' ? (
         <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
       ) : (
         <ListView tasks={upcoming} />
@@ -308,11 +325,16 @@ function WeekGrid({
   }, []);
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
+  const numDays = weekDays.length;
+  const isDayMode = numDays === 1;
+  const gridCols = isDayMode ? 'grid-cols-[60px_1fr]' : 'grid-cols-[60px_repeat(7,1fr)]';
+  const minWidth = isDayMode ? '' : 'min-w-[900px]';
+
   return (
     <div ref={scrollRef} className="flex-1 overflow-auto scrollbar-thin select-none">
-      <div className="min-w-[900px]">
+      <div className={minWidth}>
         {/* Day header */}
-        <div className="sticky top-0 z-20 grid grid-cols-[60px_repeat(7,1fr)] bg-background border-b border-border">
+        <div className={cn('sticky top-0 z-20 grid bg-background border-b border-border', gridCols)}>
           <div />
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
@@ -336,7 +358,7 @@ function WeekGrid({
         </div>
 
         {/* All-day row */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur">
+        <div className={cn('grid border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur', gridCols)}>
           <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
             Dia todo
           </div>
@@ -374,7 +396,7 @@ function WeekGrid({
         </div>
 
         {/* Day columns with hour grid + absolutely positioned events */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] relative">
+        <div className={cn('grid relative', gridCols)}>
           {/* Hours gutter — labels alinhados ao topo de cada slot (igual Google Calendar) */}
           <div className="relative" style={{ height: hours.length * HOUR_HEIGHT }}>
             {hours.map((h, i) => (
@@ -666,7 +688,7 @@ function EventBlock({
         }
       }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight truncate">
+      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
         {task.dueTime && (
           <span className="text-muted-foreground mr-1">
             {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
