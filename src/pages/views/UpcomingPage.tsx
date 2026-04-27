@@ -680,6 +680,48 @@ function EventBlock({
 
 // ---------- List view (unchanged) ----------
 
+function AllDayChip({
+  task,
+  onOpen,
+  onStartDrag,
+}: {
+  task: Task;
+  onOpen: () => void;
+  onStartDrag: (pointerOffsetMin: number) => void;
+}) {
+  const downRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        downRef.current = { x: e.clientX, y: e.clientY, moved: false };
+      }}
+      onPointerMove={(e) => {
+        const d = downRef.current;
+        if (!d || d.moved) return;
+        if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) {
+          d.moved = true;
+          onStartDrag(0);
+        }
+      }}
+      onPointerUp={(e) => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (d && !d.moved) {
+          e.stopPropagation();
+          onOpen();
+        }
+      }}
+      className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none"
+      title={`${task.title} — arraste para um horário`}
+    >
+      {task.title}
+    </div>
+  );
+}
+
 function ListView({ tasks }: { tasks: Task[] }) {
   const grouped = useMemo(() => {
     const sorted = [...tasks].sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
