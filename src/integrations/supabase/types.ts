@@ -147,6 +147,7 @@ export type Database = {
           color: string
           created_at: string
           id: string
+          is_favorite: boolean
           name: string
           user_id: string
         }
@@ -154,6 +155,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           name: string
           user_id: string
         }
@@ -161,6 +163,7 @@ export type Database = {
           color?: string
           created_at?: string
           id?: string
+          is_favorite?: boolean
           name?: string
           user_id?: string
         }
@@ -222,6 +225,7 @@ export type Database = {
           archived_at: string | null
           color: string
           created_at: string
+          description: string | null
           id: string
           is_favorite: boolean
           is_inbox: boolean
@@ -230,11 +234,13 @@ export type Database = {
           position: number
           updated_at: string
           user_id: string
+          view_type: string
         }
         Insert: {
           archived_at?: string | null
           color?: string
           created_at?: string
+          description?: string | null
           id?: string
           is_favorite?: boolean
           is_inbox?: boolean
@@ -243,11 +249,13 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id: string
+          view_type?: string
         }
         Update: {
           archived_at?: string | null
           color?: string
           created_at?: string
+          description?: string | null
           id?: string
           is_favorite?: boolean
           is_inbox?: boolean
@@ -256,6 +264,7 @@ export type Database = {
           position?: number
           updated_at?: string
           user_id?: string
+          view_type?: string
         }
         Relationships: [
           {
@@ -302,25 +311,31 @@ export type Database = {
       }
       reminders: {
         Row: {
+          channel: string
           created_at: string
           id: string
           notification_sent: boolean
+          relative_minutes: number | null
           task_id: string
           trigger_at: string
           type: string
         }
         Insert: {
+          channel?: string
           created_at?: string
           id?: string
           notification_sent?: boolean
+          relative_minutes?: number | null
           task_id: string
           trigger_at: string
           type: string
         }
         Update: {
+          channel?: string
           created_at?: string
           id?: string
           notification_sent?: boolean
+          relative_minutes?: number | null
           task_id?: string
           trigger_at?: string
           type?: string
@@ -339,6 +354,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_collapsed: boolean
           name: string
           position: number
           project_id: string
@@ -347,6 +363,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_collapsed?: boolean
           name: string
           position?: number
           project_id: string
@@ -355,6 +372,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_collapsed?: boolean
           name?: string
           position?: number
           project_id?: string
@@ -554,6 +572,90 @@ export type Database = {
           title?: string | null
           updated_at?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          auto_dark_mode: boolean
+          celebrations: boolean
+          created_at: string
+          daily_goal: number
+          date_format: string
+          days_off: Json
+          default_reminder_minutes: number
+          delete_calendar_event_on_complete: boolean
+          home_page: string
+          karma_enabled: boolean
+          language: string
+          quick_add_chips: Json
+          reminder_channels: Json
+          show_task_description: boolean
+          sidebar_hidden: Json
+          sidebar_order: Json
+          smart_date_recognition: boolean
+          theme: string
+          time_format: string
+          timezone: string
+          updated_at: string
+          user_id: string
+          vacation_mode: boolean
+          week_start: number
+          weekly_goal: number
+        }
+        Insert: {
+          auto_dark_mode?: boolean
+          celebrations?: boolean
+          created_at?: string
+          daily_goal?: number
+          date_format?: string
+          days_off?: Json
+          default_reminder_minutes?: number
+          delete_calendar_event_on_complete?: boolean
+          home_page?: string
+          karma_enabled?: boolean
+          language?: string
+          quick_add_chips?: Json
+          reminder_channels?: Json
+          show_task_description?: boolean
+          sidebar_hidden?: Json
+          sidebar_order?: Json
+          smart_date_recognition?: boolean
+          theme?: string
+          time_format?: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+          vacation_mode?: boolean
+          week_start?: number
+          weekly_goal?: number
+        }
+        Update: {
+          auto_dark_mode?: boolean
+          celebrations?: boolean
+          created_at?: string
+          daily_goal?: number
+          date_format?: string
+          days_off?: Json
+          default_reminder_minutes?: number
+          delete_calendar_event_on_complete?: boolean
+          home_page?: string
+          karma_enabled?: boolean
+          language?: string
+          quick_add_chips?: Json
+          reminder_channels?: Json
+          show_task_description?: boolean
+          sidebar_hidden?: Json
+          sidebar_order?: Json
+          smart_date_recognition?: boolean
+          theme?: string
+          time_format?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+          vacation_mode?: boolean
+          week_start?: number
+          weekly_goal?: number
         }
         Relationships: []
       }

@@ -42,7 +42,93 @@ interface TodoistTask {
     date?: string;
     datetime?: string;
     string?: string;
+    is_recurring?: boolean;
+    timezone?: string | null;
   } | null;
+  deadline?: {
+    date?: string;
+  } | null;
+}
+
+// Convert a Todoist `due.string` into an RRULE (RFC 5545) when recurring.
+// Best-effort PT-BR + EN parser. Returns null if not recognized.
+const DAY_MAP_EN: Record<string, string> = {
+  monday: "MO", mon: "MO", tuesday: "TU", tue: "TU", tues: "TU",
+  wednesday: "WE", wed: "WE", thursday: "TH", thu: "TH", thurs: "TH",
+  friday: "FR", fri: "FR", saturday: "SA", sat: "SA", sunday: "SU", sun: "SU",
+};
+const DAY_MAP_PT: Record<string, string> = {
+  "segunda": "MO", "segunda-feira": "MO", "seg": "MO",
+  "terca": "TU", "terça": "TU", "terca-feira": "TU", "terça-feira": "TU", "ter": "TU",
+  "quarta": "WE", "quarta-feira": "WE", "qua": "WE",
+  "quinta": "TH", "quinta-feira": "TH", "qui": "TH",
+  "sexta": "FR", "sexta-feira": "FR", "sex": "FR",
+  "sabado": "SA", "sábado": "SA", "sab": "SA",
+  "domingo": "SU", "dom": "SU",
+};
+const DAY_MAP = { ...DAY_MAP_EN, ...DAY_MAP_PT };
+
+function dueStringToRRule(dueString?: string, dueDate?: string | null): string | null {
+  if (!dueString) return null;
+  const s = dueString.toLowerCase().trim();
+
+  // Heuristic: only treat as recurring if it starts with "every" / "todo" / "toda" / "cada" / "a cada"
+  const isRecurring = /^(every|todo|toda|cada|a cada)\b/.test(s);
+  if (!isRecurring) return null;
+
+  // weekdays
+  if (/(every weekday|todo dia util|todo dia útil|toda semana util|dias uteis|dias úteis)/.test(s)) {
+    return "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
+  }
+
+  // every N (days|weeks|months|years) — also "a cada N dias"
+  const intervalMatch = s.match(/(?:every|cada|a cada)\s+(\d+)\s*(day|days|week|weeks|month|months|year|years|dia|dias|semana|semanas|mes|meses|mês|ano|anos)/);
+  if (intervalMatch) {
+    const n = parseInt(intervalMatch[1], 10);
+    const unit = intervalMatch[2];
+    if (/day|dia/.test(unit)) return `FREQ=DAILY;INTERVAL=${n}`;
+    if (/week|semana/.test(unit)) return `FREQ=WEEKLY;INTERVAL=${n}`;
+    if (/month|mes|meses|mês/.test(unit)) return `FREQ=MONTHLY;INTERVAL=${n}`;
+    if (/year|ano/.test(unit)) return `FREQ=YEARLY;INTERVAL=${n}`;
+  }
+
+  // every day / todo dia / diariamente
+  if (/^(every day|todo dia|toda dia|cada dia|diariamente)/.test(s)) {
+    return "FREQ=DAILY";
+  }
+
+  // every week / toda semana
+  if (/^(every week|toda semana|cada semana|semanalmente)/.test(s) && !/\bevery\s+\w+day\b/.test(s)) {
+    return "FREQ=WEEKLY";
+  }
+
+  // every month / todo mes
+  if (/^(every month|todo mes|todo mês|cada mes|cada mês|mensalmente)/.test(s)) {
+    // optional "on the Nth" — derive from dueDate when possible
+    if (dueDate) {
+      const day = parseInt(dueDate.slice(8, 10), 10);
+      if (!isNaN(day)) return `FREQ=MONTHLY;BYMONTHDAY=${day}`;
+    }
+    return "FREQ=MONTHLY";
+  }
+
+  // every year / todo ano
+  if (/^(every year|todo ano|cada ano|anualmente)/.test(s)) {
+    return "FREQ=YEARLY";
+  }
+
+  // every <weekday> (e.g. "every monday", "toda segunda")
+  const tokens = s.split(/[\s,]+/).slice(1); // drop the leading "every"/"toda"/"todo"
+  const days: string[] = [];
+  for (const tok of tokens) {
+    const cleaned = tok.replace(/[^a-zçãáéíóúâêô-]/g, "");
+    if (DAY_MAP[cleaned]) days.push(DAY_MAP[cleaned]);
+  }
+  if (days.length > 0) {
+    return `FREQ=WEEKLY;BYDAY=${days.join(",")}`;
+  }
+
+  return null;
 }
 
 // Todoist color name -> approximate HSL
@@ -191,6 +277,9 @@ serve(async (req) => {
         if (tt.is_completed) continue;
         const dueDate = tt.due?.date || (tt.due?.datetime ? tt.due.datetime.slice(0, 10) : null);
         const dueTime = tt.due?.datetime ? tt.due.datetime.slice(11, 19) : null;
+        const dueString = tt.due?.string || null;
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const deadline = tt.deadline?.date || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
@@ -204,6 +293,9 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline: deadline,
             project_id: appInbox.id,
           },
         });
@@ -357,6 +449,9 @@ serve(async (req) => {
         const dueTime = tt.due?.datetime
           ? tt.due.datetime.slice(11, 19) // HH:MM:SS
           : null;
+        const dueString = tt.due?.string || null;
+        const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
+        const deadline = tt.deadline?.date || null;
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
@@ -372,6 +467,9 @@ serve(async (req) => {
             priority: mapPriority(tt.priority),
             due_date: dueDate,
             due_time: dueTime,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline: deadline,
             project_id: projectId,
           },
         });
