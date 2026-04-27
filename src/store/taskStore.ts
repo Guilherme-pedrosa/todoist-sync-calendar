@@ -180,7 +180,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   activeView: 'today',
   activeProjectId: null,
   activeLabelId: null,
-  sidebarOpen: true,
+  sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   loading: true,
 
   fetchData: async () => {

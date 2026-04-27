@@ -46,51 +46,50 @@ export default function TodayPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <header className="flex items-center gap-3 px-6 py-5 border-b border-border/50">
+      <header className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-5 border-b border-border/50">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+          className="lg:hidden p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors shrink-0"
           aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <div className="flex items-center gap-2.5">
-          <CalendarDays className="h-5 w-5" />
-          <div>
-            <h2 className="font-display text-xl font-bold tracking-tight">Hoje</h2>
-            <p className="text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <CalendarDays className="h-5 w-5 shrink-0" />
+          <div className="min-w-0">
+            <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">Hoje</h2>
+            <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
               {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
             </p>
           </div>
         </div>
-        <span className="text-sm text-muted-foreground ml-auto">
-          {total} tarefa{total !== 1 ? 's' : ''}
+        <span className="text-xs sm:text-sm text-muted-foreground ml-auto shrink-0">
+          {total}
         </span>
       </header>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3">
         {overdue.length > 0 && (
           <div className="mb-4">
-            <button
-              onClick={() => setOverdueOpen((o) => !o)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/5 rounded-md transition-colors"
-            >
-              {overdueOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-              <AlertTriangle className="h-4 w-4" />
-              Atrasadas
-              <span className="text-xs font-normal opacity-70">({overdue.length})</span>
+            <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-2">
+              <button
+                onClick={() => setOverdueOpen((o) => !o)}
+                className="flex items-center gap-2 text-sm font-semibold text-destructive hover:opacity-80 transition-opacity"
+              >
+                {overdueOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                <AlertTriangle className="h-4 w-4" />
+                Atrasadas
+                <span className="text-xs font-normal opacity-70">({overdue.length})</span>
+              </button>
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  rescheduleAllOverdue();
-                }}
-                className="ml-auto h-6 text-[11px] text-destructive hover:bg-destructive/10"
+                onClick={rescheduleAllOverdue}
+                className="ml-auto h-7 text-[11px] text-destructive hover:bg-destructive/10 px-2"
               >
-                Reagendar tudo p/ hoje
+                Reagendar p/ hoje
               </Button>
-            </button>
+            </div>
             {overdueOpen && (
               <div className={cn('mt-1')}>
                 {overdue.map((task) => (
