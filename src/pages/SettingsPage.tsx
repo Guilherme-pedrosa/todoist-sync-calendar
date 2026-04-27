@@ -76,6 +76,38 @@ const TAB_ITEMS = [
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
 
+const DEFAULT_SETTINGS = {
+  language: 'pt-BR',
+  timezone: 'America/Sao_Paulo',
+  time_format: '24h',
+  date_format: 'DD-MM-YYYY',
+  week_start: 1,
+  next_week_start: 'monday',
+  home_page: 'today',
+  smart_date_recognition: true,
+  theme: 'todoist',
+  auto_dark_mode: false,
+  color_mode: 'system',
+  show_sidebar_counts: true,
+  show_calendar_status: true,
+  default_reminder_minutes: 30,
+  reminder_channels: ['push', 'email'],
+  daily_goal: 5,
+  weekly_goal: 30,
+  vacation_mode: false,
+  days_off: ['6', '0'],
+  karma_enabled: true,
+  quick_add_chips: ['date', 'deadline', 'assignee', 'attachment', 'priority', 'reminders'],
+  sidebar_order: ['inbox', 'today', 'upcoming', 'completed', 'more'],
+  sidebar_hidden: [],
+  show_task_description: true,
+  celebrations: true,
+  delete_calendar_event_on_complete: true,
+  notify_on_task_complete: true,
+  notify_on_comments: true,
+  notify_on_reminders: true,
+};
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
@@ -97,13 +129,26 @@ export default function SettingsPage() {
     if (!user) return;
     let active = true;
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('user_settings')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
       if (!active) return;
-      setSettings(data);
+      if (error) {
+        toast.error('Falha ao carregar configurações');
+        setSettings({ ...DEFAULT_SETTINGS, user_id: user.id });
+      } else if (data) {
+        setSettings({ ...DEFAULT_SETTINGS, ...data });
+      } else {
+        const { data: created } = await supabase
+          .from('user_settings')
+          .insert({ user_id: user.id })
+          .select('*')
+          .maybeSingle();
+        if (!active) return;
+        setSettings({ ...DEFAULT_SETTINGS, ...(created || {}), user_id: user.id });
+      }
       setLoading(false);
     })();
     return () => {
