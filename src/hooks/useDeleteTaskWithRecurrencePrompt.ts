@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
-import { addExdateToRecurrence } from '@/lib/recurrence';
+import { addExdateToRecurrence, addWeekdayExdatesToRecurrence } from '@/lib/recurrence';
 import { toast } from 'sonner';
 
 /**
@@ -23,7 +23,7 @@ export function useDeleteTaskWithRecurrencePrompt() {
   return useCallback(
     async (
       taskId: string,
-      opts?: { occurrenceDate?: string }
+      opts?: { occurrenceDate?: string; rangeStart?: string; rangeEnd?: string }
     ): Promise<'deleted' | 'exdated' | 'cancelled'> => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return 'cancelled';
@@ -40,6 +40,7 @@ export function useDeleteTaskWithRecurrencePrompt() {
         taskId,
         occurrenceDate: occurrenceDate || '',
         updates: {},
+        operation: 'delete',
         changeLabel: 'exclusão de uma ocorrência',
       });
 
@@ -50,23 +51,32 @@ export function useDeleteTaskWithRecurrencePrompt() {
         return 'deleted';
       }
 
-      // mode === 'single'
       if (!occurrenceDate || !task.dueDate) {
-        // Can't isolate a specific date → fall back to deleting the series.
-        await deleteTask(taskId);
-        return 'deleted';
+        toast.error('Não consegui identificar qual ocorrência remover');
+        return 'cancelled';
       }
 
       try {
-        const newRule = addExdateToRecurrence(
-          task.recurrenceRule,
-          task.dueDate,
-          task.dueTime,
-          occurrenceDate
-        );
+        const newRule = mode === 'weekday' && opts?.rangeStart && opts?.rangeEnd
+          ? addWeekdayExdatesToRecurrence(
+              task.recurrenceRule,
+              task.dueDate,
+              task.dueTime,
+              occurrenceDate,
+              opts.rangeStart,
+              opts.rangeEnd
+            )
+          : addExdateToRecurrence(
+              task.recurrenceRule,
+              task.dueDate,
+              task.dueTime,
+              occurrenceDate
+            );
         await updateTask(taskId, { recurrenceRule: newRule });
-        toast.success('Ocorrência removida', {
-          description: 'As demais ocorrências da série continuam ativas.',
+        toast.success(mode === 'weekday' ? 'Ocorrências deste dia removidas' : 'Ocorrência removida', {
+          description: mode === 'weekday'
+            ? 'A série continua ativa nos outros dias visíveis.'
+            : 'As demais ocorrências da série continuam ativas.',
         });
         return 'exdated';
       } catch (e) {
