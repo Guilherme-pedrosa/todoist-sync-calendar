@@ -62,7 +62,15 @@ export function QuickAddDialog() {
   const isMobile = useIsMobile();
   const location = useLocation();
   const params = useParams();
-  const { open, defaultProjectId, defaultParentId, defaultDueDate, closeQuickAdd } = useQuickAddStore();
+  const {
+    open,
+    defaultProjectId,
+    defaultParentId,
+    defaultDueDate,
+    defaultDueTime,
+    defaultDurationMinutes,
+    closeQuickAdd,
+  } = useQuickAddStore();
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
   const addTask = useTaskStore((s) => s.addTask);
@@ -102,7 +110,11 @@ export function QuickAddDialog() {
     if (!open) return;
     setTitle('');
     setDescription('');
-    setDate({ date: defaultDueDate ?? routeContext.date ?? undefined });
+    setDate({
+      date: defaultDueDate ?? routeContext.date ?? undefined,
+      time: defaultDueTime ?? undefined,
+      durationMinutes: defaultDurationMinutes ?? undefined,
+    });
     setPriority(4);
     setSelectedLabels([]);
     setReminders([]);
@@ -112,7 +124,7 @@ export function QuickAddDialog() {
     nlpSetRef.current = {};
     setTimeout(() => inputRef.current?.focus(), 60);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultProjectId, defaultDueDate, inboxProject?.id]);
+  }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
   // apply NLP suggestions — sempre que o título mudar, NLP é autoritativa
   // para data/hora/recorrência/prioridade detectadas (igual Todoist).
