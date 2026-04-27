@@ -26,8 +26,11 @@ export function nextOccurrence(
       anchor = new Date();
     }
 
-    // Find the next occurrence strictly after anchor
-    const next = rule.after(anchor, false);
+    // RRULEs saved without DTSTART otherwise start at "now", which can make
+    // same-day recurrences stay on the same day. Anchor the rule on the task's
+    // current due date/time, then find the next occurrence after it.
+    const anchoredRule = new RRule({ ...rule.origOptions, dtstart: anchor });
+    const next = anchoredRule.after(anchor, false);
     if (!next) return null;
 
     return {
