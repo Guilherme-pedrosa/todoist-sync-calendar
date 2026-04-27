@@ -47,6 +47,7 @@ export function AppSidebar() {
     setActiveLabelId,
     addProject,
     addLabel,
+    fetchData,
   } = useTaskStore();
 
   const [projectsOpen, setProjectsOpen] = useState(true);
