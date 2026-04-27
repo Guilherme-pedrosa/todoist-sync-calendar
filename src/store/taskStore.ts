@@ -110,7 +110,99 @@ async function getUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
-async function syncTodayGoogleCalendarEvents(
+async function getGoogleAccessToken(): Promise<string | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  return sessionData.session?.access_token ?? null;
+}
+
+function getTaskEndTime(task: Pick<Task, 'dueTime' | 'durationMinutes'>): string | undefined {
+  if (!task.dueTime) return undefined;
+  const [h, m] = task.dueTime.split(':').map(Number);
+  const duration = task.durationMinutes ?? 60;
+  const endDate = new Date(2000, 0, 1, h, m + duration);
+  return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+}
+
+function normalizeCalendarTitle(value?: string | null) {
+  return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
+}
+
+function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
+  const parsed = getCalendarDateAndTime(event);
+  return (
+    !task.completed &&
+    !task.googleCalendarEventId &&
+    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
+    task.dueDate === parsed.dueDate &&
+    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
+    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+  );
+}
+
+async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
+  if (!task.dueDate) return null;
+  const accessToken = await getGoogleAccessToken();
+  if (!accessToken) return null;
+  const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      title: task.title,
+      description: task.description ?? '',
+      date: task.dueDate,
+      time: task.dueTime,
+      endTime: getTaskEndTime(task),
+      allDay: !task.dueTime,
+      durationMinutes: task.durationMinutes ?? 60,
+    }),
+  });
+  if (!response.ok) return null;
+  const payload = await response.json();
+  return typeof payload?.id === 'string' ? payload.id : null;
+}
+
+async function updateGoogleCalendarEvent(task: Task): Promise<void> {
+  if (!task.googleCalendarEventId || !task.dueDate) return;
+  const accessToken = await getGoogleAccessToken();
+  if (!accessToken) return;
+  await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      eventId: task.googleCalendarEventId,
+      title: task.title,
+      description: task.description ?? '',
+      date: task.dueDate,
+      time: task.dueTime || undefined,
+      endTime: getTaskEndTime(task),
+      allDay: !task.dueTime,
+      durationMinutes: task.durationMinutes ?? 60,
+    }),
+  });
+}
+
+async function deleteGoogleCalendarEvent(eventId?: string | null): Promise<void> {
+  if (!eventId) return;
+  const accessToken = await getGoogleAccessToken();
+  if (!accessToken) return;
+  await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(eventId)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+  });
+}
+
+async function syncGoogleCalendarEvents(
   userId: string,
   currentTasks: Task[],
   inboxProjectId?: string
