@@ -38,6 +38,8 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 
 interface TaskItemProps {
   task: Task;
