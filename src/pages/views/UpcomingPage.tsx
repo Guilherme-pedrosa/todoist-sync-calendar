@@ -26,6 +26,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import {
   Select,
@@ -78,15 +79,44 @@ export default function UpcomingPage() {
     []
   );
 
+  // Range visível (último dia da grade)
+  const rangeEnd = useMemo(
+    () => weekDays[weekDays.length - 1] ?? weekStart,
+    [weekDays, weekStart]
+  );
+  const rangeStart = useMemo(() => weekDays[0] ?? weekStart, [weekDays, weekStart]);
+
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of upcoming) {
-      const k = t.dueDate!;
-      if (!map.has(k)) map.set(k, []);
-      map.get(k)!.push(t);
+    const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
+    const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
+
+    for (const t of tasks) {
+      if (t.completed || t.parentId || !t.dueDate) continue;
+
+      let dayKeys: string[] = [];
+      if (t.recurrenceRule) {
+        // Anchor must be on or before range end to expand
+        if (t.dueDate <= rangeEndIso) {
+          dayKeys = expandOccurrencesInRange(
+            t.recurrenceRule,
+            t.dueDate,
+            t.dueTime,
+            rangeStart,
+            rangeEnd
+          );
+        }
+      } else if (t.dueDate >= rangeStartIso && t.dueDate <= rangeEndIso) {
+        dayKeys = [t.dueDate];
+      }
+
+      for (const k of dayKeys) {
+        if (!map.has(k)) map.set(k, []);
+        map.get(k)!.push(t);
+      }
     }
     return map;
-  }, [upcoming]);
+  }, [tasks, rangeStart, rangeEnd]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
