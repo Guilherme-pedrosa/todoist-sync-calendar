@@ -713,7 +713,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (merged.dueDate && existing.googleCalendarEventId) {
           await updateGoogleCalendarEvent(merged);
         } else if (merged.dueDate && !existing.googleCalendarEventId && !merged.completed) {
-          const googleCalendarEventId = await createGoogleCalendarEvent(merged);
+          const { id: googleCalendarEventId } = await createGoogleCalendarEvent(merged);
           if (googleCalendarEventId) {
             await supabase.from('tasks').update({ google_calendar_event_id: googleCalendarEventId }).eq('id', id);
             set((state) => ({
