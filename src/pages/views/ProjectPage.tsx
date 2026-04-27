@@ -251,8 +251,6 @@ function ProjectHeader({
   onDelete,
   onEdit,
   onToggleSidebar,
-  kanbanGroupBy,
-  onKanbanGroupByChange,
 }: any) {
   return (
     <header className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-border/50">
@@ -318,22 +316,6 @@ function ProjectHeader({
             <KanbanSquare className="h-3.5 w-3.5" /> Quadro
           </button>
         </div>
-
-        {/* Agrupar por (apenas no Kanban) */}
-        {view === 'board' && (
-          <Select value={kanbanGroupBy} onValueChange={onKanbanGroupByChange}>
-            <SelectTrigger className="h-8 text-xs w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="section" className="text-xs">Agrupar: Seção</SelectItem>
-              <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
-              <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
-              <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
-              <SelectItem value="status" className="text-xs">Agrupar: Status</SelectItem>
-            </SelectContent>
-          </Select>
-        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
