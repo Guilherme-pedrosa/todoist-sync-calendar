@@ -13,7 +13,9 @@ import {
   List as ListIcon,
   CalendarClock,
   LayoutGrid,
+  Sparkles,
 } from 'lucide-react';
+import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -190,6 +192,15 @@ export default function UpcomingPage() {
               </Button>
             </div>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => useAIAssistantStore.getState().open('analyze')}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">IA</span>
+          </Button>
         </div>
       </header>
 

@@ -12,7 +12,10 @@ import {
   MoreHorizontal,
   X,
   Paperclip,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
+import { suggestSlot } from '@/lib/aiAssistant';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
@@ -88,8 +91,42 @@ export function QuickAddDialog() {
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
+
+  const handleAiSuggest = async () => {
+    const t = (parsed?.cleanedTitle || title).trim();
+    if (!t) {
+      toast.info('Digite o nome da tarefa primeiro');
+      return;
+    }
+    setAiSuggesting(true);
+    try {
+      const r = await suggestSlot({
+        task: {
+          title: t,
+          description: description.trim() || undefined,
+          durationMinutes: date.durationMinutes ?? 60,
+          priority,
+        },
+        tasks: allTasks,
+        projects,
+      });
+      setDate((d) => ({
+        ...d,
+        date: r.date,
+        time: r.time,
+        durationMinutes: r.durationMinutes,
+      }));
+      toast.success(`✨ ${r.date} às ${r.time}`, { description: r.reason });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao sugerir horário');
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
 
   const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
   const hasContent = title.trim() || description.trim();
@@ -347,6 +384,22 @@ export function QuickAddDialog() {
             }
           />
         </div>
+
+        {/* AI suggest slot */}
+        <button
+          type="button"
+          onClick={handleAiSuggest}
+          disabled={aiSuggesting || !title.trim()}
+          title="Deixe a IA sugerir o melhor horário"
+          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {aiSuggesting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          Sugerir horário
+        </button>
 
         {/* Deadline (TODO Fase 4) */}
         <button

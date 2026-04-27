@@ -1,0 +1,144 @@
+// Cliente para a edge function ai-assistant.
+// Constrói automaticamente o "contexto" (tarefas agendadas, projetos, feriados)
+// para que o backend tenha o que precisa para sugerir bem.
+
+import { supabase } from '@/integrations/supabase/client';
+import type { Task, Project } from '@/types/task';
+import { getBrazilianHolidays } from '@/lib/holidays';
+import { format, addDays } from 'date-fns';
+
+type ScheduledTaskCtx = {
+  title: string;
+  date: string;
+  time?: string | null;
+  durationMinutes?: number | null;
+  priority?: number;
+  project?: string;
+};
+
+function buildContext(tasks: Task[], projects: Project[]) {
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const horizonEnd = format(addDays(new Date(), 14), 'yyyy-MM-dd');
+  const projectName = (id?: string) =>
+    projects.find((p) => p.id === id)?.name;
+
+  const scheduled: ScheduledTaskCtx[] = tasks
+    .filter(
+      (t) =>
+        !t.completed &&
+        !t.parentId &&
+        t.dueDate &&
+        t.dueDate >= today &&
+        t.dueDate <= horizonEnd,
+    )
+    .map((t) => ({
+      title: t.title,
+      date: t.dueDate!,
+      time: t.dueTime ?? null,
+      durationMinutes: t.durationMinutes ?? null,
+      priority: t.priority,
+      project: projectName(t.projectId),
+    }));
+
+  const yearNow = new Date().getFullYear();
+  const holidays = [
+    ...getBrazilianHolidays(yearNow),
+    ...getBrazilianHolidays(yearNow + 1),
+  ].filter((h) => h.date >= today && h.date <= horizonEnd);
+
+  return { today, scheduled, holidays };
+}
+
+async function invoke<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('ai-assistant', {
+    body,
+  });
+  if (error) {
+    // Tenta extrair mensagem amigável do contexto da edge function
+    const ctx: any = (error as any).context;
+    let msg = error.message || 'Falha na chamada à IA';
+    try {
+      if (ctx && typeof ctx.json === 'function') {
+        const j = await ctx.json();
+        if (j?.error) msg = j.error;
+      }
+    } catch {}
+    throw new Error(msg);
+  }
+  if ((data as any)?.error) throw new Error((data as any).error);
+  return (data as any).result as T;
+}
+
+export async function suggestSlot(opts: {
+  task: {
+    title: string;
+    description?: string;
+    durationMinutes?: number;
+    priority?: number;
+    deadline?: string | null;
+  };
+  tasks: Task[];
+  projects: Project[];
+}) {
+  const ctx = buildContext(opts.tasks, opts.projects);
+  return invoke<{
+    date: string;
+    time: string;
+    durationMinutes: number;
+    reason: string;
+  }>({
+    action: 'suggest-slot',
+    task: opts.task,
+    ...ctx,
+  });
+}
+
+export async function organizeDay(opts: {
+  date: string;
+  unscheduled: {
+    id: string;
+    title: string;
+    durationMinutes?: number | null;
+    priority?: number;
+    project?: string;
+  }[];
+  tasks: Task[];
+  projects: Project[];
+}) {
+  const ctx = buildContext(opts.tasks, opts.projects);
+  return invoke<{
+    assignments: { id: string; date: string; time: string; durationMinutes: number }[];
+    summary: string;
+  }>({
+    action: 'organize-day',
+    date: opts.date,
+    unscheduled: opts.unscheduled,
+    ...ctx,
+  });
+}
+
+export async function analyzeDay(opts: {
+  date: string;
+  tasks: Task[];
+  projects: Project[];
+}) {
+  const ctx = buildContext(opts.tasks, opts.projects);
+  return invoke<{ text: string }>({
+    action: 'analyze-day',
+    date: opts.date,
+    ...ctx,
+  });
+}
+
+export async function chatWithAssistant(opts: {
+  messages: { role: 'user' | 'assistant'; content: string }[];
+  tasks: Task[];
+  projects: Project[];
+}) {
+  const ctx = buildContext(opts.tasks, opts.projects);
+  return invoke<{ text: string }>({
+    action: 'chat',
+    messages: opts.messages,
+    ...ctx,
+  });
+}
