@@ -346,23 +346,21 @@ serve(async (req) => {
       let createdTasks = 0;
       let createdTaskLabels = 0;
       if (tasksToInsert.length > 0) {
-        const { data: insertedTasks, error: tErr } = await supabase
-          .from("tasks").insert(tasksToInsert.map((x) => x.row)).select("id");
-        if (tErr) throw new Error(`Erro ao criar tarefas: ${tErr.message}`);
+        const { idMap, insertedRows } = await insertTasksWithHierarchy(supabase, tasksToInsert);
 
         const linkRows: { task_id: string; label_id: string }[] = [];
-        (insertedTasks || []).forEach((row, idx) => {
-          const td = tasksToInsert[idx].task;
-          for (const labelName of td.labels || []) {
+        for (const r of insertedRows) {
+          for (const labelName of r.task.labels || []) {
             const lid = labelIdByName.get(labelName.toLowerCase());
-            if (lid) linkRows.push({ task_id: row.id, label_id: lid });
+            if (lid) linkRows.push({ task_id: r.appId, label_id: lid });
           }
-        });
+        }
         if (linkRows.length > 0) {
           const { error: linkErr } = await supabase.from("task_labels").insert(linkRows);
           if (!linkErr) createdTaskLabels = linkRows.length;
         }
-        createdTasks = insertedTasks?.length || 0;
+        createdTasks = insertedRows.length;
+        void idMap;
       }
 
       return json({
