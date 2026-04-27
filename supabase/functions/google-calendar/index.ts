@@ -82,7 +82,7 @@ serve(async (req) => {
         access_type: "offline",
         prompt: "consent select_account",
         include_granted_scopes: "true",
-        scope: "https://www.googleapis.com/auth/calendar",
+        scope: "https://www.googleapis.com/auth/calendar.events",
         state: user.id,
       });
 
@@ -154,6 +154,42 @@ serve(async (req) => {
 
       if (upsertError) {
         return jsonResponse({ error: "Falha ao salvar token Google", details: upsertError.message }, 400);
+      }
+
+      return jsonResponse({ success: true });
+    }
+
+    if (action === "disconnect") {
+      const { data: existing } = await supabase
+        .from("google_tokens")
+        .select("refresh_token, access_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const tokenToRevoke = existing?.refresh_token || existing?.access_token;
+
+      if (tokenToRevoke) {
+        try {
+          await fetch(
+            `https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(tokenToRevoke)}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            },
+          );
+          // Ignora erro: token pode já ter sido revogado
+        } catch {
+          // noop
+        }
+      }
+
+      const { error: deleteError } = await supabase
+        .from("google_tokens")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteError) {
+        return jsonResponse({ error: "Falha ao desconectar Google Calendar", details: deleteError.message }, 400);
       }
 
       return jsonResponse({ success: true });

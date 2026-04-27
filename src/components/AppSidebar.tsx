@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Inbox,
@@ -31,7 +32,7 @@ const PROJECT_COLORS = [
 ];
 
 export function AppSidebar() {
-  const { signOut, calendarConnected, connectCalendar, reconnectCalendar } = useAuth();
+  const { signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
   const {
     tasks,
     projects,
@@ -94,6 +95,18 @@ export function AppSidebar() {
     setConnectingCalendar(true);
     try {
       await reconnectCalendar();
+    } finally {
+      setConnectingCalendar(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    setConnectingCalendar(true);
+    try {
+      await disconnectCalendar();
+      toast.success('Google Calendar desconectado');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao desconectar');
     } finally {
       setConnectingCalendar(false);
     }
@@ -293,13 +306,22 @@ export function AppSidebar() {
         )}
 
         {calendarConnected && (
-          <button
-            onClick={handleReconnectCalendar}
-            disabled={connectingCalendar}
-            className="w-full h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/60 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
-          >
-            {connectingCalendar ? 'Reconectando...' : 'Reconectar Google Calendar'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleReconnectCalendar}
+              disabled={connectingCalendar}
+              className="flex-1 h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/70 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+            >
+              {connectingCalendar ? '...' : 'Reconectar'}
+            </button>
+            <button
+              onClick={handleDisconnectCalendar}
+              disabled={connectingCalendar}
+              className="flex-1 h-8 rounded-md bg-transparent border border-sidebar-border text-sidebar-foreground/60 text-xs font-medium hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
+            >
+              Desconectar
+            </button>
+          </div>
         )}
 
         <button

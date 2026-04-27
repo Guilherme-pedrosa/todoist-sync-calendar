@@ -10,6 +10,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   connectCalendar: () => Promise<void>;
   reconnectCalendar: () => Promise<void>;
+  disconnectCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   connectCalendar: async () => {},
   reconnectCalendar: async () => {},
+  disconnectCalendar: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -143,20 +145,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCalendarConnected(null);
   };
 
+  const callDisconnect = async () => {
+    const {
+      data: { session: currentSession },
+    } = await supabase.auth.getSession();
+
+    if (!currentSession?.access_token) {
+      throw new Error('Sessão inválida. Faça login novamente.');
+    }
+
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=disconnect`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${currentSession.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Falha ao desconectar Google Calendar');
+    }
+  };
+
   const connectCalendar = async () => {
     await requestGoogleCalendarConsent();
   };
 
   const reconnectCalendar = async () => {
-    if (user?.id) {
-      await supabase.from('google_tokens').delete().eq('user_id', user.id);
-      setCalendarConnected(false);
+    try {
+      await callDisconnect();
+    } catch (error) {
+      console.error('Erro ao desconectar antes de reconectar:', error);
     }
+    setCalendarConnected(false);
     await requestGoogleCalendarConsent();
   };
 
+  const disconnectCalendar = async () => {
+    await callDisconnect();
+    setCalendarConnected(false);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, calendarConnected, signOut, connectCalendar, reconnectCalendar }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        calendarConnected,
+        signOut,
+        connectCalendar,
+        reconnectCalendar,
+        disconnectCalendar,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
