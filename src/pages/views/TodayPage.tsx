@@ -82,7 +82,7 @@ export default function TodayPage() {
       {viewPref.mode === 'kanban' ? (
         <KanbanBoard
           tasks={[...overdue, ...todayTasks]}
-          groupBy={viewPref.groupBy}
+          boardKey="today"
           newTaskDefaults={{ defaultDate: today }}
         />
       ) : (
