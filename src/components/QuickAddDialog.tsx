@@ -156,7 +156,6 @@ export function QuickAddDialog() {
     if (created && reminders.length > 0) {
       const additional = reminders.filter((r) => r.type === 'absolute');
       if (additional.length > 0) {
-        const { supabase } = await import('@/integrations/supabase/client');
         await supabase.from('reminders').insert(
           additional.map((r) => ({
             task_id: created.id,
