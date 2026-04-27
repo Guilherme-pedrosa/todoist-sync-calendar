@@ -82,20 +82,36 @@ const mapPriority = (p?: number) => {
   }
 };
 
-async function todoistFetch<T>(path: string, apiKey: string): Promise<T> {
-  const res = await fetch(`${TODOIST_BASE}/${path}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Todoist ${path} ${res.status}: ${text}`);
-  }
-  const data = await res.json();
-  // Todoist v1 sometimes wraps lists in { results: [...] }
-  if (data && typeof data === "object" && "results" in data && Array.isArray((data as any).results)) {
-    return (data as any).results as T;
-  }
-  return data as T;
+async function todoistFetch<T>(path: string, apiKey: string): Promise<T[]> {
+  const results: T[] = [];
+  let cursor: string | null = null;
+  let safety = 0;
+
+  do {
+    const sep = path.includes("?") ? "&" : "?";
+    const cursorParam = cursor ? `${sep}cursor=${encodeURIComponent(cursor)}&limit=200` : `${sep}limit=200`;
+    const res = await fetch(`${TODOIST_BASE}/${path}${cursorParam}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Todoist ${path} ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+
+    if (data && typeof data === "object" && "results" in data && Array.isArray((data as any).results)) {
+      results.push(...((data as any).results as T[]));
+      cursor = (data as any).next_cursor ?? null;
+    } else if (Array.isArray(data)) {
+      results.push(...(data as T[]));
+      cursor = null;
+    } else {
+      cursor = null;
+    }
+    safety++;
+  } while (cursor && safety < 50);
+
+  return results;
 }
 
 serve(async (req) => {
