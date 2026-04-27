@@ -129,7 +129,7 @@ export default function FilterPage() {
       </header>
 
       {viewPref.mode === 'kanban' ? (
-        <KanbanBoard tasks={matched} groupBy={viewPref.groupBy} />
+        <KanbanBoard tasks={matched} boardKey={`filter:${filterId}`} />
       ) : (
         <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
           {matched.map((t) => (
