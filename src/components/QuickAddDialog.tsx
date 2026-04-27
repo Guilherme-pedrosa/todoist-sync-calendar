@@ -91,8 +91,42 @@ export function QuickAddDialog() {
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
+
+  const handleAiSuggest = async () => {
+    const t = (parsed?.cleanedTitle || title).trim();
+    if (!t) {
+      toast.info('Digite o nome da tarefa primeiro');
+      return;
+    }
+    setAiSuggesting(true);
+    try {
+      const r = await suggestSlot({
+        task: {
+          title: t,
+          description: description.trim() || undefined,
+          durationMinutes: date.durationMinutes ?? 60,
+          priority,
+        },
+        tasks: allTasks,
+        projects,
+      });
+      setDate((d) => ({
+        ...d,
+        date: r.date,
+        time: r.time,
+        durationMinutes: r.durationMinutes,
+      }));
+      toast.success(`✨ ${r.date} às ${r.time}`, { description: r.reason });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao sugerir horário');
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
 
   const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
   const hasContent = title.trim() || description.trim();
