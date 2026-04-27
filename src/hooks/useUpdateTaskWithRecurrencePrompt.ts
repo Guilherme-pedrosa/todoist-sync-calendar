@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
-import { addExdateToRecurrence } from '@/lib/recurrence';
+import { addExdateToRecurrence, rewriteRecurrenceAnchor } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
 
