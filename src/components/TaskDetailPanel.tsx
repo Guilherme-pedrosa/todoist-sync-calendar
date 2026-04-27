@@ -503,7 +503,7 @@ export function TaskDetailPanel() {
                       />
                       <span
                         className={cn(
-                          'text-sm flex-1 truncate',
+                          'text-sm flex-1 break-words whitespace-normal',
                           sub.completed && 'line-through text-muted-foreground'
                         )}
                       >
