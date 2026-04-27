@@ -153,7 +153,7 @@ export default function LabelsIndexPage() {
                 Cor
               </label>
               <div className="flex flex-wrap gap-2 mt-2">
-                {LABEL_COLORS.map((c) => (
+                {TODOIST_COLORS.map((c) => (
                   <button
                     key={c.value}
                     onClick={() => setColor(c.value)}

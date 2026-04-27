@@ -32,7 +32,18 @@ export default function FiltersIndexPage() {
       .select('*')
       .eq('user_id', user.id)
       .order('position');
-    if (data) setFilters(data as Filter[]);
+    if (data) {
+      setFilters(
+        data.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          query: f.query,
+          color: f.color,
+          isFavorite: f.is_favorite,
+          position: f.position,
+        }))
+      );
+    }
   };
 
   useEffect(() => {
