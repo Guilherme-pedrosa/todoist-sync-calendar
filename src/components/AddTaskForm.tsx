@@ -1,17 +1,8 @@
-import { useState } from 'react';
-import {
-  Plus,
-  Calendar,
-  Flag,
-  Tag,
-  Folder,
-  X,
-  Clock,
-  Repeat,
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Flag, Tag, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
-import { Priority, RecurrenceType } from '@/types/task';
+import { Priority } from '@/types/task';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -19,51 +10,80 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { parseNlp } from '@/lib/nlp';
+import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 
 interface AddTaskFormProps {
   defaultProjectId?: string;
+  defaultDate?: string;
+  defaultParentId?: string;
 }
 
-export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
-  const { addTask, projects, labels: allLabels, activeView, activeProjectId } = useTaskStore();
+export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: AddTaskFormProps) {
+  const projects = useTaskStore((s) => s.projects);
+  const allLabels = useTaskStore((s) => s.labels);
+  const addTask = useTaskStore((s) => s.addTask);
+
+  const inboxProject = useMemo(() => projects.find((p) => p.isInbox), [projects]);
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>(4);
-  const [dueDate, setDueDate] = useState<Date | undefined>(
-    activeView === 'today' ? new Date() : undefined
-  );
-  const [dueTime, setDueTime] = useState('');
-  const inboxProject = projects.find(p => p.isInbox);
-  const [projectId, setProjectId] = useState(defaultProjectId || activeProjectId || inboxProject?.id || '');
+  const [date, setDate] = useState<DateValue>({ date: defaultDate });
+  const [projectId, setProjectId] = useState(defaultProjectId || inboxProject?.id || '');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
-  const [recurrence, setRecurrence] = useState<RecurrenceType | null>(null);
+
+  useEffect(() => {
+    if (defaultProjectId) setProjectId(defaultProjectId);
+    if (defaultDate) setDate((d) => ({ ...d, date: defaultDate }));
+  }, [defaultProjectId, defaultDate]);
+
+  const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
+
+  // Auto-apply NLP suggestions
+  useEffect(() => {
+    if (!parsed) return;
+    if (parsed.dueDate && !date.date) setDate((d) => ({ ...d, date: parsed.dueDate }));
+    if (parsed.dueTime && !date.time) setDate((d) => ({ ...d, time: parsed.dueTime }));
+    if (parsed.recurrenceRule && !date.recurrenceRule)
+      setDate((d) => ({ ...d, recurrenceRule: parsed.recurrenceRule }));
+    if (parsed.priority && priority === 4) setPriority(parsed.priority);
+    if (parsed.labelTokens.length > 0) {
+      const matched = allLabels
+        .filter((l) => parsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+        .map((l) => l.id);
+      if (matched.length > 0) {
+        setSelectedLabels((prev) => Array.from(new Set([...prev, ...matched])));
+      }
+    }
+    if (parsed.projectToken) {
+      const proj = projects.find((p) => p.name.toLowerCase() === parsed.projectToken!.toLowerCase());
+      if (proj) setProjectId(proj.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsed?.cleanedTitle]);
 
   const handleSubmit = async () => {
-    if (!title.trim()) return;
+    const finalTitle = (parsed?.cleanedTitle || title).trim();
+    if (!finalTitle) return;
 
     await addTask({
-      title: title.trim(),
+      title: finalTitle,
       description: description.trim() || undefined,
       priority,
-      dueDate: dueDate ? format(dueDate, 'yyyy-MM-dd') : undefined,
-      dueTime: dueTime || undefined,
+      dueDate: date.date,
+      dueTime: date.time,
+      recurrenceRule: date.recurrenceRule || null,
       projectId,
+      parentId: defaultParentId,
       labels: selectedLabels,
-      parentId: undefined,
-      recurrence: recurrence ? { type: recurrence, interval: 1 } : undefined,
     });
 
     setTitle('');
     setDescription('');
     setPriority(4);
-    setDueDate(activeView === 'today' ? new Date() : undefined);
-    setDueTime('');
+    setDate({ date: defaultDate });
     setSelectedLabels([]);
-    setRecurrence(null);
     setIsOpen(false);
   };
 
@@ -92,7 +112,7 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
     <div className="mx-1 rounded-xl border border-border bg-card p-3 shadow-sm animate-slide-in">
       <Input
         autoFocus
-        placeholder="Nome da tarefa"
+        placeholder='Nome da tarefa  (ex.: "Reunião amanhã 14h p1 toda semana")'
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
@@ -110,46 +130,13 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
 
       {/* Toolbar */}
       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-        {/* Date picker */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              className={cn(
-                'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors',
-                dueDate ? 'border-primary/30 text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-primary/30'
-              )}
-            >
-              <Calendar className="h-3 w-3" />
-              {dueDate ? format(dueDate, "d MMM", { locale: ptBR }) : 'Data'}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <CalendarPicker
-              mode="single"
-              selected={dueDate}
-              onSelect={setDueDate}
-              locale={ptBR}
-            />
-          </PopoverContent>
-        </Popover>
-
-        {/* Time */}
-        <div className="relative">
-          <input
-            type="time"
-            value={dueTime}
-            onChange={(e) => setDueTime(e.target.value)}
-            className={cn(
-              'text-xs px-2 py-1 rounded-md border bg-transparent transition-colors w-[90px]',
-              dueTime ? 'border-primary/30 text-primary' : 'border-border text-muted-foreground'
-            )}
-          />
-        </div>
+        <DatePickerPopover value={date} onChange={setDate} />
 
         {/* Priority */}
         <Popover>
           <PopoverTrigger asChild>
             <button
+              type="button"
               className={cn(
                 'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors',
                 priority < 4 ? 'border-primary/30 text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-primary/30'
@@ -181,12 +168,12 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
         {/* Project */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors">
+            <button type="button" className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors">
               <Folder className="h-3 w-3" />
               {projects.find((p) => p.id === projectId)?.name || 'Projeto'}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-48 p-2" align="start">
+          <PopoverContent className="w-48 p-2 max-h-72 overflow-y-auto" align="start">
             {projects.map((p) => (
               <button
                 key={p.id}
@@ -206,52 +193,26 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
         {/* Labels */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className={cn(
+            <button type="button" className={cn(
               'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors',
-              selectedLabels.length > 0 ? 'border-primary/30 text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-primary/30'
+              selectedLabels.length > 0 ? 'border-accent/40 text-accent bg-accent/5' : 'border-border text-muted-foreground hover:border-accent/40'
             )}>
               <Tag className="h-3 w-3" />
               {selectedLabels.length > 0 ? `${selectedLabels.length} etiqueta(s)` : 'Etiquetas'}
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-48 p-2" align="start">
+          <PopoverContent className="w-48 p-2 max-h-72 overflow-y-auto" align="start">
             {allLabels.map((l) => (
               <button
                 key={l.id}
                 onClick={() => toggleLabel(l.id)}
                 className={cn(
                   'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                  selectedLabels.includes(l.id) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+                  selectedLabels.includes(l.id) ? 'bg-accent/10 text-accent' : 'hover:bg-muted'
                 )}
               >
                 <Tag className="h-3 w-3" style={{ color: selectedLabels.includes(l.id) ? undefined : l.color }} />
                 {l.name}
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-
-        {/* Recurrence */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className={cn(
-              'inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border transition-colors',
-              recurrence ? 'border-primary/30 text-primary bg-primary/5' : 'border-border text-muted-foreground hover:border-primary/30'
-            )}>
-              <Repeat className="h-3 w-3" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-36 p-2" align="start">
-            {(['daily', 'weekly', 'monthly', 'yearly'] as RecurrenceType[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRecurrence(recurrence === r ? null : r)}
-                className={cn(
-                  'w-full text-xs px-2 py-1.5 rounded-md transition-colors text-left capitalize',
-                  recurrence === r ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                )}
-              >
-                {{ daily: 'Diário', weekly: 'Semanal', monthly: 'Mensal', yearly: 'Anual' }[r]}
               </button>
             ))}
           </PopoverContent>
@@ -266,7 +227,7 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
         <Button
           size="sm"
           onClick={handleSubmit}
-          disabled={!title.trim()}
+          disabled={!(parsed?.cleanedTitle || title).trim()}
           className="h-7 text-xs"
         >
           Adicionar
