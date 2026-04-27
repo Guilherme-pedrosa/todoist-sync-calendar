@@ -288,19 +288,32 @@ serve(async (req) => {
       }
 
       case "create-event": {
+        const normalizeTime = (t: unknown, fallback: string): string => {
+          const s = typeof t === "string" ? t.trim() : "";
+          if (!s) return fallback;
+          // Aceita HH:mm ou HH:mm:ss; sempre devolve HH:mm:ss
+          const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+          if (!m) return fallback;
+          const hh = m[1].padStart(2, "0");
+          const mm = m[2];
+          const ss = m[3] || "00";
+          return `${hh}:${mm}:${ss}`;
+        };
+        const startTime = normalizeTime(body.time, "09:00:00");
+        const endTime = normalizeTime(body.endTime ?? body.time, "10:00:00");
         const event = {
           summary: body.title,
           description: body.description || "",
           start: body.allDay
             ? { date: body.date }
             : {
-                dateTime: `${body.date}T${body.time || "09:00"}:00`,
+                dateTime: `${body.date}T${startTime}`,
                 timeZone: body.timeZone || "America/Sao_Paulo",
               },
           end: body.allDay
             ? { date: body.date }
             : {
-                dateTime: `${body.date}T${body.endTime || body.time || "10:00"}:00`,
+                dateTime: `${body.date}T${endTime}`,
                 timeZone: body.timeZone || "America/Sao_Paulo",
               },
           reminders: { useDefault: true },
@@ -335,16 +348,25 @@ serve(async (req) => {
           updates.durationMinutes !== undefined;
 
         if (hasTimeChange && updates.date) {
+          const normalizeTime = (t: unknown, fallback: string): string => {
+            const s = typeof t === "string" ? t.trim() : "";
+            if (!s) return fallback;
+            const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (!m) return fallback;
+            return `${m[1].padStart(2, "0")}:${m[2]}:${m[3] || "00"}`;
+          };
+          const startTime = normalizeTime(updates.time, "09:00:00");
+          const endTime = normalizeTime(updates.endTime ?? updates.time, "10:00:00");
           event.start = updates.allDay
             ? { date: updates.date }
             : {
-                dateTime: `${updates.date}T${updates.time || "09:00"}:00`,
+                dateTime: `${updates.date}T${startTime}`,
                 timeZone: updates.timeZone || "America/Sao_Paulo",
               };
           event.end = updates.allDay
             ? { date: updates.date }
             : {
-                dateTime: `${updates.date}T${updates.endTime || updates.time || "10:00"}:00`,
+                dateTime: `${updates.date}T${endTime}`,
                 timeZone: updates.timeZone || "America/Sao_Paulo",
               };
         }
