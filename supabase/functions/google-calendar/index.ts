@@ -508,6 +508,12 @@ serve(async (req) => {
               };
         }
 
+        // Garante que o evento legado fique marcado com taskId pra próximas idempotências
+        const taskId = typeof body.taskId === "string" ? body.taskId : "";
+        if (taskId) {
+          event.extendedProperties = { private: { taskId } };
+        }
+
         const res = await fetch(`${calendarBase}/calendars/primary/events/${eventId}`, {
           method: "PATCH",
           headers,
