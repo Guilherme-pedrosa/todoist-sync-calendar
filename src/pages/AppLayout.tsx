@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
