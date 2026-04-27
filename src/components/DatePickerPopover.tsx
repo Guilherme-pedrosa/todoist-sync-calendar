@@ -107,7 +107,13 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
       const d = new Date(`${value.date}T00:00:00`);
       parts.push(format(d, "d MMM", { locale: ptBR }));
     }
-    if (value.time) parts.push(value.time);
+    if (value.time) {
+      if (value.durationMinutes && value.durationMinutes > 0) {
+        parts.push(`${value.time} → ${addMinutesToTime(value.time, value.durationMinutes)}`);
+      } else {
+        parts.push(value.time);
+      }
+    }
     if (recurrenceLabel) parts.push(`↻ ${recurrenceLabel}`);
     return parts.join(' · ');
   })();
