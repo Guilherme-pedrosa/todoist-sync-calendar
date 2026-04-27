@@ -546,7 +546,7 @@ function DayColumn({
             top={top}
             height={height}
             isDragging={isDragging}
-            onPointerDownBody={(e) => {
+            onStartMoveAt={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
               const offsetY = e.clientY - rect.top;
               const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
