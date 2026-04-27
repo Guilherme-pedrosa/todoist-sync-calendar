@@ -437,6 +437,44 @@ export function AppSidebar() {
           <span>Sair</span>
         </button>
       </div>
+
+      <AlertDialog
+        open={!!projectToDelete}
+        onOpenChange={(open) => !open && setProjectToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Excluir projeto "{projectToDelete?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {projectToDelete?.taskCount
+                ? `${projectToDelete.taskCount} tarefa(s) deste projeto serão movidas para a Caixa de Entrada.`
+                : 'Este projeto não tem tarefas pendentes.'}{' '}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!projectToDelete) return;
+                try {
+                  await deleteProject(projectToDelete.id);
+                  toast.success(`Projeto "${projectToDelete.name}" excluído`);
+                } catch (e) {
+                  toast.error('Falha ao excluir projeto');
+                } finally {
+                  setProjectToDelete(null);
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
