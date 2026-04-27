@@ -21,6 +21,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
+import { useDeleteTaskWithRecurrencePrompt } from '@/hooks/useDeleteTaskWithRecurrencePrompt';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -78,6 +79,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const openDetail = useTaskDetailStore((s) => s.open);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
+  const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
 
   const [collapsed, setCollapsed] = useState(false);
 
