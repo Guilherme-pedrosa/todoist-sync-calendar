@@ -17,6 +17,7 @@ export default function TodayPage() {
   const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [overdueOpen, setOverdueOpen] = useState(true);
+  const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
 
   const today = new Date().toISOString().split('T')[0];
 
