@@ -67,11 +67,25 @@ export default function TodayPage() {
             </p>
           </div>
         </div>
-        <span className="text-xs sm:text-sm text-muted-foreground ml-auto shrink-0">
-          {total}
-        </span>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <ViewModeToolbar
+            mode={viewPref.mode}
+            groupBy={viewPref.groupBy}
+            onChangeMode={(m) => setViewPref({ ...viewPref, mode: m })}
+            onChangeGroupBy={(g) => setViewPref({ ...viewPref, groupBy: g })}
+            groupOptions={['priority', 'label', 'project', 'status']}
+          />
+          <span className="text-xs sm:text-sm text-muted-foreground">{total}</span>
+        </div>
       </header>
 
+      {viewPref.mode === 'kanban' ? (
+        <KanbanBoard
+          tasks={[...overdue, ...todayTasks]}
+          groupBy={viewPref.groupBy}
+          newTaskDefaults={{ defaultDate: today }}
+        />
+      ) : (
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3">
         {overdue.length > 0 && (
           <div className="mb-4">
