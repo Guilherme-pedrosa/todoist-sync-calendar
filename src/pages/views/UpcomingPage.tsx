@@ -13,7 +13,9 @@ import {
   List as ListIcon,
   CalendarClock,
   LayoutGrid,
+  Sparkles,
 } from 'lucide-react';
+import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
