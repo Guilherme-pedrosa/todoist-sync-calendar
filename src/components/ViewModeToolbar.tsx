@@ -1,12 +1,5 @@
 import { LayoutGrid, List as ListIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { ViewMode, KanbanGroupBy } from '@/hooks/useViewPref';
 
 interface ViewModeToolbarProps {
@@ -18,21 +11,9 @@ interface ViewModeToolbarProps {
   groupOptions?: KanbanGroupBy[];
 }
 
-const GROUP_LABELS: Record<KanbanGroupBy, string> = {
-  priority: 'Prioridade',
-  project: 'Projeto',
-  label: 'Etiqueta',
-  section: 'Seção',
-  date: 'Data',
-  status: 'Status',
-};
-
 export function ViewModeToolbar({
   mode,
-  groupBy,
   onChangeMode,
-  onChangeGroupBy,
-  groupOptions = ['priority', 'date', 'label', 'project', 'status'],
 }: ViewModeToolbarProps) {
   return (
     <div className="flex items-center gap-2">
@@ -65,20 +46,6 @@ export function ViewModeToolbar({
         </button>
       </div>
 
-      {mode === 'kanban' && (
-        <Select value={groupBy} onValueChange={(v) => onChangeGroupBy(v as KanbanGroupBy)}>
-          <SelectTrigger className="h-8 text-xs w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {groupOptions.map((g) => (
-              <SelectItem key={g} value={g} className="text-xs">
-                Agrupar: {GROUP_LABELS[g]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
     </div>
   );
 }

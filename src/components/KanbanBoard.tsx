@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -17,6 +17,8 @@ import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon } from 'lucide-react';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -32,7 +34,9 @@ export interface KanbanSection {
 
 interface KanbanBoardProps {
   tasks: Task[];
-  groupBy: GroupBy;
+  groupBy?: GroupBy;
+  /** Identifica o quadro manual de cada página/visão */
+  boardKey?: string;
   /** Para projetos: limita seções/colunas a este projeto */
   projectId?: string;
   /** Seções disponíveis (necessário quando groupBy='section') */
@@ -45,18 +49,9 @@ interface Column {
   id: string;
   title: string;
   color?: string;
-  /** Patch a aplicar à tarefa quando arrastada para esta coluna */
-  patch: Partial<Task> & Record<string, any>;
   /** Defaults para nova tarefa criada nesta coluna */
   newTaskDefaults?: Record<string, any>;
 }
-
-const PRIORITY_LABELS: Record<Priority, string> = {
-  1: 'P1 — Urgente',
-  2: 'P2 — Alta',
-  3: 'P3 — Média',
-  4: 'P4 — Baixa',
-};
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   1: 'hsl(var(--priority-1))',
@@ -65,43 +60,79 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
-export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskDefaults }: KanbanBoardProps) {
-  const projects = useTaskStore((s) => s.projects);
-  const labels = useTaskStore((s) => s.labels);
-  const updateTask = useTaskStore((s) => s.updateTask);
+interface ManualKanbanState {
+  storageKey: string;
+  columns: Pick<Column, 'id' | 'title'>[];
+  taskColumns: Record<string, string>;
+}
+
+const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+
+function getKanbanStorageKey(boardKey?: string) {
+  return `taskflow.kanban.manual.${boardKey || 'default'}`;
+}
+
+function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageKey'> {
+  if (typeof window === 'undefined') return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const columns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    return {
+      columns: columns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') })),
+      taskColumns: parsed.taskColumns && typeof parsed.taskColumns === 'object' ? parsed.taskColumns : {},
+    };
+  } catch {
+    return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  }
+}
+
+function writeManualKanban(storageKey: string, board: ManualKanbanState) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(storageKey, JSON.stringify({ columns: board.columns, taskColumns: board.taskColumns }));
+}
+
+export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const storageKey = getKanbanStorageKey(boardKey);
+  const [board, setBoard] = useState<ManualKanbanState>(() => ({
+    storageKey,
+    ...readManualKanban(storageKey),
+  }));
 
-  const { columns, getTaskColumnId } = useMemo(
-    () => buildColumns(groupBy, { projects, labels, sections, projectId, newTaskDefaults }),
-    [groupBy, projects, labels, sections, projectId, newTaskDefaults]
+  useEffect(() => {
+    setBoard({ storageKey, ...readManualKanban(storageKey) });
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (board.storageKey !== storageKey) return;
+    writeManualKanban(storageKey, board);
+  }, [board, storageKey]);
+
+  const columns = useMemo<Column[]>(
+    () => board.columns.map((col) => ({ ...col, newTaskDefaults: { ...(newTaskDefaults || {}) } })),
+    [board.columns, newTaskDefaults]
   );
 
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const c of columns) map.set(c.id, []);
-    const otherCol = columns.find((c) => c.id === '__none__');
+    const firstCol = columns[0];
+    const validIds = new Set(columns.map((c) => c.id));
     for (const t of tasks) {
-      const ids = getTaskColumnId(t);
-      let placed = false;
-      for (const id of ids) {
-        const list = map.get(id);
-        if (list) {
-          list.push(t);
-          placed = true;
-        }
-      }
-      if (!placed && otherCol) map.get(otherCol.id)!.push(t);
+      const colId = board.taskColumns[t.id];
+      const targetId = colId && validIds.has(colId) ? colId : firstCol?.id;
+      if (targetId) map.get(targetId)!.push(t);
     }
     return map;
-  }, [tasks, columns, getTaskColumnId]);
+  }, [tasks, columns, board.taskColumns]);
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  const handleDragEnd = async (event: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
@@ -111,10 +142,20 @@ export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskD
     if (!col) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
-    // Evita update no-op: se a tarefa já pertence a essa coluna
-    const currentCols = getTaskColumnId(task);
-    if (currentCols.includes(colId)) return;
-    await updateTask(taskId, col.patch as any);
+    if (board.taskColumns[taskId] === colId) return;
+    setBoard((current) => ({
+      ...current,
+      taskColumns: { ...current.taskColumns, [taskId]: colId },
+    }));
+  };
+
+  const addColumn = (title: string) => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    setBoard((current) => ({
+      ...current,
+      columns: [...current.columns, { id: `manual-${Date.now()}`, title: cleanTitle }],
+    }));
   };
 
   return (
@@ -141,6 +182,7 @@ export function KanbanBoard({ tasks, groupBy, projectId, sections = [], newTaskD
               onOpenTask={(id) => openTaskDetail(id)}
             />
           ))}
+          <AddKanbanColumn onAdd={addColumn} />
         </div>
       </div>
 
@@ -200,6 +242,68 @@ function KanbanColumn({
         {tasks.length === 0 && (
           <div className="text-[11px] text-muted-foreground/60 text-center py-4">Vazio</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function AddKanbanColumn({ onAdd }: { onAdd: (title: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState('');
+
+  const submit = () => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    onAdd(cleanTitle);
+    setTitle('');
+    setIsEditing(false);
+  };
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsEditing(true)}
+        className="w-[280px] h-10 flex-shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" />
+        Criar coluna
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-[280px] flex-shrink-0 rounded-lg border border-border/50 bg-muted/30 p-2 space-y-2 h-fit">
+      <Input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') {
+            setTitle('');
+            setIsEditing(false);
+          }
+        }}
+        placeholder="Nome da coluna"
+        className="h-8 text-sm"
+      />
+      <div className="flex items-center gap-2">
+        <Button type="button" size="sm" className="h-8" onClick={submit}>
+          Criar
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8"
+          onClick={() => {
+            setTitle('');
+            setIsEditing(false);
+          }}
+        >
+          Cancelar
+        </Button>
       </div>
     </div>
   );
@@ -296,162 +400,3 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   );
 }
 
-// ---------------- Column builders ----------------
-
-function buildColumns(
-  groupBy: GroupBy,
-  ctx: {
-    projects: ReturnType<typeof useTaskStore.getState>['projects'];
-    labels: ReturnType<typeof useTaskStore.getState>['labels'];
-    sections: KanbanSection[];
-    projectId?: string;
-    newTaskDefaults?: Record<string, any>;
-  }
-): { columns: Column[]; getTaskColumnId: (t: Task) => string[] } {
-  const { projects, labels, sections, projectId, newTaskDefaults } = ctx;
-
-  if (groupBy === 'priority') {
-    const cols: Column[] = ([1, 2, 3, 4] as Priority[]).map((p) => ({
-      id: `priority-${p}`,
-      title: PRIORITY_LABELS[p],
-      color: PRIORITY_COLORS[p],
-      patch: { priority: p },
-      newTaskDefaults: { ...(newTaskDefaults || {}), priority: p },
-    }));
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => [`priority-${t.priority}`],
-    };
-  }
-
-  if (groupBy === 'section') {
-    const projSections = sections
-      .filter((s) => !projectId || s.projectId === projectId)
-      .sort((a, b) => a.position - b.position);
-    const cols: Column[] = [
-      {
-        id: '__none__',
-        title: 'Sem seção',
-        patch: { sectionId: null as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), sectionId: null },
-      },
-      ...projSections.map<Column>((s) => ({
-        id: `section-${s.id}`,
-        title: s.name,
-        patch: { sectionId: s.id as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), sectionId: s.id },
-      })),
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => [t.sectionId ? `section-${t.sectionId}` : '__none__'],
-    };
-  }
-
-  if (groupBy === 'project') {
-    const projs = projects.filter((p) => !p.archivedAt).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const cols: Column[] = projs.map((p) => ({
-      id: `project-${p.id}`,
-      title: p.isInbox ? 'Caixa de Entrada' : p.name,
-      color: p.color,
-      patch: { projectId: p.id, sectionId: null as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}), projectId: p.id },
-    }));
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => (t.projectId ? [`project-${t.projectId}`] : []),
-    };
-  }
-
-  if (groupBy === 'label') {
-    const cols: Column[] = [
-      {
-        id: '__none__',
-        title: 'Sem etiqueta',
-        patch: { labels: [] as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-      ...labels.map<Column>((l) => ({
-        id: `label-${l.id}`,
-        title: l.name,
-        color: l.color,
-        // Substitui as etiquetas pela única dessa coluna (comportamento previsível)
-        patch: { labels: [l.id] as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), labels: [l.id] },
-      })),
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => (t.labels.length ? t.labels.map((id) => `label-${id}`) : ['__none__']),
-    };
-  }
-
-  if (groupBy === 'date') {
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const cols: Column[] = [
-      {
-        id: 'overdue',
-        title: 'Atrasada',
-        color: 'hsl(var(--destructive))',
-        patch: { dueDate: today as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: today },
-      },
-      {
-        id: 'today',
-        title: 'Hoje',
-        color: 'hsl(var(--primary))',
-        patch: { dueDate: today as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: today },
-      },
-      {
-        id: 'tomorrow',
-        title: 'Amanhã',
-        patch: { dueDate: tomorrow as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: tomorrow },
-      },
-      {
-        id: 'upcoming',
-        title: 'Em breve',
-        patch: {},
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-      {
-        id: '__none__',
-        title: 'Sem data',
-        patch: { dueDate: null as any, dueTime: null as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => {
-        if (!t.dueDate) return ['__none__'];
-        if (t.dueDate < today) return ['overdue'];
-        if (t.dueDate === today) return ['today'];
-        if (t.dueDate === tomorrow) return ['tomorrow'];
-        return ['upcoming'];
-      },
-    };
-  }
-
-  // status: completed vs not — apenas leitura útil
-  const cols: Column[] = [
-    {
-      id: 'open',
-      title: 'Em aberto',
-      patch: { completed: false as any, completedAt: null as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}) },
-    },
-    {
-      id: 'done',
-      title: 'Concluída',
-      patch: { completed: true as any, completedAt: new Date().toISOString() as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}) },
-    },
-  ];
-  return {
-    columns: cols,
-    getTaskColumnId: (t) => [t.completed ? 'done' : 'open'],
-  };
-}
