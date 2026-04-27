@@ -146,6 +146,7 @@ export function QuickAddDialog() {
       priority,
       dueDate: date.date,
       dueTime: date.time,
+      durationMinutes: date.durationMinutes ?? null,
       recurrenceRule: date.recurrenceRule || null,
       projectId,
       parentId: defaultParentId || undefined,
