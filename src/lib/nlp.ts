@@ -21,6 +21,18 @@ const RECURRENCE_PATTERNS: Array<{
   re: RegExp;
   build: (m: RegExpExecArray) => { rule: string; label: string };
 }> = [
+  // dia útil / dias úteis / todo dia útil / weekdays — MUST come before "todo dia"
+  {
+    re: /\b(?:todo[s]?\s+(?:os\s+)?dias?\s+[úu]te[ií]s|dias?\s+[úu]te[ií]s|every\s+weekday|weekdays?)\b/i,
+    build: () => ({
+      rule: new RRule({
+        freq: Frequency.WEEKLY,
+        interval: 1,
+        byweekday: [RRule.MO.weekday, RRule.TU.weekday, RRule.WE.weekday, RRule.TH.weekday, RRule.FR.weekday],
+      }).toString().replace('RRULE:', ''),
+      label: 'dia útil',
+    }),
+  },
   // todo dia / todos os dias / diariamente / every day / daily
   {
     re: /\b(todo dia|todos os dias|diariamente|every ?day|daily|cada dia)\b/i,
