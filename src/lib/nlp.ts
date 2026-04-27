@@ -227,6 +227,10 @@ export function highlightNlp(input: string, parsed: ParsedNlp): React.ReactNode[
 export function recurrenceRuleToLabel(rule: string | null | undefined): string | null {
   if (!rule) return null;
   try {
+    const normalized = rule.toUpperCase();
+    if (/FREQ=WEEKLY/.test(normalized) && /BYDAY=MO,TU,WE,TH,FR/.test(normalized)) {
+      return 'Todo dia útil';
+    }
     const r = RRule.fromString(rule.startsWith('RRULE:') ? rule : `RRULE:${rule}`);
     return r.toText();
   } catch {

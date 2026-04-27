@@ -166,6 +166,16 @@ function dueStringToRRule(
   return null;
 }
 
+function mergeImportedTask(existing: any, row: any): any | null {
+  const patch: Record<string, unknown> = {};
+  for (const key of ["due_date", "due_time", "duration_minutes", "due_string", "recurrence_rule", "deadline", "priority", "description"] as const) {
+    if ((existing?.[key] == null || existing?.[key] === "") && row[key] != null && row[key] !== "") {
+      patch[key] = row[key];
+    }
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
+
 
 // Todoist color name -> approximate HSL
 const TODOIST_COLOR_MAP: Record<string, string> = {
@@ -349,10 +359,10 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date").eq("user_id", user.id).eq("project_id", appInbox.id);
-      const existingKey = new Set<string>();
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", appInbox.id);
+      const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}`);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.parent_id || ""}`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -365,8 +375,22 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
+        const existing = existingByKey.get(key);
+        if (existing) {
+          const patch = mergeImportedTask(existing, {
+            description: tt.description || null,
+            priority: mapPriority(tt.priority),
+            due_date: dueDate,
+            due_time: dueTime,
+            duration_minutes: durationMinutes,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline,
+          });
+          if (patch) await supabase.from("tasks").update(patch).eq("id", existing.id);
+          continue;
+        }
+        existingByKey.set(key, { id: null });
 
         tasksToInsert.push({
           task: tt,
@@ -449,7 +473,7 @@ serve(async (req) => {
         await Promise.all([
           supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
-          supabase.from("tasks").select("id, title, due_date, project_id").eq("user_id", user.id),
+          supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id, parent_id").eq("user_id", user.id),
         ]);
 
       // 3. Sync projects (dedup by name; map Todoist Inbox -> app Inbox)
@@ -520,9 +544,9 @@ serve(async (req) => {
       }
 
       // 5. Sync tasks — dedup by (title + due_date + project_id)
-      const existingKey = new Set<string>();
+      const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}`);
+        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}|${t.parent_id || ""}`, t);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -539,8 +563,22 @@ serve(async (req) => {
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
+        const existing = existingByKey.get(key);
+        if (existing) {
+          const patch = mergeImportedTask(existing, {
+            description: tt.description || null,
+            priority: mapPriority(tt.priority),
+            due_date: dueDate,
+            due_time: dueTime,
+            duration_minutes: durationMinutes,
+            due_string: dueString,
+            recurrence_rule: recurrenceRule,
+            deadline,
+          });
+          if (patch) await supabase.from("tasks").update(patch).eq("id", existing.id);
+          continue;
+        }
+        existingByKey.set(key, { id: null });
 
         tasksToInsert.push({
           task: tt,

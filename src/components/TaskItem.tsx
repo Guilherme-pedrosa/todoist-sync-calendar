@@ -259,6 +259,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             {task.recurrenceRule && (
               <span className="inline-flex items-center gap-1 text-xs text-accent">
                 <Repeat className="h-3 w-3" />
+                Dia útil
               </span>
             )}
 
