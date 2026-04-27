@@ -139,6 +139,29 @@ function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
   );
 }
 
+function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+  const parsed = getCalendarDateAndTime(event);
+  return (
+    !task.completed &&
+    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
+    task.dueDate === parsed.dueDate &&
+    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
+    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+  );
+}
+
+function recurrenceCoversCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+  const parsed = getCalendarDateAndTime(event);
+  if (!task.recurrenceRule || !parsed.dueDate || !task.dueDate) return false;
+  return (
+    !task.completed &&
+    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
+    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
+    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null) &&
+    task.dueDate <= parsed.dueDate
+  );
+}
+
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
   if (!task.dueDate) return null;
   const accessToken = await getGoogleAccessToken();
@@ -264,7 +287,7 @@ async function syncGoogleCalendarEvents(
       const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
       if (linkedTask) {
         const duplicateIds = nextTasks
-          .filter((task) => task.id !== linkedTask.id && isSameCalendarSlot(task, event))
+          .filter((task) => task.id !== linkedTask.id && taskMatchesCalendarEvent(task, event))
           .map((task) => task.id);
         if (duplicateIds.length > 0) {
           await supabase.from('tasks').delete().in('id', duplicateIds);
@@ -274,6 +297,10 @@ async function syncGoogleCalendarEvents(
         nextTasks = nextTasks.map((task) =>
           task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
         );
+        continue;
+      }
+
+      if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
         continue;
       }
 
