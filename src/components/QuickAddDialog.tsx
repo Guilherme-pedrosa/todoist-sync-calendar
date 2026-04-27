@@ -33,6 +33,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'Prioridade 1',
