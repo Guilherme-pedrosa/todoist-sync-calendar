@@ -313,6 +313,7 @@ export type Database = {
         Row: {
           channel: string
           created_at: string
+          fired_at: string | null
           id: string
           notification_sent: boolean
           relative_minutes: number | null
@@ -323,6 +324,7 @@ export type Database = {
         Insert: {
           channel?: string
           created_at?: string
+          fired_at?: string | null
           id?: string
           notification_sent?: boolean
           relative_minutes?: number | null
@@ -333,6 +335,7 @@ export type Database = {
         Update: {
           channel?: string
           created_at?: string
+          fired_at?: string | null
           id?: string
           notification_sent?: boolean
           relative_minutes?: number | null
@@ -588,6 +591,7 @@ export type Database = {
           days_off: Json
           default_reminder_minutes: number
           delete_calendar_event_on_complete: boolean
+          dismissed_install_prompt: boolean
           home_page: string
           karma_enabled: boolean
           language: string
@@ -615,6 +619,7 @@ export type Database = {
           days_off?: Json
           default_reminder_minutes?: number
           delete_calendar_event_on_complete?: boolean
+          dismissed_install_prompt?: boolean
           home_page?: string
           karma_enabled?: boolean
           language?: string
@@ -642,6 +647,7 @@ export type Database = {
           days_off?: Json
           default_reminder_minutes?: number
           delete_calendar_event_on_complete?: boolean
+          dismissed_install_prompt?: boolean
           home_page?: string
           karma_enabled?: boolean
           language?: string
