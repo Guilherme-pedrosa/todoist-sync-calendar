@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 
 function isTypingTarget(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -14,13 +15,14 @@ function isTypingTarget(e: KeyboardEvent): boolean {
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const togglePalette = useCommandPaletteStore((s) => s.toggle);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Cmd/Ctrl combos
+      // Cmd/Ctrl+K -> Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        openQuickAdd();
+        togglePalette();
         return;
       }
 
@@ -57,5 +59,5 @@ export function useGlobalShortcuts() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [navigate, openQuickAdd]);
+  }, [navigate, openQuickAdd, togglePalette]);
 }
