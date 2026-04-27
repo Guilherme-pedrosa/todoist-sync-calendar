@@ -161,27 +161,6 @@ export default function UpcomingPage() {
               </SelectContent>
             </Select>
           )}
-          {mode !== 'day' && (
-            <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 text-xs px-2"
-                onClick={() => setWeekOffset(0)}
-              >
-                Hoje
-              </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </header>
-
           {mode !== 'day' && mode !== 'kanban' && (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
