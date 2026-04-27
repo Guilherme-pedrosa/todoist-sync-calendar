@@ -112,7 +112,8 @@ export function AIAssistantPanel() {
 
 // -------------- Análise --------------
 function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const [date, setDate] = useState(() => todayStr);
   const [loading, setLoading] = useState(false);
   const [text, setText] = useState<string | null>(null);
 
