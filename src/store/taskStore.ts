@@ -294,6 +294,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
+
+    useUndoStore.getState().push({
+      label: `Criar "${newTask.title}"`,
+      undo: async () => {
+        await supabase.from('tasks').delete().eq('id', newTask.id);
+        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
+      },
+    });
+
     return newTask;
   },
 
