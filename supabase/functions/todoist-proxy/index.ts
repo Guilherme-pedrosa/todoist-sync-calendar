@@ -322,7 +322,7 @@ serve(async (req) => {
         const dueString = tt.due?.string || null;
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate);
         const deadline = tt.deadline?.date || null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
 
