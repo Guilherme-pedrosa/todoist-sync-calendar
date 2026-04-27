@@ -57,24 +57,27 @@ export function useDeleteTaskWithRecurrencePrompt() {
       }
 
       try {
-        const newRule = mode === 'weekday'
-          ? removeWeekdayFromRecurrence(task.recurrenceRule, task.dueDate, occurrenceDate) ??
-            (opts?.rangeStart && opts?.rangeEnd
-              ? addWeekdayExdatesToRecurrence(
-                  task.recurrenceRule,
-                  task.dueDate,
-                  task.dueTime,
-                  occurrenceDate,
-                  opts.rangeStart,
-                  opts.rangeEnd
-                )
-              : null)
-          : addExdateToRecurrence(
+        let newRule: string | null | undefined;
+        if (mode === 'weekday') {
+          newRule = removeWeekdayFromRecurrence(task.recurrenceRule, task.dueDate, occurrenceDate);
+          if (newRule === undefined && opts?.rangeStart && opts?.rangeEnd) {
+            newRule = addWeekdayExdatesToRecurrence(
               task.recurrenceRule,
               task.dueDate,
               task.dueTime,
-              occurrenceDate
+              occurrenceDate,
+              opts.rangeStart,
+              opts.rangeEnd
             );
+          }
+        } else {
+          newRule = addExdateToRecurrence(
+            task.recurrenceRule,
+            task.dueDate,
+            task.dueTime,
+            occurrenceDate
+          );
+        }
         if (!newRule) {
           await deleteTask(taskId);
           return 'deleted';
