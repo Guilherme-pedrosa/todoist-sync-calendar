@@ -488,7 +488,7 @@ export function TaskDetailPanel() {
                   {subtasks.map((sub) => (
                     <div
                       key={sub.id}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer"
+                      className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer"
                       onClick={() => useTaskDetailStore.getState().open(sub.id)}
                     >
                       <button
@@ -497,7 +497,7 @@ export function TaskDetailPanel() {
                           complete(sub.id);
                         }}
                         className={cn(
-                          'h-4 w-4 rounded-full border-2 shrink-0',
+                          'h-4 w-4 mt-0.5 rounded-full border-2 shrink-0',
                           sub.completed ? 'bg-primary border-primary' : 'border-muted-foreground/30'
                         )}
                       />
