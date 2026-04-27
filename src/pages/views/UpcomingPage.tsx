@@ -756,14 +756,22 @@ function EventBlock({
     } catch {}
   };
 
+  // Column layout: split horizontal space among overlapping events
+  const widthPct = 100 / cols;
+  const leftPct = col * widthPct;
   return (
     <div
       className={cn(
-        'absolute left-1 right-1 rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group touch-none',
+        'absolute rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group touch-none',
         priorityBorder[task.priority],
         isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
       )}
-      style={{ top, height }}
+      style={{
+        top,
+        height,
+        left: `calc(${leftPct}% + 2px)`,
+        width: `calc(${widthPct}% - 4px)`,
+      }}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.stopPropagation();
