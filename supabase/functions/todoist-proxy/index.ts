@@ -87,11 +87,11 @@ function dueStringToRRule(
     isRecurring === true ||
     /^(every|todo|toda|cada|a cada)\b/.test(s) ||
     /(diariamente|semanalmente|mensalmente|anualmente|quinzenalmente)/.test(s) ||
-    /\b(dia útil|dia util|dias úteis|dias uteis)\b/.test(s);
+    /\b(dia útil|dia util|dias úteis|dias uteis|workday|workdays|weekday|weekdays)\b/.test(s);
   if (!looksRecurring) return null;
 
-  // weekdays
-  if (/(every weekday|todo dia util|todo dia útil|toda semana util|dias uteis|dias úteis)/.test(s)) {
+  // weekdays (segunda a sexta)
+  if (/(every\s+(weekday|workday)s?|todo\s+(dia\s+)?(util|útil|workday|weekday)|toda\s+semana\s+util|dias?\s+(uteis|úteis)|workdays?|weekdays?)/.test(s)) {
     return "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR";
   }
 
