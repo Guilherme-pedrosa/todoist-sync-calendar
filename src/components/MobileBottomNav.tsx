@@ -5,11 +5,13 @@ import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 
 export function MobileBottomNav() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const taskDetailOpen = useTaskDetailStore((s) => !!s.taskId);
   const quickAddOpen = useQuickAddStore((s) => s.open);
+  const openPalette = useCommandPaletteStore((s) => s.setOpen);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
   // Hide when virtual keyboard is open (mobile)
@@ -48,7 +50,7 @@ export function MobileBottomNav() {
       </NavLink>
       {/* Spacer for centered FAB */}
       <div className="w-14" aria-hidden />
-      <button className={itemClass(false)} onClick={() => alert('Busca em breve')}>
+      <button className={itemClass(false)} onClick={() => openPalette(true)}>
         <Search className="h-5 w-5" />
         <span>Buscar</span>
       </button>
