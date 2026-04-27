@@ -7,6 +7,7 @@ import { CalendarDays, Menu, ChevronDown, ChevronRight, AlertTriangle } from 'lu
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
+import { getHolidayForDate } from '@/lib/holidays';
 import { ptBR } from 'date-fns/locale';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { ViewModeToolbar } from '@/components/ViewModeToolbar';
@@ -65,6 +66,20 @@ export default function TodayPage() {
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate">
               {format(new Date(), "EEEE, d 'de' MMMM", { locale: ptBR })}
             </p>
+            {(() => {
+              const h = getHolidayForDate(today);
+              if (!h) return null;
+              return (
+                <p
+                  className={cn(
+                    'text-[11px] sm:text-xs font-semibold mt-0.5 truncate',
+                    h.type === 'national' ? 'text-destructive' : 'text-muted-foreground'
+                  )}
+                >
+                  🎉 Feriado: {h.name}
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
