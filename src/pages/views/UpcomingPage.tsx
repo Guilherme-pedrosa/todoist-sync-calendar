@@ -51,6 +51,7 @@ export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [mode, setMode] = useState<Mode>('week');
+  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('date');
   const [weekOffset, setWeekOffset] = useState(0);
 
   const upcoming = useMemo(
