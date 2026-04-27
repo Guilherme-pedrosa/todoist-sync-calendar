@@ -373,6 +373,10 @@ async function syncGoogleCalendarEvents(
   currentTasks: Task[],
   inboxProjectId?: string
 ): Promise<Task[]> {
+  if (isGcalSyncPaused()) {
+    console.info('[gcal] sync pausado — pull/backfill desativado');
+    return currentTasks;
+  }
   const { data: tokenRows, error: tokenError } = await supabase
     .from('google_tokens')
     .select('id')
