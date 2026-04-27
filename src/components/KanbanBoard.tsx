@@ -60,6 +60,37 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
+interface ManualKanbanState {
+  storageKey: string;
+  columns: Pick<Column, 'id' | 'title'>[];
+  taskColumns: Record<string, string>;
+}
+
+const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+
+function getKanbanStorageKey(boardKey?: string) {
+  return `taskflow.kanban.manual.${boardKey || 'default'}`;
+}
+
+function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageKey'> {
+  if (typeof window === 'undefined') return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
+    const columns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    return {
+      columns: columns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') })),
+      taskColumns: parsed.taskColumns && typeof parsed.taskColumns === 'object' ? parsed.taskColumns : {},
+    };
+  } catch {
+    return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  }
+}
+
+function writeManualKanban(storageKey: string, board: ManualKanbanState) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(storageKey, JSON.stringify({ columns: board.columns, taskColumns: board.taskColumns }));
+}
+
 export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
