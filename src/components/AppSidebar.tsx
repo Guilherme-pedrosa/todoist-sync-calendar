@@ -116,6 +116,39 @@ export function AppSidebar() {
     }
   };
 
+  const handleImportTodoist = async () => {
+    setImportingTodoist(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/todoist-proxy?action=import-all`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'Falha ao importar do Todoist');
+
+      const { createdProjects = 0, createdLabels = 0, createdTasks = 0 } = payload;
+      toast.success(
+        `Importado: ${createdTasks} tarefa(s), ${createdProjects} projeto(s), ${createdLabels} etiqueta(s)`
+      );
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao importar do Todoist');
+    } finally {
+      setImportingTodoist(false);
+    }
+  };
+
   const navItems = [
     {
       icon: Inbox,
