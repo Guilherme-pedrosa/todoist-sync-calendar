@@ -16,11 +16,20 @@ type ScheduledTaskCtx = {
   project?: string;
 };
 
+function nowIsoWithBrOffset(): string {
+  // ISO com offset -03:00 (BR atual, sem DST)
+  const now = new Date();
+  const brMs = now.getTime() - 3 * 60 * 60 * 1000;
+  const d = new Date(brMs);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}-03:00`;
+}
+
 function buildContext(tasks: Task[], projects: Project[], targetDate?: string) {
   const now = new Date();
   const today = format(now, 'yyyy-MM-dd');
   const nowTime = format(now, 'HH:mm');
-  const nowIso = now.toISOString();
+  const nowIso = nowIsoWithBrOffset();
   const horizonEnd = format(addDays(now, 14), 'yyyy-MM-dd');
   const recentStart = subDays(now, 2);
   const projectName = (id?: string) =>
