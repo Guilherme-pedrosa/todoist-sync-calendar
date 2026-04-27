@@ -338,7 +338,11 @@ function WeekGrid({
           if (p.dayKey) updates.dueDate = p.dayKey;
           if (p.startMin !== undefined) updates.dueTime = minutesToTime(p.startMin);
           if (p.durationMin !== undefined) updates.durationMinutes = p.durationMin;
-          await updateTask(currentDrag.taskId, updates);
+          await updateWithPrompt(currentDrag.taskId, updates, {
+            occurrenceDate: currentDrag.sourceDayKey,
+            changeLabel:
+              currentDrag.kind === 'resize' ? 'duração' : 'data e horário',
+          });
         } catch (err) {
           toast.error('Falha ao reagendar tarefa');
         }
