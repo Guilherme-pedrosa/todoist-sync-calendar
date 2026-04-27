@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 import { useUndoStore } from '@/store/undoStore';
+import { expandOccurrencesInRange } from '@/lib/recurrence';
 
 interface TaskState {
   tasks: Task[];
@@ -139,6 +140,103 @@ function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
   );
 }
 
+function rangesOverlap(startA?: string | null, durationA?: number | null, startB?: string | null, durationB?: number | null) {
+  if (!startA || !startB) return false;
+  const toMin = (value: string) => {
+    const [h, m] = value.slice(0, 5).split(':').map(Number);
+    return h * 60 + m;
+  };
+  const aStart = toMin(startA);
+  const bStart = toMin(startB);
+  const aEnd = aStart + (durationA ?? 60);
+  const bEnd = bStart + (durationB ?? 60);
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+  const parsed = getCalendarDateAndTime(event);
+  return (
+    !task.completed &&
+    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
+    task.dueDate === parsed.dueDate &&
+    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
+    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+  );
+}
+
+function recurrenceCoversCalendarEvent(task: Task, event: GoogleCalendarEvent) {
+  const parsed = getCalendarDateAndTime(event);
+  if (!task.recurrenceRule || !parsed.dueDate || !task.dueDate) return false;
+  const day = new Date(`${parsed.dueDate}T12:00:00`);
+  const occurrences = expandOccurrencesInRange(
+    task.recurrenceRule,
+    task.dueDate,
+    task.dueTime,
+    day,
+    day
+  );
+  return (
+    !task.completed &&
+    occurrences.includes(parsed.dueDate) &&
+    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
+    rangesOverlap(task.dueTime, task.durationMinutes, parsed.dueTime, parsed.durationMinutes)
+  );
+}
+
+function recurrenceCoversTask(series: Task, occurrence: Task) {
+  if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
+  const day = new Date(`${occurrence.dueDate}T12:00:00`);
+  const occurrences = expandOccurrencesInRange(
+    series.recurrenceRule,
+    series.dueDate,
+    series.dueTime,
+    day,
+    day
+  );
+  return (
+    series.id !== occurrence.id &&
+    !series.completed &&
+    !occurrence.completed &&
+    !!occurrence.googleCalendarEventId &&
+    occurrences.includes(occurrence.dueDate) &&
+    normalizeCalendarTitle(series.title) === normalizeCalendarTitle(occurrence.title) &&
+    rangesOverlap(series.dueTime, series.durationMinutes, occurrence.dueTime, occurrence.durationMinutes)
+  );
+}
+
+async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
+  const idsToDelete = new Set<string>();
+  const byGoogleId = new Map<string, Task[]>();
+
+  for (const task of tasks) {
+    if (task.googleCalendarEventId) {
+      const list = byGoogleId.get(task.googleCalendarEventId) ?? [];
+      list.push(task);
+      byGoogleId.set(task.googleCalendarEventId, list);
+    }
+  }
+
+  for (const list of byGoogleId.values()) {
+    if (list.length <= 1) continue;
+    list
+      .sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt))
+      .slice(1)
+      .forEach((task) => idsToDelete.add(task.id));
+  }
+
+  const recurring = tasks.filter((task) => task.recurrenceRule);
+  for (const task of tasks) {
+    if (idsToDelete.has(task.id) || !task.googleCalendarEventId) continue;
+    if (recurring.some((series) => recurrenceCoversTask(series, task))) {
+      idsToDelete.add(task.id);
+    }
+  }
+
+  if (idsToDelete.size === 0) return tasks;
+  await supabase.from('tasks').delete().in('id', Array.from(idsToDelete));
+  return tasks.filter((task) => !idsToDelete.has(task.id));
+}
+
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
   if (!task.dueDate) return null;
   const accessToken = await getGoogleAccessToken();
@@ -221,8 +319,7 @@ async function syncGoogleCalendarEvents(
 
   const startOfRange = new Date();
   startOfRange.setHours(0, 0, 0, 0);
-  const endOfRange = new Date(startOfRange);
-  endOfRange.setDate(endOfRange.getDate() + 14);
+  const endOfRange = new Date();
   endOfRange.setHours(23, 59, 59, 999);
 
   const params = new URLSearchParams({
@@ -264,7 +361,7 @@ async function syncGoogleCalendarEvents(
       const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
       if (linkedTask) {
         const duplicateIds = nextTasks
-          .filter((task) => task.id !== linkedTask.id && isSameCalendarSlot(task, event))
+          .filter((task) => task.id !== linkedTask.id && taskMatchesCalendarEvent(task, event))
           .map((task) => task.id);
         if (duplicateIds.length > 0) {
           await supabase.from('tasks').delete().in('id', duplicateIds);
@@ -274,6 +371,10 @@ async function syncGoogleCalendarEvents(
         nextTasks = nextTasks.map((task) =>
           task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
         );
+        continue;
+      }
+
+      if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
         continue;
       }
 
@@ -352,7 +453,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
+    const tasks: Task[] = await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask));
     const inboxProjectId = projects.find((p) => p.isInbox)?.id;
     const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
@@ -376,6 +477,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       due_string: taskData.dueString || null,
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
+      google_calendar_event_id: taskData.googleCalendarEventId || null,
       project_id: taskData.projectId || inboxProject?.id || null,
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
@@ -417,8 +519,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (newTask.dueDate && !newTask.completed) {
       try {
-        const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
-        if (googleCalendarEventId) {
+        if (newTask.googleCalendarEventId) {
+          await updateGoogleCalendarEvent(newTask);
+        } else {
+          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
+          if (googleCalendarEventId) {
           await supabase
             .from('tasks')
             .update({ google_calendar_event_id: googleCalendarEventId })
@@ -429,6 +534,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
               t.id === newTask.id ? { ...t, googleCalendarEventId } : t
             ),
           }));
+          }
         }
       } catch (error) {
         console.error('Falha ao criar evento no Google Calendar:', error);
@@ -460,6 +566,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.dueString !== undefined) dbUpdates.due_string = updates.dueString;
     if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
     if (updates.recurrenceRule !== undefined) dbUpdates.recurrence_rule = updates.recurrenceRule;
+    if ('googleCalendarEventId' in updates) dbUpdates.google_calendar_event_id = updates.googleCalendarEventId ?? null;
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
     if (updates.sectionId !== undefined) dbUpdates.section_id = updates.sectionId;
     if (updates.completed !== undefined) {

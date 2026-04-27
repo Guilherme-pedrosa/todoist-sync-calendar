@@ -97,9 +97,10 @@ export function useUpdateTaskWithRecurrencePrompt() {
           projectId: task.projectId ?? undefined,
           sectionId: task.sectionId ?? undefined,
           labels: task.labels,
+          googleCalendarEventId: task.googleCalendarEventId,
         } as any);
 
-        await updateTask(taskId, { recurrenceRule: newRule });
+        await updateTask(taskId, { recurrenceRule: newRule, googleCalendarEventId: undefined } as any);
       } catch (e) {
         console.error('single-occurrence edit failed', e);
         toast.error('Falha ao editar apenas esta ocorrência');
