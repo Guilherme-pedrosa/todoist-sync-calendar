@@ -24,6 +24,14 @@ export default function AppLayout() {
 
   useGlobalShortcuts();
 
+  const location = useLocation();
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      useTaskStore.setState({ sidebarOpen: false });
+    }
+  }, [location.pathname]);
+
   useEffect(() => {
     if (!user) return;
 
