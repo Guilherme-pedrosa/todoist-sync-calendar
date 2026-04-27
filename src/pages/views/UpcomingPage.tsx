@@ -340,14 +340,24 @@ function WeekGrid({
                 className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
               >
                 {allDay.map((t) => (
-                  <button
+                  <AllDayChip
                     key={t.id}
-                    onClick={() => openTaskDetail(t.id)}
-                    className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate"
-                    title={t.title}
-                  >
-                    {t.title}
-                  </button>
+                    task={t}
+                    onOpen={() => openTaskDetail(t.id)}
+                    onStartDrag={(pointerOffsetMin) => {
+                      // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
+                      setPreview((p) => ({
+                        ...p,
+                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                      }));
+                      setDrag({
+                        kind: 'move',
+                        taskId: t.id,
+                        pointerOffsetMin,
+                        durationMin: DEFAULT_DURATION,
+                      });
+                    }}
+                  />
                 ))}
               </div>
             );
@@ -669,6 +679,48 @@ function EventBlock({
 }
 
 // ---------- List view (unchanged) ----------
+
+function AllDayChip({
+  task,
+  onOpen,
+  onStartDrag,
+}: {
+  task: Task;
+  onOpen: () => void;
+  onStartDrag: (pointerOffsetMin: number) => void;
+}) {
+  const downRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onPointerDown={(e) => {
+        if (e.button !== 0) return;
+        downRef.current = { x: e.clientX, y: e.clientY, moved: false };
+      }}
+      onPointerMove={(e) => {
+        const d = downRef.current;
+        if (!d || d.moved) return;
+        if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) {
+          d.moved = true;
+          onStartDrag(0);
+        }
+      }}
+      onPointerUp={(e) => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (d && !d.moved) {
+          e.stopPropagation();
+          onOpen();
+        }
+      }}
+      className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none"
+      title={`${task.title} — arraste para um horário`}
+    >
+      {task.title}
+    </div>
+  );
+}
 
 function ListView({ tasks }: { tasks: Task[] }) {
   const grouped = useMemo(() => {
