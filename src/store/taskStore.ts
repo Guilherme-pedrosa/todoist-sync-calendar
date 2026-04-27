@@ -453,7 +453,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
+    const tasks: Task[] = await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask));
     const inboxProjectId = projects.find((p) => p.isInbox)?.id;
     const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
