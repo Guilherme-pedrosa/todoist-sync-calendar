@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { AIAssistantErrorBoundary } from '@/components/AIAssistantErrorBoundary';
 import {
   Sparkles,
   Send,
@@ -72,50 +73,52 @@ export function AIAssistantPanel() {
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as typeof tab)}
-          className="flex-1 flex flex-col min-h-0"
-        >
-          <TabsList className="mx-5 mt-3 grid grid-cols-3">
-            <TabsTrigger value="analyze" className="text-xs gap-1">
-              <CalendarDays className="h-3.5 w-3.5" /> Análise
-            </TabsTrigger>
-            <TabsTrigger value="organize" className="text-xs gap-1">
-              <Wand2 className="h-3.5 w-3.5" /> Organizar
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="text-xs gap-1">
-              <MessageSquare className="h-3.5 w-3.5" /> Chat
-            </TabsTrigger>
-          </TabsList>
+        <AIAssistantErrorBoundary onReset={() => setTab(initialTab)}>
+          <Tabs
+            value={tab}
+            onValueChange={(v) => setTab(v as typeof tab)}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            <TabsList className="mx-5 mt-3 grid grid-cols-3">
+              <TabsTrigger value="analyze" className="text-xs gap-1">
+                <CalendarDays className="h-3.5 w-3.5" /> Análise
+              </TabsTrigger>
+              <TabsTrigger value="organize" className="text-xs gap-1">
+                <Wand2 className="h-3.5 w-3.5" /> Organizar
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="text-xs gap-1">
+                <MessageSquare className="h-3.5 w-3.5" /> Chat
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="analyze" className="flex-1 min-h-0 m-0">
-            <AnalyzeTab tasks={tasks} projects={projects} />
-          </TabsContent>
+            <TabsContent value="analyze" className="flex-1 min-h-0 m-0">
+              <AnalyzeTab tasks={tasks} projects={projects} />
+            </TabsContent>
 
-          <TabsContent value="organize" className="flex-1 min-h-0 m-0">
-            <OrganizeTab
-              tasks={tasks}
-              projects={projects}
-              onApply={(assignments) => {
-                let applied = 0;
-                for (const a of assignments) {
-                  updateTask(a.id, {
-                    dueDate: a.date,
-                    dueTime: a.time,
-                    durationMinutes: a.durationMinutes,
-                  });
-                  applied++;
-                }
-                toast.success(`${applied} tarefas organizadas pela IA`);
-              }}
-            />
-          </TabsContent>
+            <TabsContent value="organize" className="flex-1 min-h-0 m-0">
+              <OrganizeTab
+                tasks={tasks}
+                projects={projects}
+                onApply={(assignments) => {
+                  let applied = 0;
+                  for (const a of assignments) {
+                    updateTask(a.id, {
+                      dueDate: a.date,
+                      dueTime: a.time,
+                      durationMinutes: a.durationMinutes,
+                    });
+                    applied++;
+                  }
+                  toast.success(`${applied} tarefas organizadas pela IA`);
+                }}
+              />
+            </TabsContent>
 
-          <TabsContent value="chat" className="flex-1 min-h-0 m-0">
-            <ChatTab tasks={tasks} projects={projects} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="chat" className="flex-1 min-h-0 m-0">
+              <ChatTab tasks={tasks} projects={projects} />
+            </TabsContent>
+          </Tabs>
+        </AIAssistantErrorBoundary>
       </SheetContent>
     </Sheet>
   );
@@ -171,7 +174,7 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           )}
           {text && (
             <article className="prose prose-sm prose-invert max-w-none prose-headings:font-display prose-headings:text-foreground prose-p:text-foreground/90 prose-strong:text-foreground">
-              <ReactMarkdown>{text}</ReactMarkdown>
+              <ReactMarkdown>{text || ''}</ReactMarkdown>
             </article>
           )}
         </div>
@@ -349,9 +352,12 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     setLoading(true);
     try {
       const r = await chatWithAssistant({ messages: next, tasks, projects });
-      setMessages([...next, { role: 'assistant', content: r.text }]);
+      const replyText = (r && typeof r.text === 'string' && r.text.trim())
+        ? r.text
+        : 'A IA respondeu vazio. Tente reformular a pergunta.';
+      setMessages([...next, { role: 'assistant', content: replyText }]);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha no chat');
+      toast.error(e instanceof Error ? e.message : 'IA indisponível agora, tente em alguns segundos.');
       setMessages(next.slice(0, -1));
       setInput(text);
     } finally {
@@ -392,7 +398,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             >
               {m.role === 'assistant' ? (
                 <article className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-1 prose-ul:my-1 prose-li:my-0">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  <ReactMarkdown>{m.content || ''}</ReactMarkdown>
                 </article>
               ) : (
                 m.content
