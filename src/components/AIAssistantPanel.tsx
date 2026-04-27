@@ -34,6 +34,17 @@ import { cn } from '@/lib/utils';
 
 type ChatMsg = { role: 'user' | 'assistant'; content: string };
 
+const todayString = () => format(new Date(), 'yyyy-MM-dd');
+
+const isPastTodaySlot = (date: string, time?: string | null) => {
+  if (!time || date !== todayString()) return false;
+  const [h, m] = time.slice(0, 5).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return false;
+  const now = new Date();
+  const minAllowed = Math.ceil((now.getHours() * 60 + now.getMinutes() + 5) / 15) * 15;
+  return h * 60 + m < minAllowed;
+};
+
 export function AIAssistantPanel() {
   const isOpen = useAIAssistantStore((s) => s.isOpen);
   const initialTab = useAIAssistantStore((s) => s.initialTab);
@@ -135,6 +146,7 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
         <input
           type="date"
           value={date}
+          min={todayString()}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
@@ -226,6 +238,7 @@ function OrganizeTab({
         <input
           type="date"
           value={date}
+          min={todayString()}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
