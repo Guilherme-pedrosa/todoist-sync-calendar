@@ -372,6 +372,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
               </PopoverContent>
             </Popover>
           </div>
+          </div>
           <div className="flex gap-2 p-2 border-t border-border bg-popover">
             {hasValue && (
               <Button
