@@ -61,23 +61,23 @@ export default function UpcomingPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <header className="flex items-center gap-3 px-6 py-4 border-b border-border/50">
+      <header className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-border/50">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+          className="lg:hidden p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors shrink-0"
           aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
         </button>
-        <CalendarRange className="h-5 w-5" />
-        <div>
-          <h2 className="font-display text-xl font-bold tracking-tight">Em breve</h2>
-          <p className="text-xs text-muted-foreground capitalize">
+        <CalendarRange className="h-5 w-5 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">Em breve</h2>
+          <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
             {format(weekStart, "d 'de' MMM", { locale: ptBR })} —{' '}
             {format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}
           </p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-between sm:justify-end">
           <div className="flex items-center rounded-md border border-border bg-card overflow-hidden">
             <button
               onClick={() => setMode('week')}
@@ -86,7 +86,7 @@ export default function UpcomingPage() {
                 mode === 'week' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
-              <CalendarClock className="h-3.5 w-3.5" /> Semana
+              <CalendarClock className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Semana</span>
             </button>
             <button
               onClick={() => setMode('list')}
@@ -95,7 +95,7 @@ export default function UpcomingPage() {
                 mode === 'list' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
               )}
             >
-              <ListIcon className="h-3.5 w-3.5" /> Lista
+              <ListIcon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
             </button>
           </div>
           <div className="flex items-center gap-1">
@@ -105,7 +105,7 @@ export default function UpcomingPage() {
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 text-xs"
+              className="h-8 text-xs px-2"
               onClick={() => setWeekOffset(0)}
             >
               Hoje
