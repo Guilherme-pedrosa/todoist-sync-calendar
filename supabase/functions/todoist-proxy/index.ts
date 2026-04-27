@@ -20,6 +20,7 @@ interface TodoistProject {
   name: string;
   color?: string;
   is_inbox_project?: boolean;
+  inbox_project?: boolean;
 }
 
 interface TodoistLabel {
@@ -81,20 +82,36 @@ const mapPriority = (p?: number) => {
   }
 };
 
-async function todoistFetch<T>(path: string, apiKey: string): Promise<T> {
-  const res = await fetch(`${TODOIST_BASE}/${path}`, {
-    headers: { Authorization: `Bearer ${apiKey}` },
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`Todoist ${path} ${res.status}: ${text}`);
-  }
-  const data = await res.json();
-  // Todoist v1 sometimes wraps lists in { results: [...] }
-  if (data && typeof data === "object" && "results" in data && Array.isArray((data as any).results)) {
-    return (data as any).results as T;
-  }
-  return data as T;
+async function todoistFetch<T>(path: string, apiKey: string): Promise<T[]> {
+  const results: T[] = [];
+  let cursor: string | null = null;
+  let safety = 0;
+
+  do {
+    const sep = path.includes("?") ? "&" : "?";
+    const cursorParam = cursor ? `${sep}cursor=${encodeURIComponent(cursor)}&limit=200` : `${sep}limit=200`;
+    const res = await fetch(`${TODOIST_BASE}/${path}${cursorParam}`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Todoist ${path} ${res.status}: ${text}`);
+    }
+    const data = await res.json();
+
+    if (data && typeof data === "object" && "results" in data && Array.isArray((data as any).results)) {
+      results.push(...((data as any).results as T[]));
+      cursor = (data as any).next_cursor ?? null;
+    } else if (Array.isArray(data)) {
+      results.push(...(data as T[]));
+      cursor = null;
+    } else {
+      cursor = null;
+    }
+    safety++;
+  } while (cursor && safety < 50);
+
+  return results;
 }
 
 serve(async (req) => {
@@ -129,11 +146,11 @@ serve(async (req) => {
     if (userError || !user) return json({ error: "Usuário inválido" }, 401);
 
     try {
-      // 1. Fetch from Todoist
+      // 1. Fetch from Todoist (paginated)
       const [tdProjects, tdLabels, tdTasks] = await Promise.all([
-        todoistFetch<TodoistProject[]>("projects", TODOIST_API_KEY),
-        todoistFetch<TodoistLabel[]>("labels", TODOIST_API_KEY),
-        todoistFetch<TodoistTask[]>("tasks", TODOIST_API_KEY),
+        todoistFetch<TodoistProject>("projects", TODOIST_API_KEY),
+        todoistFetch<TodoistLabel>("labels", TODOIST_API_KEY),
+        todoistFetch<TodoistTask>("tasks", TODOIST_API_KEY),
       ]);
 
       // 2. Existing app data
@@ -141,7 +158,7 @@ serve(async (req) => {
         await Promise.all([
           supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
-          supabase.from("tasks").select("id, title, due_date").eq("user_id", user.id),
+          supabase.from("tasks").select("id, title, due_date, project_id").eq("user_id", user.id),
         ]);
 
       // 3. Sync projects (dedup by name; map Todoist Inbox -> app Inbox)
@@ -157,7 +174,8 @@ serve(async (req) => {
       const todoistProjectByTempKey = new Map<string, TodoistProject>();
 
       for (const tp of tdProjects) {
-        if (tp.is_inbox_project && inboxProject) {
+        const isInbox = tp.inbox_project || tp.is_inbox_project;
+        if (isInbox && inboxProject) {
           projectIdMap.set(tp.id, inboxProject.id);
           continue;
         }
@@ -210,10 +228,10 @@ serve(async (req) => {
         }
       }
 
-      // 5. Sync tasks — dedup by (title + due_date)
+      // 5. Sync tasks — dedup by (title + due_date + project_id)
       const existingKey = new Set<string>();
       for (const t of existingTasks || []) {
-        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}`);
+        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}`);
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -223,11 +241,11 @@ serve(async (req) => {
         const dueTime = tt.due?.datetime
           ? tt.due.datetime.slice(11, 19) // HH:MM:SS
           : null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
-        if (existingKey.has(key)) continue;
-        existingKey.add(key);
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
+        if (existingKey.has(key)) continue;
+        existingKey.add(key);
 
         tasksToInsert.push({
           task: tt,
