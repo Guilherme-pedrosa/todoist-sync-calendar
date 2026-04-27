@@ -291,7 +291,6 @@ serve(async (req) => {
         const normalizeTime = (t: unknown, fallback: string): string => {
           const s = typeof t === "string" ? t.trim() : "";
           if (!s) return fallback;
-          // Aceita HH:mm ou HH:mm:ss; sempre devolve HH:mm:ss
           const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
           if (!m) return fallback;
           const hh = m[1].padStart(2, "0");
@@ -301,7 +300,9 @@ serve(async (req) => {
         };
         const startTime = normalizeTime(body.time, "09:00:00");
         const endTime = normalizeTime(body.endTime ?? body.time, "10:00:00");
-        const event = {
+        const taskId = typeof body.taskId === "string" ? body.taskId : "";
+
+        const buildEvent = () => ({
           summary: body.title,
           description: body.description || "",
           start: body.allDay
@@ -317,16 +318,152 @@ serve(async (req) => {
                 timeZone: body.timeZone || "America/Sao_Paulo",
               },
           reminders: { useDefault: true },
-        };
+          extendedProperties: taskId ? { private: { taskId } } : undefined,
+        });
+
+        // IDEMPOTÊNCIA: se já existe evento com este taskId, faça PATCH em vez de INSERT.
+        // Isto previne duplicatas mesmo se o cliente perdeu o googleEventId localmente.
+        if (taskId) {
+          const lookupParams = new URLSearchParams({
+            privateExtendedProperty: `taskId=${taskId}`,
+            maxResults: "10",
+            showDeleted: "false",
+            singleEvents: "true",
+          });
+          const lookupRes = await fetch(
+            `${calendarBase}/calendars/primary/events?${lookupParams.toString()}`,
+            { headers },
+          );
+          if (lookupRes.ok) {
+            const lookupData = await lookupRes.json();
+            const items: any[] = Array.isArray(lookupData.items) ? lookupData.items : [];
+            if (items.length >= 1) {
+              // Mantém o primeiro, deleta extras (dedupe legacy).
+              const keep = items[0];
+              for (const extra of items.slice(1)) {
+                if (extra?.id) {
+                  await fetch(
+                    `${calendarBase}/calendars/primary/events/${extra.id}`,
+                    { method: "DELETE", headers },
+                  );
+                }
+              }
+              const patchRes = await fetch(
+                `${calendarBase}/calendars/primary/events/${keep.id}`,
+                { method: "PATCH", headers, body: JSON.stringify(buildEvent()) },
+              );
+              const patched = await patchRes.json();
+              return jsonResponse(patched, patchRes.ok ? 200 : 400);
+            }
+          }
+        }
 
         const res = await fetch(`${calendarBase}/calendars/primary/events`, {
           method: "POST",
           headers,
-          body: JSON.stringify(event),
+          body: JSON.stringify(buildEvent()),
         });
 
         const data = await res.json();
         return jsonResponse(data, res.ok ? 200 : 400);
+      }
+
+      case "find-by-task": {
+        const taskId = typeof body.taskId === "string" ? body.taskId : url.searchParams.get("taskId") || "";
+        if (!taskId) return jsonResponse({ error: "taskId é obrigatório" }, 400);
+        const lookupParams = new URLSearchParams({
+          privateExtendedProperty: `taskId=${taskId}`,
+          maxResults: "10",
+          showDeleted: "false",
+          singleEvents: "true",
+        });
+        const res = await fetch(
+          `${calendarBase}/calendars/primary/events?${lookupParams.toString()}`,
+          { headers },
+        );
+        const data = await res.json();
+        return jsonResponse(data, res.ok ? 200 : 400);
+      }
+
+      case "cleanup-duplicates": {
+        // Lista próximos 90 dias, agrupa por (summary + start), mantém 1, deleta resto.
+        const now = new Date();
+        const endRange = new Date();
+        endRange.setDate(endRange.getDate() + 90);
+        const dryRun = body.dryRun === true || url.searchParams.get("dryRun") === "true";
+
+        let pageToken: string | undefined;
+        const all: any[] = [];
+        let safety = 20;
+        do {
+          const params = new URLSearchParams({
+            timeMin: now.toISOString(),
+            timeMax: endRange.toISOString(),
+            singleEvents: "true",
+            orderBy: "startTime",
+            maxResults: "2500",
+          });
+          if (pageToken) params.set("pageToken", pageToken);
+          const res = await fetch(
+            `${calendarBase}/calendars/primary/events?${params.toString()}`,
+            { headers },
+          );
+          if (!res.ok) {
+            const err = await res.json();
+            return jsonResponse(err, 400);
+          }
+          const data = await res.json();
+          if (Array.isArray(data.items)) all.push(...data.items);
+          pageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;
+          safety -= 1;
+        } while (pageToken && safety > 0);
+
+        const groups = new Map<string, any[]>();
+        for (const ev of all) {
+          const summary = (ev.summary || "").trim().toLowerCase();
+          const start = ev.start?.dateTime || ev.start?.date || "";
+          if (!summary || !start) continue;
+          const key = `${summary}|${start}`;
+          const arr = groups.get(key) || [];
+          arr.push(ev);
+          groups.set(key, arr);
+        }
+
+        let toDelete = 0;
+        let toKeep = 0;
+        const deletions: string[] = [];
+        for (const [, arr] of groups) {
+          if (arr.length < 2) {
+            toKeep += arr.length;
+            continue;
+          }
+          // Prefere o que tem extendedProperties.private.taskId; senão o mais antigo.
+          arr.sort((a, b) => {
+            const aHas = a.extendedProperties?.private?.taskId ? 1 : 0;
+            const bHas = b.extendedProperties?.private?.taskId ? 1 : 0;
+            if (aHas !== bHas) return bHas - aHas;
+            return (a.created || "").localeCompare(b.created || "");
+          });
+          toKeep += 1;
+          for (const extra of arr.slice(1)) {
+            toDelete += 1;
+            if (extra?.id) deletions.push(extra.id);
+          }
+        }
+
+        if (dryRun) {
+          return jsonResponse({ toDelete, toKeep, totalScanned: all.length });
+        }
+
+        let deleted = 0;
+        for (const id of deletions) {
+          const r = await fetch(
+            `${calendarBase}/calendars/primary/events/${id}`,
+            { method: "DELETE", headers },
+          );
+          if (r.ok || r.status === 410) deleted += 1;
+        }
+        return jsonResponse({ deleted, kept: toKeep, totalScanned: all.length });
       }
 
       case "update-event": {
