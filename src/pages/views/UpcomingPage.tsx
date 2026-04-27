@@ -26,6 +26,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import {
   Select,
