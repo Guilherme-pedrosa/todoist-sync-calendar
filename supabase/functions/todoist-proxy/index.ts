@@ -127,6 +127,122 @@ serve(async (req) => {
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
 
+  // === IMPORT INBOX ONLY ===
+  if (action === "import-inbox") {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseKey) {
+      return json({ error: "Configuração do servidor inválida" }, 500);
+    }
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Não autorizado" }, 401);
+    const userToken = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(userToken);
+    if (userError || !user) return json({ error: "Usuário inválido" }, 401);
+
+    try {
+      const tdProjects = await todoistFetch<TodoistProject>("projects", TODOIST_API_KEY);
+      const todoistInbox = tdProjects.find((p) => p.inbox_project || p.is_inbox_project);
+      if (!todoistInbox) return json({ error: "Inbox do Todoist não encontrado" }, 404);
+
+      const { data: appProjects } = await supabase
+        .from("projects").select("id, is_inbox").eq("user_id", user.id).eq("is_inbox", true).limit(1);
+      const appInbox = appProjects?.[0];
+      if (!appInbox) return json({ error: "Caixa de Entrada do app não encontrada" }, 404);
+
+      const tdLabels = await todoistFetch<TodoistLabel>("labels", TODOIST_API_KEY);
+      const { data: existingLabels } = await supabase
+        .from("labels").select("id, name").eq("user_id", user.id);
+      const labelIdByName = new Map<string, string>();
+      for (const l of existingLabels || []) labelIdByName.set(l.name.toLowerCase(), l.id);
+
+      const labelsToCreate: any[] = [];
+      for (const tl of tdLabels) {
+        if (!labelIdByName.has(tl.name.toLowerCase())) {
+          labelsToCreate.push({
+            user_id: user.id,
+            name: tl.name,
+            color: colorFromTodoist(tl.color, "hsl(0, 72%, 51%)"),
+          });
+        }
+      }
+      if (labelsToCreate.length > 0) {
+        const { data: inserted } = await supabase
+          .from("labels").insert(labelsToCreate).select("id, name");
+        for (const row of inserted || []) labelIdByName.set(row.name.toLowerCase(), row.id);
+      }
+
+      const tdTasks = await todoistFetch<TodoistTask>(
+        `tasks?project_id=${todoistInbox.id}`,
+        TODOIST_API_KEY,
+      );
+
+      const { data: existingTasks } = await supabase
+        .from("tasks").select("id, title, due_date").eq("user_id", user.id).eq("project_id", appInbox.id);
+      const existingKey = new Set<string>();
+      for (const t of existingTasks || []) {
+        existingKey.add(`${t.title.toLowerCase()}|${t.due_date || ""}`);
+      }
+
+      const tasksToInsert: { task: TodoistTask; row: any }[] = [];
+      for (const tt of tdTasks) {
+        if (tt.is_completed) continue;
+        const dueDate = tt.due?.date || (tt.due?.datetime ? tt.due.datetime.slice(0, 10) : null);
+        const dueTime = tt.due?.datetime ? tt.due.datetime.slice(11, 19) : null;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}`;
+        if (existingKey.has(key)) continue;
+        existingKey.add(key);
+
+        tasksToInsert.push({
+          task: tt,
+          row: {
+            user_id: user.id,
+            title: tt.content,
+            description: tt.description || null,
+            priority: mapPriority(tt.priority),
+            due_date: dueDate,
+            due_time: dueTime,
+            project_id: appInbox.id,
+          },
+        });
+      }
+
+      let createdTasks = 0;
+      let createdTaskLabels = 0;
+      if (tasksToInsert.length > 0) {
+        const { data: insertedTasks, error: tErr } = await supabase
+          .from("tasks").insert(tasksToInsert.map((x) => x.row)).select("id");
+        if (tErr) throw new Error(`Erro ao criar tarefas: ${tErr.message}`);
+
+        const linkRows: { task_id: string; label_id: string }[] = [];
+        (insertedTasks || []).forEach((row, idx) => {
+          const td = tasksToInsert[idx].task;
+          for (const labelName of td.labels || []) {
+            const lid = labelIdByName.get(labelName.toLowerCase());
+            if (lid) linkRows.push({ task_id: row.id, label_id: lid });
+          }
+        });
+        if (linkRows.length > 0) {
+          const { error: linkErr } = await supabase.from("task_labels").insert(linkRows);
+          if (!linkErr) createdTaskLabels = linkRows.length;
+        }
+        createdTasks = insertedTasks?.length || 0;
+      }
+
+      return json({
+        success: true,
+        totalFromTodoist: tdTasks.length,
+        createdTasks,
+        createdTaskLabels,
+      });
+    } catch (e) {
+      console.error("[todoist-proxy] import-inbox error:", e);
+      return json({ error: (e as Error).message }, 500);
+    }
+  }
+
   // === IMPORT ALL ===
   if (action === "import-all") {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
