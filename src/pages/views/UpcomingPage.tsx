@@ -14,6 +14,7 @@ import {
   CalendarClock,
   LayoutGrid,
   Sparkles,
+  Check,
 } from 'lucide-react';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
