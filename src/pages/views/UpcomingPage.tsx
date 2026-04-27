@@ -12,6 +12,7 @@ import {
   ChevronRight,
   List as ListIcon,
   CalendarClock,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -25,8 +26,17 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
-type Mode = 'list' | 'week' | 'day';
+type Mode = 'list' | 'week' | 'day' | 'kanban';
 
 const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
