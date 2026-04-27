@@ -49,6 +49,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { parseNlp } from '@/lib/nlp';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -215,8 +216,19 @@ export function TaskDetailPanel() {
   };
 
   const persistTitle = () => {
-    if (titleDraft.trim() && titleDraft.trim() !== task.title) {
-      updateTask(task.id, { title: titleDraft.trim() });
+    const rawTitle = titleDraft.trim();
+    if (!rawTitle) return;
+    const parsed = parseNlp(rawTitle);
+    const nextTitle = parsed.cleanedTitle.trim() || rawTitle;
+    const updates: Partial<Task> = {};
+    if (nextTitle !== task.title) updates.title = nextTitle;
+    if (parsed.dueDate) updates.dueDate = parsed.dueDate;
+    if (parsed.dueTime) updates.dueTime = parsed.dueTime;
+    if (parsed.recurrenceRule) updates.recurrenceRule = parsed.recurrenceRule;
+    if (parsed.priority) updates.priority = parsed.priority;
+    if (Object.keys(updates).length > 0) {
+      updateTask(task.id, updates);
+      setTitleDraft(nextTitle);
     }
   };
   const persistDesc = () => {
