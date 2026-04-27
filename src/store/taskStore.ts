@@ -219,15 +219,16 @@ async function syncGoogleCalendarEvents(
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) return currentTasks;
 
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date();
-  endOfDay.setHours(23, 59, 59, 999);
+  const startOfRange = new Date();
+  startOfRange.setHours(0, 0, 0, 0);
+  const endOfRange = new Date(startOfRange);
+  endOfRange.setDate(endOfRange.getDate() + 14);
+  endOfRange.setHours(23, 59, 59, 999);
 
   const params = new URLSearchParams({
     action: 'list-events',
-    timeMin: startOfDay.toISOString(),
-    timeMax: endOfDay.toISOString(),
+    timeMin: startOfRange.toISOString(),
+    timeMax: endOfRange.toISOString(),
   });
 
   try {
@@ -245,28 +246,48 @@ async function syncGoogleCalendarEvents(
     const events: GoogleCalendarEvent[] = Array.isArray(payload?.items) ? payload.items : [];
     if (events.length === 0) return currentTasks;
 
-    const existingGoogleEventIds = new Set(
-      currentTasks.map((task) => task.googleCalendarEventId).filter(Boolean) as string[]
-    );
+    let nextTasks = [...currentTasks];
+    const tasksToInsert: Record<string, any>[] = [];
 
-    const tasksToInsert = events
-      .filter((event) => event.id && !existingGoogleEventIds.has(event.id))
-      .map((event) => {
-        const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
-        return {
-          user_id: userId,
-          title: event.summary?.trim() || 'Evento do Google Calendar',
-          description: event.description || null,
-          due_date: dueDate || null,
-          due_time: dueTime ? `${dueTime}:00` : null,
-          duration_minutes: durationMinutes,
-          priority: 4,
-          project_id: inboxProjectId || null,
-          google_calendar_event_id: event.id,
-        };
+    for (const event of events) {
+      if (!event.id) continue;
+      const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
+      const payload = {
+        title: event.summary?.trim() || 'Evento do Google Calendar',
+        description: event.description || null,
+        due_date: dueDate || null,
+        due_time: dueTime ? `${dueTime}:00` : null,
+        duration_minutes: durationMinutes,
+        google_calendar_event_id: event.id,
+      };
+
+      const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
+      if (linkedTask) {
+        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        nextTasks = nextTasks.map((task) =>
+          task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
+        );
+        continue;
+      }
+
+      const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
+      if (duplicateTask) {
+        await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
+        nextTasks = nextTasks.map((task) =>
+          task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
+        );
+        continue;
+      }
+
+      tasksToInsert.push({
+        user_id: userId,
+        ...payload,
+        priority: 4,
+        project_id: inboxProjectId || null,
       });
+    }
 
-    if (tasksToInsert.length === 0) return currentTasks;
+    if (tasksToInsert.length === 0) return nextTasks;
 
     const { data: insertedRows, error: insertError } = await supabase
       .from('tasks')
@@ -275,7 +296,7 @@ async function syncGoogleCalendarEvents(
 
     if (insertError || !insertedRows) return currentTasks;
     const syncedTasks = insertedRows.map(mapDbTaskToTask);
-    return [...syncedTasks, ...currentTasks];
+    return [...syncedTasks, ...nextTasks];
   } catch (error) {
     console.error('Falha na sincronização com Google Calendar:', error);
     return currentTasks;
