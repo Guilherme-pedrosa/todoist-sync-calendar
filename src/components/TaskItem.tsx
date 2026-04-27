@@ -108,7 +108,14 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="select-none">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'select-none',
+        depth > 0 && 'relative ml-6 pl-4 border-l border-border/60'
+      )}
+    >
       <div
         onClick={handleClick}
         className={cn(
@@ -116,7 +123,6 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           'hover:bg-muted/50',
           task.completed && 'opacity-50'
         )}
-        style={{ paddingLeft: `${0.5 + depth * 1}rem` }}
       >
         {/* Drag handle */}
         {enableDrag && (
@@ -305,9 +311,9 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         </div>
       </div>
 
-      {/* Subtasks */}
+      {/* Subtasks - aninhadas visualmente dentro do pai */}
       {hasSubtasks && !collapsed && (
-        <div>
+        <div className="mt-0.5">
           {subtasks.map((sub) => (
             <TaskItem key={sub.id} task={sub} depth={depth + 1} enableDrag={false} />
           ))}
