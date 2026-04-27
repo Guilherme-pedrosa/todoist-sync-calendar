@@ -26,6 +26,7 @@ import {
   analyzeDay,
   chatWithAssistant,
   organizeDay,
+  type AssistantAction,
 } from '@/lib/aiAssistant';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
@@ -33,7 +34,12 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type ChatMsg = { role: 'user' | 'assistant'; content: string };
+type ChatMsg = {
+  role: 'user' | 'assistant';
+  content: string;
+  actions?: AssistantAction[];
+  actionsState?: 'pending' | 'applied' | 'discarded';
+};
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
 
