@@ -744,6 +744,50 @@ export default function SettingsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmWipeTasks} onOpenChange={setConfirmWipeTasks}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar todas as tarefas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso remove todas as tarefas, lembretes, comentários e vínculos com etiquetas.
+              Projetos, etiquetas e configurações são preservados. Esta ação é irreversível.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wiping}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={wipeAllTasks}
+              disabled={wiping}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {wiping ? 'Apagando…' : 'Apagar tudo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmWipeLabels} onOpenChange={setConfirmWipeLabels}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar todas as etiquetas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso remove todas as etiquetas e seus vínculos com tarefas. As tarefas em si não
+              serão excluídas. Esta ação é irreversível.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wiping}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={wipeAllLabels}
+              disabled={wiping}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {wiping ? 'Apagando…' : 'Apagar tudo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
