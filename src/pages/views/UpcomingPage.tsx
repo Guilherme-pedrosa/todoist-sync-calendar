@@ -349,7 +349,7 @@ function WeekGrid({
         </div>
 
         {/* All-day row */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur">
+        <div className={cn('grid border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur', gridCols)}>
           <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
             Dia todo
           </div>
