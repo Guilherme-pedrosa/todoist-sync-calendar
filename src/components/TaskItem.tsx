@@ -366,7 +366,10 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                 className="text-destructive focus:text-destructive"
                 onSelect={async () => {
                   const snapshot = { ...task };
-                  await deleteTask(task.id);
+                  const result = await deleteWithPrompt(task.id, {
+                    occurrenceDate: task.dueDate ?? undefined,
+                  });
+                  if (result !== 'deleted') return;
                   toast('Tarefa excluída', {
                     duration: 6000,
                     action: {
