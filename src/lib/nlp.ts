@@ -44,7 +44,7 @@ const RECURRENCE_PATTERNS: Array<{
   // Nth weekday of the month: "toda primeira segunda", "toda última sexta do mês",
   // "first monday of the month", "last friday of every month"
   {
-    re: /\b(?:toda|todo|every)\s+(primeir[ao]|segund[ao]|terceir[ao]|quart[ao]|[úu]ltim[ao]|first|second|third|fourth|last)\s+(segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s*(?:-feira))?(?:\s+(?:do|de|of)\s+(?:cada\s+)?m[êe]s|\s+of\s+(?:the\s+|every\s+)?month)?\b/i,
+    re: /\b(?:(?:toda|todo|every)\s+)?(primeir[ao]|segund[ao]|terceir[ao]|quart[ao]|[úu]ltim[ao]|first|second|third|fourth|last)\s+(segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\s*-?feira)?\s+(?:do|de|of)\s+(?:cada\s+|the\s+|every\s+)?m[êe]s\b|\b(?:(?:toda|todo|every)\s+)?(primeir[ao]|segund[ao]|terceir[ao]|quart[ao]|[úu]ltim[ao]|first|second|third|fourth|last)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+of\s+(?:the\s+|every\s+)?month\b/i,
     build: (m) => {
       const ordMap: Record<string, number> = {
         primeira: 1, primeiro: 1, first: 1,
