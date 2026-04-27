@@ -89,10 +89,13 @@ export default function UpcomingPage() {
         </button>
         <CalendarRange className="h-5 w-5 shrink-0" />
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">Em breve</h2>
+          <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">
+            {mode === 'day' ? 'Hoje' : 'Em breve'}
+          </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
-            {format(weekStart, "d 'de' MMM", { locale: ptBR })} —{' '}
-            {format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}
+            {mode === 'day'
+              ? format(new Date(), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
+              : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}`}
           </p>
         </div>
         <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-between sm:justify-end">
