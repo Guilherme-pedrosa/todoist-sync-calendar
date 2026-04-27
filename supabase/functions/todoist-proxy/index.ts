@@ -494,7 +494,7 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}`;
+        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
         if (existingKey.has(key)) continue;
         existingKey.add(key);
 
