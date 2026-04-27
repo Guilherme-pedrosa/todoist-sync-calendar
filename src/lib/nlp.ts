@@ -71,7 +71,7 @@ const RECURRENCE_PATTERNS: Array<{
         interval: 1,
         byweekday: [wd.nth(ord)],
       }).toString().replace('RRULE:', '');
-      const ordLabel = ord === -1 ? 'última' : m[1].toLowerCase();
+      const ordLabel = ord === -1 ? 'última' : ordRaw;
       return { rule, label: `${ordLabel} ${wdKey} do mês` };
     },
   },
