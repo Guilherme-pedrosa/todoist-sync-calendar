@@ -244,7 +244,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const { data, error } = await supabase
       .from('tasks')
-      .insert(insertPayload)
+      .insert(insertPayload as any)
       .select()
       .single();
 
