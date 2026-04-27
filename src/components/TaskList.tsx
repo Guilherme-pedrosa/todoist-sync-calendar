@@ -5,47 +5,50 @@ import {
   CalendarRange,
   CheckCircle2,
   Menu,
+  Hash,
+  Tag,
 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
-import { Task } from '@/types/task';
+import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-export function TaskList() {
-  const {
-    tasks,
-    projects,
-    labels,
-    activeView,
-    activeProjectId,
-    activeLabelId,
-    toggleSidebar,
-  } = useTaskStore();
+interface TaskListProps {
+  view: ViewFilter;
+  projectId?: string;
+  labelId?: string;
+}
 
-  const { title, icon: Icon, filteredTasks, groupedTasks } = useMemo(() => {
+export function TaskList({ view, projectId, labelId }: TaskListProps) {
+  const tasks = useTaskStore((s) => s.tasks);
+  const projects = useTaskStore((s) => s.projects);
+  const labels = useTaskStore((s) => s.labels);
+  const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+
+  const { title, icon: Icon, iconColor, filteredTasks, groupedTasks } = useMemo(() => {
     let title = '';
-    let Icon = Inbox;
+    let Icon: typeof Inbox = Inbox;
+    let iconColor: string | undefined;
     let filtered: Task[] = [];
     let grouped: Record<string, Task[]> | null = null;
 
     const today = new Date().toISOString().split('T')[0];
 
-    switch (activeView) {
-      case 'inbox':
+    switch (view) {
+      case 'inbox': {
+        const inbox = projects.find((p) => p.isInbox);
         title = 'Caixa de Entrada';
         Icon = Inbox;
-        filtered = tasks.filter((t) => !t.completed && t.projectId === projects.find(p => p.isInbox)?.id);
+        filtered = tasks.filter((t) => !t.completed && t.projectId === inbox?.id);
         break;
+      }
 
       case 'today':
         title = 'Hoje';
         Icon = CalendarDays;
-        filtered = tasks.filter(
-          (t) => !t.completed && t.dueDate === today
-        );
-        // Sort by priority, then by time
+        filtered = tasks.filter((t) => !t.completed && t.dueDate === today);
         filtered.sort((a, b) => {
           if (a.priority !== b.priority) return a.priority - b.priority;
           if (a.dueTime && b.dueTime) return a.dueTime.localeCompare(b.dueTime);
@@ -60,8 +63,7 @@ export function TaskList() {
         Icon = CalendarRange;
         filtered = tasks.filter((t) => !t.completed && t.dueDate);
         filtered.sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
-        
-        // Group by date
+
         grouped = {};
         filtered.forEach((task) => {
           const date = task.dueDate!;
@@ -70,7 +72,7 @@ export function TaskList() {
           if (isToday(dateObj)) key = 'Hoje';
           else if (date === format(addDays(new Date(), 1), 'yyyy-MM-dd')) key = 'Amanhã';
           else key = format(dateObj, "EEEE, d 'de' MMMM", { locale: ptBR });
-          
+
           if (!grouped![key]) grouped![key] = [];
           grouped![key].push(task);
         });
@@ -85,26 +87,27 @@ export function TaskList() {
         break;
 
       case 'project': {
-        const project = projects.find((p) => p.id === activeProjectId);
+        const project = projects.find((p) => p.id === projectId);
         title = project?.name || 'Projeto';
-        Icon = Inbox;
-        filtered = tasks.filter((t) => !t.completed && t.projectId === activeProjectId);
+        Icon = Hash;
+        iconColor = project?.color;
+        filtered = tasks.filter((t) => !t.completed && t.projectId === projectId);
         break;
       }
 
       case 'label': {
-        const label = labels.find((l) => l.id === activeLabelId);
+        const label = labels.find((l) => l.id === labelId);
         title = label?.name || 'Etiqueta';
-        filtered = tasks.filter((t) => !t.completed && t.labels.includes(activeLabelId || ''));
+        Icon = Tag;
+        iconColor = label?.color;
+        filtered = tasks.filter((t) => !t.completed && t.labels.includes(labelId || ''));
         break;
       }
     }
 
-    // Filter out subtasks (shown under parents)
     const topLevel = filtered.filter((t) => !t.parentId);
-
-    return { title, icon: Icon, filteredTasks: topLevel, groupedTasks: grouped };
-  }, [tasks, activeView, activeProjectId, activeLabelId, projects, labels]);
+    return { title, icon: Icon, iconColor, filteredTasks: topLevel, groupedTasks: grouped };
+  }, [tasks, view, projectId, labelId, projects, labels]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -113,11 +116,15 @@ export function TaskList() {
         <button
           onClick={toggleSidebar}
           className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+          aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
         </button>
         <div className="flex items-center gap-2.5">
-          <Icon className="h-5 w-5 text-primary" />
+          <Icon
+            className="h-5 w-5"
+            style={iconColor ? { color: iconColor } : undefined}
+          />
           <h2 className="font-display text-xl font-bold tracking-tight">{title}</h2>
         </div>
         <span className="text-sm text-muted-foreground ml-1">
@@ -146,9 +153,9 @@ export function TaskList() {
           </>
         )}
 
-        {activeView !== 'completed' && <AddTaskForm />}
+        {view !== 'completed' && <AddTaskForm />}
 
-        {filteredTasks.length === 0 && activeView !== 'completed' && (
+        {filteredTasks.length === 0 && view !== 'completed' && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
               <CheckCircle2 className="h-7 w-7 text-muted-foreground/40" />

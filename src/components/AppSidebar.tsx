@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +16,13 @@ import {
   Download,
   MoreHorizontal,
   Trash2,
+  Search,
+  Sparkles,
+  Hash,
+  Star,
+  StarOff,
+  Edit2,
+  Archive,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -28,6 +36,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -40,67 +49,98 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ProjectFormDialog } from '@/components/ProjectFormDialog';
+import { Project } from '@/types/task';
 
-const PROJECT_COLORS = [
-  'hsl(0, 72%, 51%)',
-  'hsl(12, 80%, 55%)',
-  'hsl(38, 92%, 50%)',
-  'hsl(152, 60%, 42%)',
-  'hsl(200, 70%, 50%)',
-  'hsl(262, 60%, 55%)',
-  'hsl(330, 65%, 50%)',
-];
+const navLinkClass = (active: boolean) =>
+  cn(
+    'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+    active
+      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+  );
 
 export function AppSidebar() {
+  const navigate = useNavigate();
   const { signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
-  const {
-    tasks,
-    projects,
-    labels,
-    activeView,
-    activeProjectId,
-    activeLabelId,
-    setActiveView,
-    setActiveProjectId,
-    setActiveLabelId,
-    addProject,
-    deleteProject,
-    addLabel,
-    fetchData,
-  } = useTaskStore();
+  const tasks = useTaskStore((s) => s.tasks);
+  const projects = useTaskStore((s) => s.projects);
+  const labels = useTaskStore((s) => s.labels);
+  const fetchData = useTaskStore((s) => s.fetchData);
+  const archiveProject = useTaskStore((s) => s.archiveProject);
+  const deleteProject = useTaskStore((s) => s.deleteProject);
+  const toggleProjectFavorite = useTaskStore((s) => s.toggleProjectFavorite);
+  const addLabel = useTaskStore((s) => s.addLabel);
 
+  const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
   const [labelsOpen, setLabelsOpen] = useState(true);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [showNewProject, setShowNewProject] = useState(false);
-  const [newLabelName, setNewLabelName] = useState('');
   const [showNewLabel, setShowNewLabel] = useState(false);
+  const [newLabelName, setNewLabelName] = useState('');
   const [connectingCalendar, setConnectingCalendar] = useState(false);
   const [importingTodoist, setImportingTodoist] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string; taskCount: number } | null>(null);
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
+  const [defaultParentId, setDefaultParentId] = useState<string | null>(null);
+  const [projectToDelete, setProjectToDelete] = useState<{
+    id: string;
+    name: string;
+    taskCount: number;
+  } | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
-  const todayCount = tasks.filter(
-    (t) => !t.completed && t.dueDate === today
-  ).length;
+  const todayCount = tasks.filter((t) => !t.completed && t.dueDate === today).length;
   const inboxProject = projects.find((p) => p.isInbox);
   const inboxCount = tasks.filter(
     (t) => !t.completed && t.projectId === inboxProject?.id
   ).length;
+  const upcomingCount = tasks.filter(
+    (t) => !t.completed && t.dueDate && t.dueDate > today
+  ).length;
 
-  const handleAddProject = () => {
-    if (newProjectName.trim()) {
-      const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
-      addProject({ name: newProjectName.trim(), color });
-      setNewProjectName('');
-      setShowNewProject(false);
+  const projectTaskCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of tasks) {
+      if (t.completed || !t.projectId) continue;
+      map.set(t.projectId, (map.get(t.projectId) || 0) + 1);
     }
+    return map;
+  }, [tasks]);
+
+  // Build hierarchy: root projects + their children (max 3 levels)
+  const rootProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => !p.isInbox && !p.parentId)
+        .sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
+    [projects]
+  );
+  const childrenOf = (parentId: string) =>
+    projects
+      .filter((p) => p.parentId === parentId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+  const favoriteProjects = useMemo(
+    () => projects.filter((p) => p.isFavorite && !p.isInbox),
+    [projects]
+  );
+  const favoriteLabels = useMemo(() => labels.filter((l) => l.isFavorite), [labels]);
+
+  const openCreateProject = (parentId: string | null = null) => {
+    setProjectBeingEdited(null);
+    setDefaultParentId(parentId);
+    setProjectDialogOpen(true);
   };
 
-  const handleAddLabel = () => {
+  const openEditProject = (p: Project) => {
+    setProjectBeingEdited(p);
+    setDefaultParentId(p.parentId ?? null);
+    setProjectDialogOpen(true);
+  };
+
+  const handleAddLabel = async () => {
     if (newLabelName.trim()) {
-      const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)];
-      addLabel({ name: newLabelName.trim(), color });
+      await addLabel({ name: newLabelName.trim(), color: 'hsl(220, 10%, 50%)' });
       setNewLabelName('');
       setShowNewLabel(false);
     }
@@ -169,189 +209,271 @@ export function AppSidebar() {
     }
   };
 
-  const navItems = [
-    {
-      icon: Inbox,
-      label: 'Caixa de Entrada',
-      view: 'inbox' as const,
-      count: inboxCount,
-    },
-    {
-      icon: CalendarDays,
-      label: 'Hoje',
-      view: 'today' as const,
-      count: todayCount,
-    },
-    {
-      icon: CalendarRange,
-      label: 'Em breve',
-      view: 'upcoming' as const,
-    },
-    {
-      icon: CheckCircle2,
-      label: 'Concluídas',
-      view: 'completed' as const,
-    },
-  ];
+  const renderProjectRow = (project: Project, depth = 0) => {
+    const count = projectTaskCount.get(project.id) || 0;
+    const subs = childrenOf(project.id);
+    return (
+      <div key={project.id}>
+        <NavLink
+          to={`/projects/${project.id}`}
+          className={({ isActive }) =>
+            cn(
+              'group w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors',
+              isActive
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            )
+          }
+          style={{ paddingLeft: `${0.75 + depth * 1}rem` }}
+        >
+          <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: project.color }} />
+          <span className="flex-1 truncate">{project.name}</span>
+          {project.isFavorite && (
+            <Star className="h-3 w-3 fill-current text-sidebar-foreground/40 shrink-0" />
+          )}
+          <span className="text-xs opacity-50 group-hover:hidden tabular-nums">
+            {count > 0 ? count : ''}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                aria-label={`Ações de ${project.name}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="hidden group-hover:flex items-center justify-center h-5 w-5 rounded hover:bg-sidebar-border/60"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="right" onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onSelect={() => openEditProject(project)}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                Editar projeto
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => toggleProjectFavorite(project.id)}>
+                {project.isFavorite ? (
+                  <>
+                    <StarOff className="h-4 w-4 mr-2" />
+                    Remover dos favoritos
+                  </>
+                ) : (
+                  <>
+                    <Star className="h-4 w-4 mr-2" />
+                    Adicionar aos favoritos
+                  </>
+                )}
+              </DropdownMenuItem>
+              {depth < 2 && (
+                <DropdownMenuItem onSelect={() => openCreateProject(project.id)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar sub-projeto
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={async () => {
+                  await archiveProject(project.id);
+                  toast.success(`Projeto "${project.name}" arquivado`);
+                }}
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                Arquivar
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() =>
+                  setProjectToDelete({
+                    id: project.id,
+                    name: project.name,
+                    taskCount: count,
+                  })
+                }
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Excluir projeto
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </NavLink>
+        {subs.map((s) => renderProjectRow(s, depth + 1))}
+      </div>
+    );
+  };
 
   return (
     <aside className="h-full w-[280px] bg-sidebar text-sidebar-foreground flex flex-col overflow-hidden">
       {/* Logo */}
-      <div className="px-5 py-5">
+      <div className="px-5 pt-5 pb-3">
         <h1 className="font-display text-xl font-bold text-sidebar-primary-foreground tracking-tight">
           <span className="text-sidebar-primary">Task</span>Flow
         </h1>
       </div>
 
+      {/* Top actions: Add task + AI */}
+      <div className="px-3 pb-2 flex items-center gap-2">
+        <button
+          onClick={() => {
+            // Quick Add coming in Phase 2.b — for now scroll the active list to its add form
+            const addForm = document.querySelector<HTMLElement>('[data-add-task-form]');
+            addForm?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const input = addForm?.querySelector<HTMLInputElement>('input,textarea');
+            input?.focus();
+          }}
+          className="flex-1 h-9 inline-flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity"
+          aria-label="Adicionar tarefa"
+        >
+          <Plus className="h-4 w-4" />
+          Adicionar tarefa
+        </button>
+        <button
+          aria-label="IA (em breve)"
+          title="IA — em breve"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-sidebar-accent/40 text-sidebar-foreground/60 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors"
+        >
+          <Sparkles className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="px-3 pb-2">
+        <button
+          aria-label="Buscar"
+          className="w-full h-9 inline-flex items-center gap-2 px-3 rounded-md bg-sidebar-accent/30 text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-colors"
+          title="Busca em breve (Ctrl+K)"
+        >
+          <Search className="h-4 w-4" />
+          <span>Buscar</span>
+          <kbd className="ml-auto text-[10px] bg-sidebar-border/70 px-1.5 py-0.5 rounded">Ctrl K</kbd>
+        </button>
+      </div>
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 space-y-1">
-        {navItems.map((item) => (
-          <button
-            key={item.view}
-            onClick={() => setActiveView(item.view)}
-            className={cn(
-              'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              activeView === item.view && !activeProjectId && !activeLabelId
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-            )}
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            <span className="flex-1 text-left">{item.label}</span>
-            {item.count !== undefined && item.count > 0 && (
-              <span className="text-xs opacity-60">{item.count}</span>
-            )}
-          </button>
-        ))}
+      <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 space-y-0.5">
+        <NavLink to="/inbox" className={({ isActive }) => navLinkClass(isActive)}>
+          <Inbox className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Caixa de Entrada</span>
+          {inboxCount > 0 && <span className="text-xs opacity-60 tabular-nums">{inboxCount}</span>}
+        </NavLink>
+        <NavLink to="/today" className={({ isActive }) => navLinkClass(isActive)}>
+          <CalendarDays className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Hoje</span>
+          {todayCount > 0 && <span className="text-xs opacity-60 tabular-nums">{todayCount}</span>}
+        </NavLink>
+        <NavLink to="/upcoming" className={({ isActive }) => navLinkClass(isActive)}>
+          <CalendarRange className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Em breve</span>
+          {upcomingCount > 0 && (
+            <span className="text-xs opacity-60 tabular-nums">{upcomingCount}</span>
+          )}
+        </NavLink>
+        <NavLink to="/completed" className={({ isActive }) => navLinkClass(isActive)}>
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Concluídas</span>
+        </NavLink>
+
+        {/* Favorites */}
+        {(favoriteProjects.length > 0 || favoriteLabels.length > 0) && (
+          <Collapsible open={favoritesOpen} onOpenChange={setFavoritesOpen} className="pt-4">
+            <CollapsibleTrigger className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70">
+              {favoritesOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Favoritos
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-0.5 mt-1">
+              {favoriteProjects.map((p) => (
+                <NavLink
+                  key={`fav-${p.id}`}
+                  to={`/projects/${p.id}`}
+                  className={({ isActive }) => navLinkClass(isActive)}
+                >
+                  <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: p.color }} />
+                  <span className="flex-1 truncate">{p.name}</span>
+                  <span className="text-xs opacity-50 tabular-nums">
+                    {projectTaskCount.get(p.id) || ''}
+                  </span>
+                </NavLink>
+              ))}
+              {favoriteLabels.map((l) => (
+                <NavLink
+                  key={`fav-l-${l.id}`}
+                  to={`/labels/${l.id}`}
+                  className={({ isActive }) => navLinkClass(isActive)}
+                >
+                  <Tag className="h-3.5 w-3.5 shrink-0" style={{ color: l.color }} />
+                  <span className="flex-1 truncate">{l.name}</span>
+                </NavLink>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
         {/* Projects */}
         <Collapsible open={projectsOpen} onOpenChange={setProjectsOpen} className="pt-4">
-          <CollapsibleTrigger className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70">
-            {projectsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Projetos
+          <div className="flex items-center group/projects">
+            <CollapsibleTrigger className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70">
+              {projectsOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Meus projetos
+            </CollapsibleTrigger>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowNewProject(true);
-              }}
-              className="ml-auto hover:text-sidebar-primary"
+              onClick={() => openCreateProject(null)}
+              className="opacity-0 group-hover/projects:opacity-100 mr-2 p-1 rounded hover:bg-sidebar-accent/60 hover:text-sidebar-primary transition-all"
+              aria-label="Adicionar projeto"
+              title="Adicionar projeto"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
-          </CollapsibleTrigger>
+          </div>
           <CollapsibleContent className="space-y-0.5 mt-1">
-            {projects.map((project) => {
-              const projectTaskCount = tasks.filter(
-                (t) => !t.completed && t.projectId === project.id
-              ).length;
-              const isActive =
-                activeView === 'project' && activeProjectId === project.id;
-              return (
-                <div
-                  key={project.id}
-                  className={cn(
-                    'group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                  )}
-                >
-                  <button
-                    onClick={() => setActiveProjectId(project.id)}
-                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: project.color }}
-                    />
-                    <span className="flex-1 truncate">{project.name}</span>
-                  </button>
-                  <span className="text-xs opacity-50 group-hover:hidden">
-                    {projectTaskCount}
-                  </span>
-                  {!project.isInbox && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          aria-label={`Ações do projeto ${project.name}`}
-                          onClick={(e) => e.stopPropagation()}
-                          className="hidden group-hover:flex items-center justify-center h-5 w-5 rounded hover:bg-sidebar-border/60"
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" side="right">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onSelect={() =>
-                            setProjectToDelete({
-                              id: project.id,
-                              name: project.name,
-                              taskCount: projectTaskCount,
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir projeto
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              );
-            })}
-            {showNewProject && (
-              <div className="px-3 py-1">
-                <Input
-                  autoFocus
-                  placeholder="Nome do projeto"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAddProject();
-                    if (e.key === 'Escape') setShowNewProject(false);
-                  }}
-                  onBlur={() => {
-                    if (newProjectName.trim()) handleAddProject();
-                    else setShowNewProject(false);
-                  }}
-                  className="h-8 text-sm bg-sidebar-accent border-sidebar-border text-sidebar-foreground"
-                />
-              </div>
+            {rootProjects.map((p) => renderProjectRow(p))}
+            {rootProjects.length === 0 && (
+              <button
+                onClick={() => openCreateProject(null)}
+                className="w-full px-3 py-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/80 text-left"
+              >
+                + Adicionar primeiro projeto
+              </button>
             )}
           </CollapsibleContent>
         </Collapsible>
 
         {/* Labels */}
         <Collapsible open={labelsOpen} onOpenChange={setLabelsOpen} className="pt-2">
-          <CollapsibleTrigger className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70">
-            {labelsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-            Etiquetas
+          <div className="flex items-center group/labels">
+            <CollapsibleTrigger className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:text-sidebar-foreground/70">
+              {labelsOpen ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
+              )}
+              Etiquetas
+            </CollapsibleTrigger>
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowNewLabel(true);
-              }}
-              className="ml-auto hover:text-sidebar-primary"
+              onClick={() => setShowNewLabel(true)}
+              className="opacity-0 group-hover/labels:opacity-100 mr-2 p-1 rounded hover:bg-sidebar-accent/60 hover:text-sidebar-primary transition-all"
+              aria-label="Adicionar etiqueta"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
-          </CollapsibleTrigger>
+          </div>
           <CollapsibleContent className="space-y-0.5 mt-1">
             {labels.map((label) => (
-              <button
+              <NavLink
                 key={label.id}
-                onClick={() => setActiveLabelId(label.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                  activeView === 'label' && activeLabelId === label.id
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                )}
+                to={`/labels/${label.id}`}
+                className={({ isActive }) => navLinkClass(isActive)}
               >
                 <Tag className="h-3.5 w-3.5 shrink-0" style={{ color: label.color }} />
                 <span className="flex-1 text-left truncate">{label.name}</span>
-              </button>
+              </NavLink>
             ))}
             {showNewLabel && (
               <div className="px-3 py-1">
@@ -381,12 +503,14 @@ export function AppSidebar() {
         <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
           <CalendarDays className="h-3.5 w-3.5" />
           <span>Google Calendar</span>
-          <span className={cn(
-            'ml-auto px-1.5 py-0.5 rounded text-[10px]',
-            calendarConnected
-              ? 'bg-sidebar-primary/20 text-sidebar-primary'
-              : 'bg-sidebar-accent text-sidebar-foreground/50'
-          )}>
+          <span
+            className={cn(
+              'ml-auto px-1.5 py-0.5 rounded text-[10px]',
+              calendarConnected
+                ? 'bg-sidebar-primary/20 text-sidebar-primary'
+                : 'bg-sidebar-accent text-sidebar-foreground/50'
+            )}
+          >
             {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
           </span>
         </div>
@@ -438,6 +562,16 @@ export function AppSidebar() {
         </button>
       </div>
 
+      {/* Project create/edit dialog */}
+      <ProjectFormDialog
+        open={projectDialogOpen}
+        onOpenChange={setProjectDialogOpen}
+        project={projectBeingEdited}
+        defaultParentId={defaultParentId}
+        onCreated={(p) => navigate(`/projects/${p.id}`)}
+      />
+
+      {/* Delete confirmation */}
       <AlertDialog
         open={!!projectToDelete}
         onOpenChange={(open) => !open && setProjectToDelete(null)}
@@ -449,8 +583,8 @@ export function AppSidebar() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {projectToDelete?.taskCount
-                ? `${projectToDelete.taskCount} tarefa(s) deste projeto serão movidas para a Caixa de Entrada.`
-                : 'Este projeto não tem tarefas pendentes.'}{' '}
+                ? `${projectToDelete.taskCount} tarefa(s) deste projeto serão movidas para a Caixa de Entrada. Sub-projetos viram projetos raiz.`
+                : 'Este projeto não tem tarefas pendentes. Sub-projetos viram projetos raiz.'}{' '}
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -463,8 +597,9 @@ export function AppSidebar() {
                 try {
                   await deleteProject(projectToDelete.id);
                   toast.success(`Projeto "${projectToDelete.name}" excluído`);
-                } catch (e) {
-                  toast.error('Falha ao excluir projeto');
+                  navigate('/today');
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : 'Falha ao excluir projeto');
                 } finally {
                   setProjectToDelete(null);
                 }

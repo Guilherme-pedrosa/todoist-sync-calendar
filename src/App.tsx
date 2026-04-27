@@ -4,7 +4,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import Index from "./pages/Index";
+import AppLayout from "./pages/AppLayout";
+import InboxPage from "./pages/views/InboxPage";
+import TodayPage from "./pages/views/TodayPage";
+import UpcomingPage from "./pages/views/UpcomingPage";
+import CompletedPage from "./pages/views/CompletedPage";
+import ProjectPage from "./pages/views/ProjectPage";
+import LabelPage from "./pages/views/LabelPage";
 import Auth from "./pages/Auth";
 import CalendarCallback from "./pages/CalendarCallback";
 import NotFound from "./pages/NotFound";
@@ -35,14 +41,6 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/calendar-callback"
               element={
                 <ProtectedRoute>
@@ -50,6 +48,21 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Navigate to="/today" replace />} />
+              <Route path="/inbox" element={<InboxPage />} />
+              <Route path="/today" element={<TodayPage />} />
+              <Route path="/upcoming" element={<UpcomingPage />} />
+              <Route path="/completed" element={<CompletedPage />} />
+              <Route path="/projects/:projectId" element={<ProjectPage />} />
+              <Route path="/labels/:labelId" element={<LabelPage />} />
+            </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

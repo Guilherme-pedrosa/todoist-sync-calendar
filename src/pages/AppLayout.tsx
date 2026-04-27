@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
+import { Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
-import { TaskList } from '@/components/TaskList';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-const Index = () => {
+export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
   const loading = useTaskStore((s) => s.loading);
   const fetchData = useTaskStore((s) => s.fetchData);
@@ -118,9 +118,7 @@ const Index = () => {
       >
         <AppSidebar />
       </div>
-      <TaskList />
+      <Outlet />
     </div>
   );
-};
-
-export default Index;
+}

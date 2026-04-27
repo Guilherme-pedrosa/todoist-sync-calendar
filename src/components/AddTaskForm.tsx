@@ -76,6 +76,7 @@ export function AddTaskForm({ defaultProjectId }: AddTaskFormProps) {
   if (!isOpen) {
     return (
       <button
+        data-add-task-form
         onClick={() => setIsOpen(true)}
         className="w-full flex items-center gap-3 px-3 py-3 text-sm text-muted-foreground hover:text-primary transition-colors group"
       >
