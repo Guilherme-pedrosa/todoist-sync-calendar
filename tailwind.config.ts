@@ -59,6 +59,10 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        recurring: {
+          DEFAULT: "hsl(var(--recurring))",
+          foreground: "hsl(var(--recurring-foreground))",
+        },
         priority: {
           1: "hsl(var(--priority-1))",
           2: "hsl(var(--priority-2))",

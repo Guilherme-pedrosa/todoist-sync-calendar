@@ -229,6 +229,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           <p
             className={cn(
               'text-sm font-medium leading-snug',
+              task.recurrenceRule && !task.completed && 'text-recurring',
               task.completed && 'line-through text-muted-foreground'
             )}
           >
@@ -260,7 +261,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             )}
 
             {task.recurrenceRule && (
-              <span className="inline-flex items-center gap-1 text-xs text-accent">
+              <span className="inline-flex items-center gap-1 text-xs text-recurring">
                 <Repeat className="h-3 w-3" />
                 Dia útil
               </span>

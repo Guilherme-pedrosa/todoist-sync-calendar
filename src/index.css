@@ -42,6 +42,9 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    --recurring: 207 56% 56%;
+    --recurring-foreground: 0 0% 100%;
+
     --priority-1: 0 72% 51%;
     --priority-2: 12 80% 55%;
     --priority-3: 38 92% 50%;
@@ -78,6 +81,9 @@
 
     --accent: 262 60% 55%;
     --accent-foreground: 0 0% 100%;
+
+    --recurring: 207 65% 62%;
+    --recurring-foreground: 0 0% 100%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 100%;
