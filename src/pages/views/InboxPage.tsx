@@ -64,7 +64,7 @@ export default function InboxPage() {
       <KanbanBoard
         tasks={inboxTasks}
         boardKey="inbox"
-        newTaskDefaults={{ defaultProjectId: inboxProject?.id }}
+        newTaskDefaults={{ projectId: inboxProject?.id }}
       />
     </div>
   );
