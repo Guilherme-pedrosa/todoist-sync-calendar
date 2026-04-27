@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { setGcalSyncPaused, getGcalSyncPaused } from '@/store/taskStore';
 import { toast } from 'sonner';
 import { useDebouncedEffect } from '@/hooks/useDebouncedEffect';
 import {
