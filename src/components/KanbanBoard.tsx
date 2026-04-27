@@ -247,6 +247,68 @@ function KanbanColumn({
   );
 }
 
+function AddKanbanColumn({ onAdd }: { onAdd: (title: string) => void }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState('');
+
+  const submit = () => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    onAdd(cleanTitle);
+    setTitle('');
+    setIsEditing(false);
+  };
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsEditing(true)}
+        className="w-[280px] h-10 flex-shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" />
+        Criar coluna
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-[280px] flex-shrink-0 rounded-lg border border-border/50 bg-muted/30 p-2 space-y-2 h-fit">
+      <Input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') {
+            setTitle('');
+            setIsEditing(false);
+          }
+        }}
+        placeholder="Nome da coluna"
+        className="h-8 text-sm"
+      />
+      <div className="flex items-center gap-2">
+        <Button type="button" size="sm" className="h-8" onClick={submit}>
+          Criar
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8"
+          onClick={() => {
+            setTitle('');
+            setIsEditing(false);
+          }}
+        >
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ---------------- Card ----------------
 
 function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
@@ -338,162 +400,3 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   );
 }
 
-// ---------------- Column builders ----------------
-
-function buildColumns(
-  groupBy: GroupBy,
-  ctx: {
-    projects: ReturnType<typeof useTaskStore.getState>['projects'];
-    labels: ReturnType<typeof useTaskStore.getState>['labels'];
-    sections: KanbanSection[];
-    projectId?: string;
-    newTaskDefaults?: Record<string, any>;
-  }
-): { columns: Column[]; getTaskColumnId: (t: Task) => string[] } {
-  const { projects, labels, sections, projectId, newTaskDefaults } = ctx;
-
-  if (groupBy === 'priority') {
-    const cols: Column[] = ([1, 2, 3, 4] as Priority[]).map((p) => ({
-      id: `priority-${p}`,
-      title: PRIORITY_LABELS[p],
-      color: PRIORITY_COLORS[p],
-      patch: { priority: p },
-      newTaskDefaults: { ...(newTaskDefaults || {}), priority: p },
-    }));
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => [`priority-${t.priority}`],
-    };
-  }
-
-  if (groupBy === 'section') {
-    const projSections = sections
-      .filter((s) => !projectId || s.projectId === projectId)
-      .sort((a, b) => a.position - b.position);
-    const cols: Column[] = [
-      {
-        id: '__none__',
-        title: 'Sem seção',
-        patch: { sectionId: null as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), sectionId: null },
-      },
-      ...projSections.map<Column>((s) => ({
-        id: `section-${s.id}`,
-        title: s.name,
-        patch: { sectionId: s.id as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), sectionId: s.id },
-      })),
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => [t.sectionId ? `section-${t.sectionId}` : '__none__'],
-    };
-  }
-
-  if (groupBy === 'project') {
-    const projs = projects.filter((p) => !p.archivedAt).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-    const cols: Column[] = projs.map((p) => ({
-      id: `project-${p.id}`,
-      title: p.isInbox ? 'Caixa de Entrada' : p.name,
-      color: p.color,
-      patch: { projectId: p.id, sectionId: null as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}), projectId: p.id },
-    }));
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => (t.projectId ? [`project-${t.projectId}`] : []),
-    };
-  }
-
-  if (groupBy === 'label') {
-    const cols: Column[] = [
-      {
-        id: '__none__',
-        title: 'Sem etiqueta',
-        patch: { labels: [] as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-      ...labels.map<Column>((l) => ({
-        id: `label-${l.id}`,
-        title: l.name,
-        color: l.color,
-        // Substitui as etiquetas pela única dessa coluna (comportamento previsível)
-        patch: { labels: [l.id] as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), labels: [l.id] },
-      })),
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => (t.labels.length ? t.labels.map((id) => `label-${id}`) : ['__none__']),
-    };
-  }
-
-  if (groupBy === 'date') {
-    const today = new Date().toISOString().slice(0, 10);
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const cols: Column[] = [
-      {
-        id: 'overdue',
-        title: 'Atrasada',
-        color: 'hsl(var(--destructive))',
-        patch: { dueDate: today as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: today },
-      },
-      {
-        id: 'today',
-        title: 'Hoje',
-        color: 'hsl(var(--primary))',
-        patch: { dueDate: today as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: today },
-      },
-      {
-        id: 'tomorrow',
-        title: 'Amanhã',
-        patch: { dueDate: tomorrow as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}), defaultDate: tomorrow },
-      },
-      {
-        id: 'upcoming',
-        title: 'Em breve',
-        patch: {},
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-      {
-        id: '__none__',
-        title: 'Sem data',
-        patch: { dueDate: null as any, dueTime: null as any },
-        newTaskDefaults: { ...(newTaskDefaults || {}) },
-      },
-    ];
-    return {
-      columns: cols,
-      getTaskColumnId: (t) => {
-        if (!t.dueDate) return ['__none__'];
-        if (t.dueDate < today) return ['overdue'];
-        if (t.dueDate === today) return ['today'];
-        if (t.dueDate === tomorrow) return ['tomorrow'];
-        return ['upcoming'];
-      },
-    };
-  }
-
-  // status: completed vs not — apenas leitura útil
-  const cols: Column[] = [
-    {
-      id: 'open',
-      title: 'Em aberto',
-      patch: { completed: false as any, completedAt: null as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}) },
-    },
-    {
-      id: 'done',
-      title: 'Concluída',
-      patch: { completed: true as any, completedAt: new Date().toISOString() as any },
-      newTaskDefaults: { ...(newTaskDefaults || {}) },
-    },
-  ];
-  return {
-    columns: cols,
-    getTaskColumnId: (t) => [t.completed ? 'done' : 'open'],
-  };
-}
