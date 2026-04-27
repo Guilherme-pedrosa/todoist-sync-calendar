@@ -26,10 +26,12 @@ import {
   Filter as FilterIcon,
   Settings,
   User as UserIcon,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { Input } from '@/components/ui/input';
 import {
   Collapsible,
@@ -103,6 +105,7 @@ export function AppSidebar() {
   const deleteLabel = useTaskStore((s) => s.deleteLabel);
   const addLabel = useTaskStore((s) => s.addLabel);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const openPalette = useCommandPaletteStore((s) => s.setOpen);
 
   const [favoritesOpen, setFavoritesOpen] = useState(true);
   const [projectsOpen, setProjectsOpen] = useState(true);
@@ -111,6 +114,7 @@ export function AppSidebar() {
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
   const [connectingCalendar, setConnectingCalendar] = useState(false);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
   const [importingTodoist, setImportingTodoist] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
@@ -217,6 +221,24 @@ export function AppSidebar() {
       toast.error(error instanceof Error ? error.message : 'Falha ao desconectar');
     } finally {
       setConnectingCalendar(false);
+    }
+  };
+  const handleForceSyncCalendar = async () => {
+    setSyncingCalendar(true);
+    const before = useTaskStore.getState().tasks.length;
+    try {
+      await fetchData();
+      const after = useTaskStore.getState().tasks.length;
+      const diff = after - before;
+      if (diff > 0) {
+        toast.success(`Sincronizado: ${diff} novo(s) evento(s) importado(s)`);
+      } else {
+        toast.success('Calendário sincronizado — tudo em dia');
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar');
+    } finally {
+      setSyncingCalendar(false);
     }
   };
 
@@ -420,10 +442,10 @@ export function AppSidebar() {
       {/* Search */}
       <div className="px-3 pb-2">
         <button
-          aria-label="Buscar"
+          aria-label="Buscar tarefas, projetos e etiquetas"
           className="w-full h-9 inline-flex items-center gap-2 px-3 rounded-md bg-sidebar-accent/30 text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-colors"
-          title="Busca em breve (Ctrl+K)"
-          onClick={() => openQuickAdd()}
+          title="Buscar (Ctrl+K)"
+          onClick={() => openPalette(true)}
         >
           <Search className="h-4 w-4" />
           <span>Buscar</span>
@@ -711,6 +733,18 @@ export function AppSidebar() {
               Desconectar
             </button>
           </div>
+        )}
+
+        {calendarConnected && (
+          <button
+            onClick={handleForceSyncCalendar}
+            disabled={syncingCalendar}
+            className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+            title="Forçar sincronização agora"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', syncingCalendar && 'animate-spin')} />
+            {syncingCalendar ? 'Sincronizando...' : 'Sincronizar agora'}
+          </button>
         )}
 
         <button
