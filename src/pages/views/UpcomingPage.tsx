@@ -34,9 +34,9 @@ type Mode = 'list' | 'week' | 'day' | 'kanban';
 
 const DAY_START_HOUR = 7; // grid começa às 07:00
 const DAY_END_HOUR = 24; // até meia-noite
-const HOUR_HEIGHT = 48; // px por hora
+const HOUR_HEIGHT = 96; // px por hora — 4 blocos de 15 min × 24px
 const MIN_TASK_MINUTES = 15;
-const MIN_EVENT_HEIGHT = 34;
+const MIN_EVENT_HEIGHT = 22; // cabe dentro de um slot de 15 min sem invadir o próximo
 const SNAP_MINUTES = 15;
 const DEFAULT_DURATION = 60;
 const DAY_START_MIN = DAY_START_HOUR * 60;
@@ -607,17 +607,27 @@ function DayColumn({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      {/* Hour lines */}
+      {/* Hour lines com sub-divisões de 15 min */}
       {Array.from({ length: hoursLen }, (_, h) => (
         <div
           key={h}
           className="absolute left-0 right-0 border-b border-border/40 pointer-events-none"
           style={{ top: h * HOUR_HEIGHT, height: HOUR_HEIGHT }}
         >
-          {/* half-hour subtle line */}
+          {/* :15 */}
           <div
-            className="absolute left-0 right-0 border-b border-border/15"
+            className="absolute left-0 right-0 border-b border-border/10"
+            style={{ top: HOUR_HEIGHT / 4 }}
+          />
+          {/* :30 (mais visível) */}
+          <div
+            className="absolute left-0 right-0 border-b border-border/20"
             style={{ top: HOUR_HEIGHT / 2 }}
+          />
+          {/* :45 */}
+          <div
+            className="absolute left-0 right-0 border-b border-border/10"
+            style={{ top: (HOUR_HEIGHT * 3) / 4 }}
           />
         </div>
       ))}
