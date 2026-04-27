@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
+import { useUndoStore } from '@/store/undoStore';
 
 interface TaskState {
   tasks: Task[];
@@ -293,6 +294,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
+
+    useUndoStore.getState().push({
+      label: `Criar "${newTask.title}"`,
+      undo: async () => {
+        await supabase.from('tasks').delete().eq('id', newTask.id);
+        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
+      },
+    });
+
     return newTask;
   },
 
@@ -323,6 +333,43 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }));
+
+    // Registra undo restaurando campos anteriores
+    if (existing) {
+      const prevFields: Partial<Task> = {};
+      const prevDb: Record<string, any> = {};
+      const keys = Object.keys(updates) as (keyof Task)[];
+      for (const k of keys) {
+        (prevFields as any)[k] = (existing as any)[k];
+      }
+      if (updates.title !== undefined) prevDb.title = existing.title;
+      if (updates.description !== undefined) prevDb.description = existing.description ?? null;
+      if (updates.priority !== undefined) prevDb.priority = existing.priority;
+      if (updates.dueDate !== undefined) prevDb.due_date = existing.dueDate ?? null;
+      if (updates.dueTime !== undefined) prevDb.due_time = existing.dueTime ? `${existing.dueTime}:00` : null;
+      if (updates.durationMinutes !== undefined) prevDb.duration_minutes = existing.durationMinutes ?? null;
+      if (updates.dueString !== undefined) prevDb.due_string = existing.dueString ?? null;
+      if (updates.deadline !== undefined) prevDb.deadline = existing.deadline ?? null;
+      if (updates.recurrenceRule !== undefined) prevDb.recurrence_rule = existing.recurrenceRule ?? null;
+      if (updates.projectId !== undefined) prevDb.project_id = existing.projectId ?? null;
+      if (updates.sectionId !== undefined) prevDb.section_id = existing.sectionId ?? null;
+      if (updates.completed !== undefined) {
+        prevDb.completed = existing.completed;
+        prevDb.completed_at = existing.completedAt ?? null;
+      }
+
+      useUndoStore.getState().push({
+        label: `Editar "${existing.title}"`,
+        undo: async () => {
+          if (Object.keys(prevDb).length > 0) {
+            await supabase.from('tasks').update(prevDb).eq('id', id);
+          }
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...prevFields } : t)),
+          }));
+        },
+      });
+    }
 
     // Sincroniza com Google Calendar se a tarefa tem evento vinculado
     if (existing?.googleCalendarEventId) {
@@ -376,6 +423,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   deleteTask: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
+    const children = get().tasks.filter((t) => t.parentId === id);
 
     await supabase.from('tasks').delete().eq('id', id);
     set((state) => ({
@@ -386,20 +434,58 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       try {
         const { data: sessionData } = await supabase.auth.getSession();
         const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-        await fetch(
-          `${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(task.googleCalendarEventId)}`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            },
-          }
-        );
+        if (accessToken) {
+          await fetch(
+            `${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(task.googleCalendarEventId)}`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+            }
+          );
+        }
       } catch (error) {
         console.error('Falha ao remover evento do Google Calendar:', error);
       }
+    }
+
+    if (task) {
+      const userId = await getUserId();
+      const snapshot = { ...task };
+      const childrenSnap = children.map((c) => ({ ...c }));
+      useUndoStore.getState().push({
+        label: `Excluir "${task.title}"`,
+        undo: async () => {
+          if (!userId) return;
+          const buildPayload = (t: Task) => ({
+            id: t.id,
+            user_id: userId,
+            title: t.title,
+            description: t.description ?? null,
+            priority: t.priority,
+            due_date: t.dueDate ?? null,
+            due_time: t.dueTime ? `${t.dueTime}:00` : null,
+            duration_minutes: t.durationMinutes ?? null,
+            due_string: t.dueString ?? null,
+            deadline: t.deadline ?? null,
+            recurrence_rule: t.recurrenceRule ?? null,
+            project_id: t.projectId ?? null,
+            section_id: t.sectionId ?? null,
+            parent_id: t.parentId ?? null,
+            completed: t.completed,
+            completed_at: t.completedAt ?? null,
+          });
+          await supabase.from('tasks').insert([buildPayload(snapshot), ...childrenSnap.map(buildPayload)] as any);
+          if (snapshot.labels.length > 0) {
+            await supabase.from('task_labels').insert(
+              snapshot.labels.map((labelId) => ({ task_id: snapshot.id, label_id: labelId }))
+            );
+          }
+          set((state) => ({ tasks: [snapshot, ...childrenSnap, ...state.tasks] }));
+        },
+      });
     }
   },
 
@@ -407,6 +493,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
 
+    const prevCompleted = task.completed;
+    const prevCompletedAt = task.completedAt;
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
@@ -420,6 +508,21 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
       ),
     }));
+
+    useUndoStore.getState().push({
+      label: completed ? `Desmarcar "${task.title}"` : `Marcar "${task.title}"`,
+      undo: async () => {
+        await supabase
+          .from('tasks')
+          .update({ completed: prevCompleted, completed_at: prevCompletedAt ?? null })
+          .eq('id', id);
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt } : t
+          ),
+        }));
+      },
+    });
 
     if (task.googleCalendarEventId) {
       try {

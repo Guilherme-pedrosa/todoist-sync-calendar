@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
+import { useUndoStore } from '@/store/undoStore';
+import { toast } from 'sonner';
 
 function isTypingTarget(e: KeyboardEvent): boolean {
   const t = e.target as HTMLElement | null;
@@ -19,6 +21,23 @@ export function useGlobalShortcuts() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Cmd/Ctrl+Z -> Desfazer
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        const action = useUndoStore.getState().pop();
+        if (action) {
+          Promise.resolve(action.undo())
+            .then(() => toast.success(`Desfeito: ${action.label}`))
+            .catch((err) => {
+              console.error('Falha ao desfazer:', err);
+              toast.error('Não foi possível desfazer');
+            });
+        } else {
+          toast('Nada para desfazer');
+        }
+        return;
+      }
+
       // Cmd/Ctrl+K -> Command Palette
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
