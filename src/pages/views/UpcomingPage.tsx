@@ -475,7 +475,7 @@ function DayColumn({
     const el = localRef.current!;
     const rect = el.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const min = snap((y / HOUR_HEIGHT) * 60);
+    const min = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
     downStateRef.current = { y, moved: false, startMin: min };
   };
 
