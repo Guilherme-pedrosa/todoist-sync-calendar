@@ -348,16 +348,25 @@ serve(async (req) => {
           updates.durationMinutes !== undefined;
 
         if (hasTimeChange && updates.date) {
+          const normalizeTime = (t: unknown, fallback: string): string => {
+            const s = typeof t === "string" ? t.trim() : "";
+            if (!s) return fallback;
+            const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+            if (!m) return fallback;
+            return `${m[1].padStart(2, "0")}:${m[2]}:${m[3] || "00"}`;
+          };
+          const startTime = normalizeTime(updates.time, "09:00:00");
+          const endTime = normalizeTime(updates.endTime ?? updates.time, "10:00:00");
           event.start = updates.allDay
             ? { date: updates.date }
             : {
-                dateTime: `${updates.date}T${updates.time || "09:00"}:00`,
+                dateTime: `${updates.date}T${startTime}`,
                 timeZone: updates.timeZone || "America/Sao_Paulo",
               };
           event.end = updates.allDay
             ? { date: updates.date }
             : {
-                dateTime: `${updates.date}T${updates.endTime || updates.time || "10:00"}:00`,
+                dateTime: `${updates.date}T${endTime}`,
                 timeZone: updates.timeZone || "America/Sao_Paulo",
               };
         }
