@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Sessão inválida. Faça login novamente.');
       }
 
-      const redirectUri = `${window.location.origin}/`;
+      const redirectUri = `${window.location.origin}/calendar-callback`;
       const params = new URLSearchParams({
         action: 'connect-url',
         redirectUri,

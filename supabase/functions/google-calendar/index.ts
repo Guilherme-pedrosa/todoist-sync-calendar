@@ -81,6 +81,7 @@ serve(async (req) => {
         response_type: "code",
         access_type: "offline",
         prompt: "consent select_account",
+        include_granted_scopes: "true",
         scope: "https://www.googleapis.com/auth/calendar",
         state: user.id,
       });
