@@ -190,6 +190,91 @@ async function syncTodayGoogleCalendarEvents(
   }
 }
 
+async function getGoogleCalendarAuth(): Promise<{ accessToken: string } | null> {
+  const userId = await getUserId();
+  if (!userId) return null;
+
+  const { data: tokenRows, error: tokenError } = await supabase
+    .from('google_tokens')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (tokenError || !tokenRows?.length) return null;
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  return accessToken ? { accessToken } : null;
+}
+
+function buildGoogleCalendarPayload(task: Task) {
+  if (!task.dueDate) return null;
+
+  const time = task.dueTime || undefined;
+  const duration = task.durationMinutes ?? 60;
+  let endTime: string | undefined;
+
+  if (time) {
+    const [h, m] = time.split(':').map(Number);
+    const endDate = new Date(2000, 0, 1, h, m + duration);
+    endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+  }
+
+  return {
+    title: task.title,
+    description: task.description ?? '',
+    date: task.dueDate,
+    time,
+    endTime,
+    allDay: !time,
+    durationMinutes: duration,
+  };
+}
+
+async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
+  const payload = buildGoogleCalendarPayload(task);
+  if (!payload) return null;
+
+  const auth = await getGoogleCalendarAuth();
+  if (!auth) return null;
+
+  try {
+    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.id) {
+      console.error('Falha ao criar evento no Google Calendar:', data);
+      return null;
+    }
+
+    return data.id;
+  } catch (error) {
+    console.error('Falha ao criar evento no Google Calendar:', error);
+    return null;
+  }
+}
+
+async function deleteGoogleCalendarEvent(eventId: string): Promise<void> {
+  const auth = await getGoogleCalendarAuth();
+  if (!auth) return;
+
+  await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(eventId)}`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+  });
+}
+
 export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: [],
   projects: [],
