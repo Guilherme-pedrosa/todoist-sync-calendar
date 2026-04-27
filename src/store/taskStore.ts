@@ -472,8 +472,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
     }
 
-    // Sincroniza com Google Calendar se a tarefa tem evento vinculado
-    if (existing?.googleCalendarEventId) {
+    // Sincroniza com Google Calendar quando a tarefa tem data
+    if (existing) {
       const merged: Task = { ...existing, ...updates };
       const touchesCalendar =
         updates.title !== undefined ||
@@ -482,20 +482,25 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         updates.dueTime !== undefined ||
         updates.durationMinutes !== undefined;
 
-      if (touchesCalendar && merged.dueDate) {
+      if (touchesCalendar && merged.dueDate && !existing.googleCalendarEventId) {
+        const googleCalendarEventId = await createGoogleCalendarEvent(merged);
+        if (googleCalendarEventId) {
+          await supabase
+            .from('tasks')
+            .update({ google_calendar_event_id: googleCalendarEventId })
+            .eq('id', id);
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId } : t)),
+          }));
+        }
+      } else if (touchesCalendar && merged.dueDate && existing.googleCalendarEventId) {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
           const accessToken = sessionData.session?.access_token;
           if (!accessToken) return;
 
-          const time = merged.dueTime || undefined;
-          const duration = merged.durationMinutes ?? 60;
-          let endTime: string | undefined;
-          if (time) {
-            const [h, m] = time.split(':').map(Number);
-            const endDate = new Date(2000, 0, 1, h, m + duration);
-            endTime = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-          }
+          const calendarPayload = buildGoogleCalendarPayload(merged);
+          if (!calendarPayload) return;
 
           await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
             method: 'POST',
@@ -506,17 +511,21 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
             },
             body: JSON.stringify({
               eventId: existing.googleCalendarEventId,
-              title: merged.title,
-              description: merged.description ?? '',
-              date: merged.dueDate,
-              time,
-              endTime,
-              allDay: !time,
-              durationMinutes: duration,
+              ...calendarPayload,
             }),
           });
         } catch (error) {
           console.error('Falha ao sincronizar atualização com Google Calendar:', error);
+        }
+      } else if (touchesCalendar && !merged.dueDate && existing.googleCalendarEventId) {
+        try {
+          await deleteGoogleCalendarEvent(existing.googleCalendarEventId);
+          await supabase.from('tasks').update({ google_calendar_event_id: null }).eq('id', id);
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId: undefined } : t)),
+          }));
+        } catch (error) {
+          console.error('Falha ao remover evento do Google Calendar:', error);
         }
       }
     }
