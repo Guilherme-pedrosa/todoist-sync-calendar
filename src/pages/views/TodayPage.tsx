@@ -3,9 +3,10 @@ import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { Task } from '@/types/task';
-import { CalendarDays, Menu, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { CalendarDays, Menu, ChevronDown, ChevronRight, AlertTriangle, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { format, parseISO } from 'date-fns';
 import { getHolidayForDate } from '@/lib/holidays';
 import { ptBR } from 'date-fns/locale';
@@ -90,6 +91,15 @@ export default function TodayPage() {
             onChangeGroupBy={(g) => setViewPref({ ...viewPref, groupBy: g })}
             groupOptions={['priority', 'label', 'project', 'status']}
           />
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
+            onClick={() => useAIAssistantStore.getState().open('analyze')}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">IA</span>
+          </Button>
           <span className="text-xs sm:text-sm text-muted-foreground">{total}</span>
         </div>
       </header>
