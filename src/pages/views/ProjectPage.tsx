@@ -321,6 +321,22 @@ function ProjectHeader({
           </button>
         </div>
 
+        {/* Agrupar por (apenas no Kanban) */}
+        {view === 'board' && (
+          <Select value={kanbanGroupBy} onValueChange={onKanbanGroupByChange}>
+            <SelectTrigger className="h-8 text-xs w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="section" className="text-xs">Agrupar: Seção</SelectItem>
+              <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
+              <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
+              <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
+              <SelectItem value="status" className="text-xs">Agrupar: Status</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
