@@ -283,6 +283,10 @@ async function createGoogleCalendarEvent(
   opts: { retries?: number } = {},
 ): Promise<{ id: string | null; rateLimited?: boolean }> {
   if (!task.dueDate) return { id: null };
+  if (isGcalSyncPaused()) {
+    console.info('[gcal] sync pausado — create-event ignorado para', task.title);
+    return { id: null };
+  }
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return { id: null };
   const maxRetries = opts.retries ?? 3;
@@ -295,6 +299,7 @@ async function createGoogleCalendarEvent(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        taskId: task.id, // <-- chave da idempotência
         title: task.title,
         description: task.description ?? '',
         date: task.dueDate,
@@ -308,12 +313,11 @@ async function createGoogleCalendarEvent(
       const payload = await response.json();
       return { id: typeof payload?.id === 'string' ? payload.id : null };
     }
-    // Detecta rate limit: edge function retorna 400 envelopando 403 do Google
     const bodyText = await readResponseText(response);
     const isRateLimit = isGoogleRateLimit(bodyText);
     if (isRateLimit && attempt < maxRetries) {
-      const delay = 800 * Math.pow(2, attempt) + Math.random() * 400;
-      await new Promise((r) => setTimeout(r, delay));
+      const delay = 1000 * Math.pow(2, attempt) + Math.random() * 400;
+      await new Promise((r) => setTimeout(r, Math.min(delay, 30000)));
       continue;
     }
     if (isRateLimit) return { id: null, rateLimited: true };
@@ -324,6 +328,10 @@ async function createGoogleCalendarEvent(
 
 async function updateGoogleCalendarEvent(task: Task): Promise<void> {
   if (!task.googleCalendarEventId || !task.dueDate) return;
+  if (isGcalSyncPaused()) {
+    console.info('[gcal] sync pausado — update-event ignorado para', task.title);
+    return;
+  }
   const accessToken = await getGoogleAccessToken();
   if (!accessToken) return;
   await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
@@ -335,6 +343,7 @@ async function updateGoogleCalendarEvent(task: Task): Promise<void> {
     },
     body: JSON.stringify({
       eventId: task.googleCalendarEventId,
+      taskId: task.id,
       title: task.title,
       description: task.description ?? '',
       date: task.dueDate,
