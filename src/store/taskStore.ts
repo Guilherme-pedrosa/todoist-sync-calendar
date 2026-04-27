@@ -334,6 +334,43 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }));
 
+    // Registra undo restaurando campos anteriores
+    if (existing) {
+      const prevFields: Partial<Task> = {};
+      const prevDb: Record<string, any> = {};
+      const keys = Object.keys(updates) as (keyof Task)[];
+      for (const k of keys) {
+        (prevFields as any)[k] = (existing as any)[k];
+      }
+      if (updates.title !== undefined) prevDb.title = existing.title;
+      if (updates.description !== undefined) prevDb.description = existing.description ?? null;
+      if (updates.priority !== undefined) prevDb.priority = existing.priority;
+      if (updates.dueDate !== undefined) prevDb.due_date = existing.dueDate ?? null;
+      if (updates.dueTime !== undefined) prevDb.due_time = existing.dueTime ? `${existing.dueTime}:00` : null;
+      if (updates.durationMinutes !== undefined) prevDb.duration_minutes = existing.durationMinutes ?? null;
+      if (updates.dueString !== undefined) prevDb.due_string = existing.dueString ?? null;
+      if (updates.deadline !== undefined) prevDb.deadline = existing.deadline ?? null;
+      if (updates.recurrenceRule !== undefined) prevDb.recurrence_rule = existing.recurrenceRule ?? null;
+      if (updates.projectId !== undefined) prevDb.project_id = existing.projectId ?? null;
+      if (updates.sectionId !== undefined) prevDb.section_id = existing.sectionId ?? null;
+      if (updates.completed !== undefined) {
+        prevDb.completed = existing.completed;
+        prevDb.completed_at = existing.completedAt ?? null;
+      }
+
+      useUndoStore.getState().push({
+        label: `Editar "${existing.title}"`,
+        undo: async () => {
+          if (Object.keys(prevDb).length > 0) {
+            await supabase.from('tasks').update(prevDb).eq('id', id);
+          }
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...prevFields } : t)),
+          }));
+        },
+      });
+    }
+
     // Sincroniza com Google Calendar se a tarefa tem evento vinculado
     if (existing?.googleCalendarEventId) {
       const merged: Task = { ...existing, ...updates };
