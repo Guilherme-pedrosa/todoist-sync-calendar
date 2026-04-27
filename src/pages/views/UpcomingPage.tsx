@@ -531,7 +531,7 @@ function DayColumn({
       {nowMin !== null && (
         <div
           className="absolute left-0 right-0 z-[5] pointer-events-none"
-          style={{ top: (nowMin / 60) * HOUR_HEIGHT }}
+          style={{ top: ((nowMin - DAY_START_MIN) / 60) * HOUR_HEIGHT }}
         >
           <div className="h-px bg-primary" />
           <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-primary" />
