@@ -53,7 +53,7 @@ export default function Auth() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: getAuthRedirectUri() },
         });
         if (error) throw error;
         toast.success('Verifique seu e-mail para confirmar o cadastro!');
