@@ -136,6 +136,7 @@ function AnalyzeTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
         <input
           type="date"
           value={date}
+          min={todayStr}
           onChange={(e) => setDate(e.target.value)}
           className="bg-muted/40 border border-border rounded-md text-xs h-8 px-2 flex-1"
         />
