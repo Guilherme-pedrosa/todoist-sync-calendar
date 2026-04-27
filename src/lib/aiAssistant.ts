@@ -167,15 +167,64 @@ export async function analyzeDay(opts: {
   });
 }
 
+export type AssistantAction =
+  | {
+      type: 'create_task';
+      args: {
+        title: string;
+        description?: string;
+        date?: string;
+        time?: string;
+        durationMinutes?: number;
+        priority?: number;
+        projectId?: string;
+        recurrenceRule?: string;
+      };
+    }
+  | {
+      type: 'update_task';
+      args: {
+        taskId: string;
+        title?: string;
+        description?: string;
+        date?: string;
+        time?: string;
+        clearTime?: boolean;
+        clearDate?: boolean;
+        durationMinutes?: number;
+        priority?: number;
+        projectId?: string;
+      };
+    }
+  | { type: 'complete_task'; args: { taskId: string } }
+  | { type: 'delete_task'; args: { taskId: string } };
+
 export async function chatWithAssistant(opts: {
   messages: { role: 'user' | 'assistant'; content: string }[];
   tasks: Task[];
   projects: Project[];
 }) {
   const ctx = buildContext(opts.tasks, opts.projects);
-  return invoke<{ text: string }>({
+  // Catálogo de tarefas e projetos para a IA referenciar por id real
+  const taskCatalog = opts.tasks
+    .filter((t) => !t.parentId)
+    .slice(0, 200)
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      date: t.dueDate ?? null,
+      time: t.dueTime ?? null,
+      priority: t.priority,
+      project: opts.projects.find((p) => p.id === t.projectId)?.name ?? null,
+      completed: t.completed,
+    }));
+  const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name }));
+
+  return invoke<{ text: string; actions?: AssistantAction[] }>({
     action: 'chat',
     messages: opts.messages,
+    taskCatalog,
+    projectCatalog,
     ...ctx,
   });
 }

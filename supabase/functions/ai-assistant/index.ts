@@ -72,6 +72,10 @@ interface BasePayload {
   // analyze-day
   // chat
   messages?: { role: "user" | "assistant"; content: string }[];
+  // Catálogo de tarefas com id (chat usa para tool calling com id real)
+  taskCatalog?: { id: string; title: string; date?: string | null; time?: string | null; priority?: number; project?: string | null; completed?: boolean }[];
+  // Projetos disponíveis (para create_task escolher projeto por nome)
+  projectCatalog?: { id: string; name: string }[];
 }
 
 function toMinutes(time?: string | null) {
@@ -181,20 +185,27 @@ Se nenhum slot em 7 dias úteis, date=null com rationale.
 
 const SYSTEM_CHAT = BASE_PROMPT + `
 AÇÃO: chat
-OBJETIVO: Responder perguntas livres sobre a agenda/tarefas do usuário.
+OBJETIVO: Responder perguntas livres E EXECUTAR AÇÕES sobre a agenda/tarefas.
 
 ESTILO:
 - Texto natural, curto. Máx 4 frases por padrão.
 - Listas: tabela markdown enxuta (até 5 linhas) ou bullets curtos.
 - Ao citar tarefa: (P1/P2/P3/P4) e horário se houver.
 
-CAPACIDADES:
-- "Quando tenho 1h livre?", "que P1 estão sem horário?", "o que adiar?", "qual dia mais cheio?".
-- Pode SUGERIR mudanças, sempre fechando com: "Quer que eu prepare essas mudanças no Organizar?"
-- NUNCA aplica mudança via chat. Se o usuário pedir criar/mover/deletar, indique o caminho na UI.
+VOCÊ TEM FERRAMENTAS (tool calling). USE-AS quando o usuário pedir AÇÃO:
+- create_task: criar uma tarefa nova ("cria…", "adiciona…", "marca reunião…").
+- update_task: editar tarefa existente ("move pra 14h", "muda prioridade", "renomeia").
+- complete_task: marcar como concluída ("conclui…", "marca como feita…").
+- delete_task: apagar ("apaga…", "remove…", "deleta…").
+
+REGRAS DE FERRAMENTAS:
+- Para update/complete/delete, OBRIGATÓRIO usar o id real da tarefa do contexto. Se não souber qual tarefa, NÃO chame ferramenta — pergunte qual.
+- Você pode chamar VÁRIAS ferramentas na mesma resposta (ex.: criar 3 tarefas).
+- Sempre escreva também uma resposta em texto explicando o que vai fazer (1-2 frases). O usuário vai CONFIRMAR antes de aplicar.
+- Se for só pergunta ("quando tenho 1h livre?"), NÃO chame ferramenta — só responda em texto.
+- NUNCA invente tarefa fora de \`tasks\` ao referenciar id.
 
 PROIBIDO:
-- Inventar tarefa fora de \`tasks\`.
 - Conselhos genéricos de produtividade ("acorde cedo", "use pomodoro"). Só falar dos DADOS DELE.
 - Responder sobre dias fora do contexto sem avisar que não tem visibilidade.
 `;
@@ -222,6 +233,18 @@ function buildContextBlock(p: BasePayload): string {
     .map((t) => `- ${t.completedAt ?? "?"} [P${t.priority ?? 4}] ${t.title}`)
     .join("\n");
 
+  const catalog = (p.taskCatalog ?? [])
+    .slice(0, 200)
+    .map(
+      (t) =>
+        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.completed ? " | ✓" : ""}`,
+    )
+    .join("\n");
+  const projectsBlock = (p.projectCatalog ?? [])
+    .slice(0, 50)
+    .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .join("\n");
+
   return [
     "CONTEXTO DO USUÁRIO:",
     `- now: ${p.nowIso ?? "?"} (${p.userProfile?.timezone ?? "America/Sao_Paulo"})`,
@@ -232,6 +255,12 @@ function buildContextBlock(p: BasePayload): string {
     "",
     "TASKS + EVENTS DO PERÍODO (cada item já marcado é bloqueio absoluto — eventos do Google Calendar incluídos):",
     sched || "(vazio)",
+    "",
+    catalog ? "CATÁLOGO DE TAREFAS (use estes ids em tool calls):" : "",
+    catalog,
+    "",
+    projectsBlock ? "PROJETOS DISPONÍVEIS:" : "",
+    projectsBlock,
     "",
     "FERIADOS BR:",
     hol || "(nenhum no período)",
@@ -480,11 +509,103 @@ Deno.serve(async (req) => {
           { role: "system", content: system },
           ...messages,
         ],
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "create_task",
+              description: "Cria uma nova tarefa. Use quando o usuário pedir para adicionar/criar/marcar uma tarefa nova.",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "Título da tarefa" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD; opcional" },
+                  time: { type: "string", description: "HH:mm 24h; opcional" },
+                  durationMinutes: { type: "number" },
+                  priority: { type: "number", description: "1=baixa, 4=urgente" },
+                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS); opcional" },
+                  recurrenceRule: { type: "string", description: "RRULE iCal; opcional. Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR" },
+                },
+                required: ["title"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "update_task",
+              description: "Edita uma tarefa existente (mover horário, mudar prioridade, renomear, mudar duração, etc.). Só use com id real do CATÁLOGO.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                  time: { type: "string", description: "HH:mm" },
+                  clearTime: { type: "boolean", description: "true para remover horário" },
+                  clearDate: { type: "boolean", description: "true para remover data" },
+                  durationMinutes: { type: "number" },
+                  priority: { type: "number" },
+                  projectId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "complete_task",
+              description: "Marca uma tarefa como concluída (ou desmarca se já estiver concluída).",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "delete_task",
+              description: "Exclui uma tarefa. Operação destrutiva — o usuário sempre confirma antes.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                },
+                required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
       });
       if (!aiResp.ok) return aiResp;
       const data = await aiResp.json();
-      const text = data?.choices?.[0]?.message?.content ?? "";
-      return new Response(JSON.stringify({ result: { text } }), {
+      const msg = data?.choices?.[0]?.message;
+      const text = msg?.content ?? "";
+      const toolCalls = Array.isArray(msg?.tool_calls) ? msg.tool_calls : [];
+      const actions = toolCalls
+        .map((tc: any) => {
+          try {
+            const args = tc?.function?.arguments
+              ? JSON.parse(tc.function.arguments)
+              : {};
+            return { type: tc?.function?.name, args };
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      return new Response(JSON.stringify({ result: { text, actions } }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -26,6 +26,7 @@ import {
   analyzeDay,
   chatWithAssistant,
   organizeDay,
+  type AssistantAction,
 } from '@/lib/aiAssistant';
 import ReactMarkdown from 'react-markdown';
 import { format } from 'date-fns';
@@ -33,7 +34,12 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type ChatMsg = { role: 'user' | 'assistant'; content: string };
+type ChatMsg = {
+  role: 'user' | 'assistant';
+  content: string;
+  actions?: AssistantAction[];
+  actionsState?: 'pending' | 'applied' | 'discarded';
+};
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
 
@@ -334,6 +340,11 @@ function OrganizeTab({
 
 // -------------- Chat --------------
 function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
+  const addTask = useTaskStore((s) => s.addTask);
+  const updateTask = useTaskStore((s) => s.updateTask);
+  const deleteTask = useTaskStore((s) => s.deleteTask);
+  const toggleTask = useTaskStore((s) => s.toggleTask);
+
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -354,8 +365,19 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
       const r = await chatWithAssistant({ messages: next, tasks, projects });
       const replyText = (r && typeof r.text === 'string' && r.text.trim())
         ? r.text
-        : 'A IA respondeu vazio. Tente reformular a pergunta.';
-      setMessages([...next, { role: 'assistant', content: replyText }]);
+        : (r?.actions?.length
+            ? 'Preparei as ações abaixo. Confirma?'
+            : 'A IA respondeu vazio. Tente reformular a pergunta.');
+      const actions = Array.isArray(r?.actions) ? r.actions : [];
+      setMessages([
+        ...next,
+        {
+          role: 'assistant',
+          content: replyText,
+          actions: actions.length ? actions : undefined,
+          actionsState: actions.length ? 'pending' : undefined,
+        },
+      ]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'IA indisponível agora, tente em alguns segundos.');
       setMessages(next.slice(0, -1));
@@ -365,6 +387,60 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     }
   };
 
+  const applyActions = async (msgIndex: number) => {
+    const msg = messages[msgIndex];
+    if (!msg?.actions?.length) return;
+    let ok = 0;
+    let fail = 0;
+    for (const action of msg.actions) {
+      try {
+        if (action.type === 'create_task') {
+          await addTask({
+            title: action.args.title,
+            description: action.args.description,
+            priority: (action.args.priority as any) ?? 4,
+            dueDate: action.args.date,
+            dueTime: action.args.time,
+            durationMinutes: action.args.durationMinutes ?? null,
+            projectId: action.args.projectId,
+            recurrenceRule: action.args.recurrenceRule ?? null,
+          } as any);
+        } else if (action.type === 'update_task') {
+          const updates: Record<string, any> = {};
+          if (action.args.title !== undefined) updates.title = action.args.title;
+          if (action.args.description !== undefined) updates.description = action.args.description;
+          if (action.args.clearDate) updates.dueDate = null;
+          else if (action.args.date !== undefined) updates.dueDate = action.args.date;
+          if (action.args.clearTime) updates.dueTime = null;
+          else if (action.args.time !== undefined) updates.dueTime = action.args.time;
+          if (action.args.durationMinutes !== undefined) updates.durationMinutes = action.args.durationMinutes;
+          if (action.args.priority !== undefined) updates.priority = action.args.priority;
+          if (action.args.projectId !== undefined) updates.projectId = action.args.projectId;
+          await updateTask(action.args.taskId, updates);
+        } else if (action.type === 'complete_task') {
+          await toggleTask(action.args.taskId);
+        } else if (action.type === 'delete_task') {
+          await deleteTask(action.args.taskId);
+        }
+        ok++;
+      } catch (err) {
+        console.error('Falha ao aplicar ação', action, err);
+        fail++;
+      }
+    }
+    setMessages((prev) =>
+      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'applied' } : m)),
+    );
+    if (fail === 0) toast.success(`${ok} ação(ões) aplicada(s).`);
+    else toast.warning(`${ok} aplicada(s), ${fail} falharam.`);
+  };
+
+  const discardActions = (msgIndex: number) => {
+    setMessages((prev) =>
+      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'discarded' } : m)),
+    );
+  };
+
   return (
     <div className="h-full flex flex-col">
       <ScrollArea className="flex-1">
@@ -372,36 +448,50 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           {messages.length === 0 && (
             <div className="text-sm text-muted-foreground text-center py-8">
               <MessageSquare className="h-8 w-8 mx-auto mb-3 opacity-40" />
-              <p className="mb-3">Pergunte qualquer coisa sobre sua agenda:</p>
+              <p className="mb-3">Pergunte ou peça uma ação:</p>
               <div className="space-y-1.5 text-xs">
                 <Suggestion onClick={(s) => setInput(s)}>
+                  Cria tarefa "Pagar boleto" sexta 14h prioridade alta
+                </Suggestion>
+                <Suggestion onClick={(s) => setInput(s)}>
+                  Move o almoço de amanhã para 13h
+                </Suggestion>
+                <Suggestion onClick={(s) => setInput(s)}>
+                  Conclui a primeira tarefa de hoje
+                </Suggestion>
+                <Suggestion onClick={(s) => setInput(s)}>
                   Quando tenho 1h livre essa semana?
-                </Suggestion>
-                <Suggestion onClick={(s) => setInput(s)}>
-                  Que tarefas posso adiar para amanhã?
-                </Suggestion>
-                <Suggestion onClick={(s) => setInput(s)}>
-                  Qual a melhor hora para focar em algo difícil hoje?
                 </Suggestion>
               </div>
             </div>
           )}
           {messages.map((m, i) => (
-            <div
-              key={i}
-              className={cn(
-                'rounded-lg px-3 py-2 text-sm max-w-[85%]',
-                m.role === 'user'
-                  ? 'bg-primary text-primary-foreground ml-auto'
-                  : 'bg-muted/60',
-              )}
-            >
-              {m.role === 'assistant' ? (
-                <article className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-1 prose-ul:my-1 prose-li:my-0">
-                  <ReactMarkdown>{m.content || ''}</ReactMarkdown>
-                </article>
-              ) : (
-                m.content
+            <div key={i} className="space-y-2">
+              <div
+                className={cn(
+                  'rounded-lg px-3 py-2 text-sm max-w-[85%]',
+                  m.role === 'user'
+                    ? 'bg-primary text-primary-foreground ml-auto'
+                    : 'bg-muted/60',
+                )}
+              >
+                {m.role === 'assistant' ? (
+                  <article className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-1 prose-ul:my-1 prose-li:my-0">
+                    <ReactMarkdown>{m.content || ''}</ReactMarkdown>
+                  </article>
+                ) : (
+                  m.content
+                )}
+              </div>
+              {m.actions && m.actions.length > 0 && (
+                <ActionProposalCard
+                  actions={m.actions}
+                  state={m.actionsState ?? 'pending'}
+                  tasks={tasks}
+                  projects={projects}
+                  onApply={() => applyActions(i)}
+                  onDiscard={() => discardActions(i)}
+                />
               )}
             </div>
           ))}
@@ -422,7 +512,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
               send();
             }
           }}
-          placeholder="Pergunte algo sobre sua agenda..."
+          placeholder="Pergunte ou peça uma ação..."
           className="min-h-[40px] max-h-[120px] text-sm resize-none"
           rows={1}
         />
@@ -435,6 +525,95 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           <Send className="h-4 w-4" />
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ActionProposalCard({
+  actions,
+  state,
+  tasks,
+  projects,
+  onApply,
+  onDiscard,
+}: {
+  actions: AssistantAction[];
+  state: 'pending' | 'applied' | 'discarded';
+  tasks: any[];
+  projects: any[];
+  onApply: () => void;
+  onDiscard: () => void;
+}) {
+  const taskTitle = (id?: string) =>
+    id ? tasks.find((t) => t.id === id)?.title ?? `(id ${id.slice(0, 6)}…)` : '';
+  const projectName = (id?: string) =>
+    id ? projects.find((p) => p.id === id)?.name ?? '' : '';
+
+  const describe = (a: AssistantAction): { icon: string; label: string; detail?: string } => {
+    if (a.type === 'create_task') {
+      const bits = [
+        a.args.date ? a.args.date : null,
+        a.args.time ? a.args.time : null,
+        a.args.priority ? `P${a.args.priority}` : null,
+        a.args.projectId ? projectName(a.args.projectId) : null,
+      ].filter(Boolean);
+      return { icon: '➕', label: `Criar: ${a.args.title}`, detail: bits.join(' · ') || undefined };
+    }
+    if (a.type === 'update_task') {
+      const bits: string[] = [];
+      if (a.args.title) bits.push(`título → "${a.args.title}"`);
+      if (a.args.clearDate) bits.push('remover data');
+      else if (a.args.date) bits.push(`data → ${a.args.date}`);
+      if (a.args.clearTime) bits.push('remover horário');
+      else if (a.args.time) bits.push(`hora → ${a.args.time}`);
+      if (a.args.durationMinutes !== undefined) bits.push(`duração → ${a.args.durationMinutes}min`);
+      if (a.args.priority !== undefined) bits.push(`prioridade → P${a.args.priority}`);
+      if (a.args.projectId) bits.push(`projeto → ${projectName(a.args.projectId)}`);
+      return { icon: '✏️', label: `Editar: ${taskTitle(a.args.taskId)}`, detail: bits.join(', ') };
+    }
+    if (a.type === 'complete_task') {
+      return { icon: '✅', label: `Concluir: ${taskTitle(a.args.taskId)}` };
+    }
+    return { icon: '🗑️', label: `Excluir: ${taskTitle(a.args.taskId)}` };
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-background/50 p-3 space-y-2 max-w-[95%]">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+        {actions.length} ação(ões) propostas
+      </div>
+      <div className="space-y-1.5">
+        {actions.map((a, idx) => {
+          const d = describe(a);
+          return (
+            <div key={idx} className="text-xs flex gap-2">
+              <span className="shrink-0">{d.icon}</span>
+              <div className="min-w-0">
+                <div className="font-medium truncate">{d.label}</div>
+                {d.detail && <div className="text-muted-foreground">{d.detail}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {state === 'pending' && (
+        <div className="flex gap-2 pt-1">
+          <Button size="sm" className="flex-1 h-8 gap-1.5" onClick={onApply}>
+            <CheckCircle2 className="h-3.5 w-3.5" /> Confirmar
+          </Button>
+          <Button size="sm" variant="ghost" className="flex-1 h-8" onClick={onDiscard}>
+            Descartar
+          </Button>
+        </div>
+      )}
+      {state === 'applied' && (
+        <div className="text-xs text-primary flex items-center gap-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5" /> Aplicado
+        </div>
+      )}
+      {state === 'discarded' && (
+        <div className="text-xs text-muted-foreground italic">Descartado</div>
+      )}
     </div>
   );
 }
