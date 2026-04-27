@@ -87,6 +87,11 @@ export default function SettingsPage() {
   const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
   const [wiping, setWiping] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
+  const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
+  const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
+  const [syncPaused, setSyncPaused] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('taskflow_google_sync_paused') !== 'false'
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -221,6 +226,42 @@ export default function SettingsPage() {
       toast.error('Erro ao apagar etiquetas: ' + (e?.message || ''));
     } finally {
       setWiping(false);
+    }
+  };
+
+  const setCalendarSyncPaused = (paused: boolean) => {
+    localStorage.setItem('taskflow_google_sync_paused', paused ? 'true' : 'false');
+    setSyncPaused(paused);
+    toast.success(paused ? 'Sync pausado' : 'Sync retomado');
+  };
+
+  const cleanupCalendarDuplicates = async (dryRun: boolean) => {
+    const mode = dryRun ? 'analyze' : 'delete';
+    setCalendarMaintenanceLoading(mode);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ dryRun }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || payload?.error) throw new Error(payload?.error || 'Falha ao limpar duplicatas');
+
+      const count = Number(payload?.duplicateCount || 0);
+      setCalendarDuplicateCount(dryRun ? count : 0);
+      toast.success(dryRun ? `${count} duplicatas encontradas` : `${count} duplicatas removidas`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao limpar duplicatas');
+    } finally {
+      setCalendarMaintenanceLoading(null);
     }
   };
 
