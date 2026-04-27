@@ -258,17 +258,33 @@ serve(async (req) => {
       case "list-events": {
         const timeMin = url.searchParams.get("timeMin") || new Date().toISOString();
         const timeMax = url.searchParams.get("timeMax");
-        const params = new URLSearchParams({
-          timeMin,
-          singleEvents: "true",
-          orderBy: "startTime",
-          maxResults: "50",
-        });
-        if (timeMax) params.set("timeMax", timeMax);
+        const maxResults = url.searchParams.get("maxResults") || "2500";
 
-        const res = await fetch(`${calendarBase}/calendars/primary/events?${params.toString()}`, { headers });
-        const data = await res.json();
-        return jsonResponse(data, res.ok ? 200 : 400);
+        // Pagina todos os eventos da janela solicitada
+        let pageToken: string | undefined;
+        const allItems: unknown[] = [];
+        let safety = 20;
+
+        do {
+          const params = new URLSearchParams({
+            timeMin,
+            singleEvents: "true",
+            orderBy: "startTime",
+            maxResults,
+          });
+          if (timeMax) params.set("timeMax", timeMax);
+          if (pageToken) params.set("pageToken", pageToken);
+
+          const res = await fetch(`${calendarBase}/calendars/primary/events?${params.toString()}`, { headers });
+          const data = await res.json();
+          if (!res.ok) return jsonResponse(data, 400);
+
+          if (Array.isArray(data.items)) allItems.push(...data.items);
+          pageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;
+          safety -= 1;
+        } while (pageToken && safety > 0);
+
+        return jsonResponse({ items: allItems });
       }
 
       case "create-event": {

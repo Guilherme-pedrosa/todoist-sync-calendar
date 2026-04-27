@@ -324,9 +324,12 @@ async function syncGoogleCalendarEvents(
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) return currentTasks;
 
+  // Janela ampla: 30 dias para trás até 180 dias para frente
   const startOfRange = new Date();
+  startOfRange.setDate(startOfRange.getDate() - 30);
   startOfRange.setHours(0, 0, 0, 0);
   const endOfRange = new Date();
+  endOfRange.setDate(endOfRange.getDate() + 180);
   endOfRange.setHours(23, 59, 59, 999);
 
   const params = new URLSearchParams({
