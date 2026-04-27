@@ -316,8 +316,8 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
             description="Adicione uma tarefa para começar a organizar seu dia."
             actionLabel="Adicionar tarefa"
             onAction={() => useQuickAddStore.getState().openQuickAdd({
-              defaultProjectId: view === 'project' ? projectId ?? null : null,
-              defaultDate: view === 'today' ? new Date().toISOString().split('T')[0] : null,
+              defaultProjectId: view === 'project' ? projectId : undefined,
+              defaultDueDate: view === 'today' ? new Date().toISOString().split('T')[0] : undefined,
             })}
           />
         )}
