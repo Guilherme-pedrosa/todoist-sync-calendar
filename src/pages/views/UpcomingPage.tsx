@@ -365,7 +365,7 @@ function WeekGrid({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, preview, createBox, findDayUnderPointer, pointerToMinutes, updateTask, openQuickAdd]);
+  }, [drag, preview, createBox, findDayUnderPointer, pointerToMinutes, updateTask, updateWithPrompt, openQuickAdd]);
 
   // Now indicator
   const [now, setNow] = useState(new Date());
