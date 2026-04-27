@@ -497,10 +497,56 @@ serve(async (req) => {
         return jsonResponse(data, res.ok ? 200 : 400);
       }
 
+      case "cleanup-duplicates": {
+        const dryRun = body.dryRun !== false;
+        const now = new Date();
+        const timeMin = typeof body.timeMin === "string" ? body.timeMin : new Date(now.getFullYear() - 1, 0, 1).toISOString();
+        const timeMax = typeof body.timeMax === "string" ? body.timeMax : new Date(now.getFullYear() + 1, 11, 31).toISOString();
+        let pageToken: string | undefined;
+        const allItems: Record<string, any>[] = [];
+        let safety = 50;
+
+        do {
+          const params = new URLSearchParams({ timeMin, timeMax, singleEvents: "true", maxResults: "2500", showDeleted: "false" });
+          if (pageToken) params.set("pageToken", pageToken);
+          const res = await fetch(`${calendarBase}/calendars/primary/events?${params.toString()}`, { headers });
+          const data = await safeGoogleJson(res);
+          if (!res.ok) return jsonResponse({ error: "Falha ao listar eventos", details: data }, 200);
+          if (Array.isArray(data.items)) allItems.push(...data.items);
+          pageToken = typeof data.nextPageToken === "string" ? data.nextPageToken : undefined;
+          safety -= 1;
+        } while (pageToken && safety > 0);
+
+        const groups = new Map<string, Record<string, any>[]>();
+        for (const event of allItems) {
+          if (!event?.id || event.status === "cancelled") continue;
+          const key = eventDedupeKey(event);
+          if (!key.includes("task:") && !normalizeEventText(event.summary)) continue;
+          const group = groups.get(key) ?? [];
+          group.push(event);
+          groups.set(key, group);
+        }
+
+        const duplicates: Record<string, any>[] = [];
+        for (const group of groups.values()) {
+          if (group.length <= 1) continue;
+          group.sort((a, b) => String(a.created || a.updated || "").localeCompare(String(b.created || b.updated || "")));
+          duplicates.push(...group.slice(1));
+        }
+
+        if (!dryRun && duplicates.length > 0) {
+          for (const duplicate of duplicates) {
+            await fetch(`${calendarBase}/calendars/primary/events/${duplicate.id}`, { method: "DELETE", headers }).catch(() => null);
+          }
+        }
+
+        return jsonResponse({ success: true, dryRun, scanned: allItems.length, duplicateCount: duplicates.length, duplicates: duplicates.map((event) => ({ id: event.id, summary: event.summary, start: event.start })) });
+      }
+
       default:
-        return jsonResponse({ error: "Ação inválida" }, 400);
+        return jsonResponse({ error: "Ação inválida", action }, 200);
     }
   } catch (err) {
-    return jsonResponse({ error: err instanceof Error ? err.message : "Erro inesperado" }, 500);
+    return jsonResponse({ error: err instanceof Error ? err.message : "Erro inesperado" }, 200);
   }
 });
