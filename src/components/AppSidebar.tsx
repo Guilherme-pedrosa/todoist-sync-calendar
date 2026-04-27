@@ -13,6 +13,8 @@ import {
   Tag,
   LogOut,
   Download,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -22,6 +24,22 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const PROJECT_COLORS = [
   'hsl(0, 72%, 51%)',
@@ -46,6 +64,7 @@ export function AppSidebar() {
     setActiveProjectId,
     setActiveLabelId,
     addProject,
+    deleteProject,
     addLabel,
     fetchData,
   } = useTaskStore();
@@ -58,6 +77,7 @@ export function AppSidebar() {
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [connectingCalendar, setConnectingCalendar] = useState(false);
   const [importingTodoist, setImportingTodoist] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string; taskCount: number } | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter(
@@ -220,27 +240,66 @@ export function AppSidebar() {
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-0.5 mt-1">
-            {projects.map((project) => (
-              <button
-                key={project.id}
-                onClick={() => setActiveProjectId(project.id)}
-                className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-                  activeView === 'project' && activeProjectId === project.id
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
-                )}
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full shrink-0"
-                  style={{ backgroundColor: project.color }}
-                />
-                <span className="flex-1 text-left truncate">{project.name}</span>
-                <span className="text-xs opacity-50">
-                  {tasks.filter((t) => !t.completed && t.projectId === project.id).length}
-                </span>
-              </button>
-            ))}
+            {projects.map((project) => {
+              const projectTaskCount = tasks.filter(
+                (t) => !t.completed && t.projectId === project.id
+              ).length;
+              const isActive =
+                activeView === 'project' && activeProjectId === project.id;
+              return (
+                <div
+                  key={project.id}
+                  className={cn(
+                    'group w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+                  )}
+                >
+                  <button
+                    onClick={() => setActiveProjectId(project.id)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <span className="flex-1 truncate">{project.name}</span>
+                  </button>
+                  <span className="text-xs opacity-50 group-hover:hidden">
+                    {projectTaskCount}
+                  </span>
+                  {!project.isInbox && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          aria-label={`Ações do projeto ${project.name}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="hidden group-hover:flex items-center justify-center h-5 w-5 rounded hover:bg-sidebar-border/60"
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" side="right">
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() =>
+                            setProjectToDelete({
+                              id: project.id,
+                              name: project.name,
+                              taskCount: projectTaskCount,
+                            })
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir projeto
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              );
+            })}
             {showNewProject && (
               <div className="px-3 py-1">
                 <Input
@@ -378,6 +437,44 @@ export function AppSidebar() {
           <span>Sair</span>
         </button>
       </div>
+
+      <AlertDialog
+        open={!!projectToDelete}
+        onOpenChange={(open) => !open && setProjectToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Excluir projeto "{projectToDelete?.name}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {projectToDelete?.taskCount
+                ? `${projectToDelete.taskCount} tarefa(s) deste projeto serão movidas para a Caixa de Entrada.`
+                : 'Este projeto não tem tarefas pendentes.'}{' '}
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!projectToDelete) return;
+                try {
+                  await deleteProject(projectToDelete.id);
+                  toast.success(`Projeto "${projectToDelete.name}" excluído`);
+                } catch (e) {
+                  toast.error('Falha ao excluir projeto');
+                } finally {
+                  setProjectToDelete(null);
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
