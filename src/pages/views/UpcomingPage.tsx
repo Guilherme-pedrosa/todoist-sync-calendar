@@ -574,6 +574,7 @@ function DayColumn({
             task={task}
             top={top}
             height={height}
+              durationMin={durationMin}
             isDragging={isDragging}
             onPointerDownBody={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -614,6 +615,7 @@ function EventBlock({
   task,
   top,
   height,
+  durationMin,
   isDragging,
   onPointerDownBody,
   onPointerDownResize,
@@ -622,6 +624,7 @@ function EventBlock({
   task: Task;
   top: number;
   height: number;
+  durationMin: number;
   isDragging: boolean;
   onPointerDownBody: (e: React.PointerEvent<HTMLDivElement>) => void;
   onPointerDownResize: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -666,7 +669,7 @@ function EventBlock({
       <div className="px-1.5 py-1 text-[11px] font-medium leading-tight truncate">
         {task.dueTime && (
           <span className="text-muted-foreground mr-1">
-            {task.durationMinutes ? `${task.dueTime}–${addMinutesToTime(task.dueTime, task.durationMinutes)}` : task.dueTime}
+            {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
           </span>
         )}
         {task.title}
