@@ -432,6 +432,7 @@ function WeekGrid({
                         taskId: t.id,
                         pointerOffsetMin,
                         durationMin: DEFAULT_DURATION,
+                        sourceDayKey: k,
                       });
                     }}
                   />
