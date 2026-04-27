@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
+import { getHolidayForDate } from '@/lib/holidays';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
