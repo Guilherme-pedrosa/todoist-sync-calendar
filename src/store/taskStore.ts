@@ -468,10 +468,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       try {
         if (newTask.googleCalendarEventId) {
           await updateGoogleCalendarEvent(newTask);
-          return newTask;
-        }
-        const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
-        if (googleCalendarEventId) {
+        } else {
+          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
+          if (googleCalendarEventId) {
           await supabase
             .from('tasks')
             .update({ google_calendar_event_id: googleCalendarEventId })
@@ -482,6 +481,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
               t.id === newTask.id ? { ...t, googleCalendarEventId } : t
             ),
           }));
+          }
         }
       } catch (error) {
         console.error('Falha ao criar evento no Google Calendar:', error);
