@@ -10,6 +10,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   connectCalendar: () => Promise<void>;
   reconnectCalendar: () => Promise<void>;
+  disconnectCalendar: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   connectCalendar: async () => {},
   reconnectCalendar: async () => {},
+  disconnectCalendar: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
