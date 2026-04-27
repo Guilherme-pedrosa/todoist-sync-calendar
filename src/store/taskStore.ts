@@ -62,6 +62,7 @@ function mapDbTaskToTask(t: any): Task {
     priority: t.priority as Priority,
     dueDate: t.due_date || undefined,
     dueTime: t.due_time ? t.due_time.slice(0, 5) : undefined,
+    durationMinutes: t.duration_minutes ?? null,
     dueString: t.due_string || null,
     deadline: t.deadline || null,
     recurrenceRule: t.recurrence_rule || null,
@@ -234,6 +235,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       priority: taskData.priority || 4,
       due_date: taskData.dueDate || null,
       due_time: taskData.dueTime ? `${taskData.dueTime}:00` : null,
+      duration_minutes: taskData.durationMinutes ?? null,
       due_string: taskData.dueString || null,
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
@@ -285,6 +287,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
     if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
     if (updates.dueTime !== undefined) dbUpdates.due_time = updates.dueTime ? `${updates.dueTime}:00` : null;
+    if (updates.durationMinutes !== undefined) dbUpdates.duration_minutes = updates.durationMinutes;
     if (updates.dueString !== undefined) dbUpdates.due_string = updates.dueString;
     if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
     if (updates.recurrenceRule !== undefined) dbUpdates.recurrence_rule = updates.recurrenceRule;

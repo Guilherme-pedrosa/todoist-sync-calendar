@@ -1,0 +1,2 @@
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS duration_minutes integer;
+COMMENT ON COLUMN public.tasks.duration_minutes IS 'Duração da tarefa em minutos. Combinado com due_time, define horário de fim.';

@@ -6,6 +6,7 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarX,
+  Clock3,
   Repeat,
   Sun,
   Sunrise,
@@ -28,7 +29,34 @@ import { RecurrenceCustomDialog } from '@/components/RecurrenceCustomDialog';
 export interface DateValue {
   date?: string; // yyyy-MM-dd
   time?: string; // HH:mm
+  durationMinutes?: number | null;
   recurrenceRule?: string | null;
+}
+
+const DURATION_PRESETS: Array<{ label: string; minutes: number | null }> = [
+  { label: 'Sem duração', minutes: null },
+  { label: '15 min', minutes: 15 },
+  { label: '30 min', minutes: 30 },
+  { label: '45 min', minutes: 45 },
+  { label: '1 h', minutes: 60 },
+  { label: '1h 30', minutes: 90 },
+  { label: '2 h', minutes: 120 },
+  { label: '3 h', minutes: 180 },
+];
+
+function formatDuration(min: number): string {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}`;
+}
+
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(':').map(Number);
+  const total = h * 60 + m + minutes;
+  const nh = Math.floor((total % (24 * 60)) / 60);
+  const nm = total % 60;
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
 interface Props {
@@ -60,6 +88,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
   const [open, setOpen] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
+  const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
   const selected = value.date ? new Date(`${value.date}T00:00:00`) : undefined;
 
@@ -80,7 +109,13 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
       const d = new Date(`${value.date}T00:00:00`);
       parts.push(format(d, "d MMM", { locale: ptBR }));
     }
-    if (value.time) parts.push(value.time);
+    if (value.time) {
+      if (value.durationMinutes && value.durationMinutes > 0) {
+        parts.push(`${value.time} → ${addMinutesToTime(value.time, value.durationMinutes)}`);
+      } else {
+        parts.push(value.time);
+      }
+    }
     if (recurrenceLabel) parts.push(`↻ ${recurrenceLabel}`);
     return parts.join(' · ');
   })();
@@ -208,6 +243,69 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                 </button>
               )}
             </div>
+
+            {/* Duração — só aparece quando há hora */}
+            {value.time && (
+              <div className="flex items-center gap-2">
+                <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">Duração</span>
+                <Popover open={durationMenuOpen} onOpenChange={setDurationMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        'ml-auto inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
+                        value.durationMinutes
+                          ? 'border-primary/30 text-primary bg-primary/5'
+                          : 'border-border text-muted-foreground hover:border-primary/30'
+                      )}
+                    >
+                      {value.durationMinutes
+                        ? `${formatDuration(value.durationMinutes)} · até ${addMinutesToTime(value.time, value.durationMinutes)}`
+                        : 'Sem duração'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-1" align="end">
+                    {DURATION_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        onClick={() => {
+                          onChange({ ...value, durationMinutes: p.minutes });
+                          setDurationMenuOpen(false);
+                        }}
+                        className={cn(
+                          'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between',
+                          (value.durationMinutes ?? null) === p.minutes && 'bg-muted text-primary font-medium'
+                        )}
+                      >
+                        <span>{p.label}</span>
+                        {p.minutes && value.time && (
+                          <span className="text-[10px] text-muted-foreground">
+                            até {addMinutesToTime(value.time, p.minutes)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-border" />
+                    <div className="flex items-center gap-2 px-2 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">Outro:</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        placeholder="min"
+                        value={value.durationMinutes && !DURATION_PRESETS.some(p => p.minutes === value.durationMinutes) ? value.durationMinutes : ''}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10);
+                          onChange({ ...value, durationMinutes: Number.isFinite(n) && n > 0 ? n : null });
+                        }}
+                        className="h-6 text-xs"
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             <Popover open={recurrenceMenuOpen} onOpenChange={setRecurrenceMenuOpen}>
               <PopoverTrigger asChild>
                 <button

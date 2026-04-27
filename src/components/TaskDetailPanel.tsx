@@ -209,6 +209,7 @@ export function TaskDetailPanel() {
   const dateValue: DateValue = {
     date: task.dueDate,
     time: task.dueTime,
+    durationMinutes: task.durationMinutes ?? null,
     recurrenceRule: task.recurrenceRule,
   };
 
@@ -515,6 +516,7 @@ export function TaskDetailPanel() {
                     dueDate: v.date ?? null as any,
                     dueTime: v.time ?? null as any,
                     recurrenceRule: v.recurrenceRule ?? null,
+                    durationMinutes: v.durationMinutes ?? null,
                   })
                 }
                 trigger={
