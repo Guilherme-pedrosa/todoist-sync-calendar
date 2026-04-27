@@ -83,6 +83,9 @@ export default function SettingsPage() {
   const [savingFlash, setSavingFlash] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmWipeTasks, setConfirmWipeTasks] = useState(false);
+  const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
+  const [wiping, setWiping] = useState(false);
   const [activeTab, setActiveTab] = useState('account');
 
   useEffect(() => {
@@ -179,6 +182,48 @@ export default function SettingsPage() {
     await signOut();
   };
 
+  const wipeAllTasks = async () => {
+    if (!user) return;
+    setWiping(true);
+    try {
+      // Reminders (via task ownership), comments, task_labels, then tasks
+      const { data: taskIds } = await supabase.from('tasks').select('id').eq('user_id', user.id);
+      const ids = (taskIds || []).map((t: any) => t.id);
+      if (ids.length) {
+        await supabase.from('reminders').delete().in('task_id', ids);
+        await supabase.from('comments').delete().in('task_id', ids);
+        await supabase.from('task_labels').delete().in('task_id', ids);
+      }
+      await supabase.from('tasks').delete().eq('user_id', user.id);
+      await supabase.from('activity_log').delete().eq('user_id', user.id).eq('entity_type', 'task');
+      toast.success('Todas as tarefas foram apagadas');
+      setConfirmWipeTasks(false);
+    } catch (e: any) {
+      toast.error('Erro ao apagar tarefas: ' + (e?.message || ''));
+    } finally {
+      setWiping(false);
+    }
+  };
+
+  const wipeAllLabels = async () => {
+    if (!user) return;
+    setWiping(true);
+    try {
+      const { data: lbls } = await supabase.from('labels').select('id').eq('user_id', user.id);
+      const ids = (lbls || []).map((l: any) => l.id);
+      if (ids.length) {
+        await supabase.from('task_labels').delete().in('label_id', ids);
+      }
+      await supabase.from('labels').delete().eq('user_id', user.id);
+      toast.success('Todas as etiquetas foram apagadas');
+      setConfirmWipeLabels(false);
+    } catch (e: any) {
+      toast.error('Erro ao apagar etiquetas: ' + (e?.message || ''));
+    } finally {
+      setWiping(false);
+    }
+  };
+
   if (loading || !settings) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
@@ -266,13 +311,34 @@ export default function SettingsPage() {
                 </Button>
               </Section>
               <Section title="Zona perigosa">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setConfirmDelete(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Excluir conta
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmWipeTasks(true)}
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Apagar todas as tarefas
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setConfirmWipeLabels(true)}
+                    className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Apagar todas as etiquetas
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-1.5" /> Excluir conta
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Apagar tarefas/etiquetas é irreversível. Projetos, configurações e integrações são preservados.
+                </p>
               </Section>
             </TabsContent>
 
@@ -674,6 +740,50 @@ export default function SettingsPage() {
               onClick={deleteAccount}
             >
               Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmWipeTasks} onOpenChange={setConfirmWipeTasks}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar todas as tarefas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso remove todas as tarefas, lembretes, comentários e vínculos com etiquetas.
+              Projetos, etiquetas e configurações são preservados. Esta ação é irreversível.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wiping}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={wipeAllTasks}
+              disabled={wiping}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {wiping ? 'Apagando…' : 'Apagar tudo'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmWipeLabels} onOpenChange={setConfirmWipeLabels}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar todas as etiquetas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso remove todas as etiquetas e seus vínculos com tarefas. As tarefas em si não
+              serão excluídas. Esta ação é irreversível.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wiping}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={wipeAllLabels}
+              disabled={wiping}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {wiping ? 'Apagando…' : 'Apagar tudo'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
