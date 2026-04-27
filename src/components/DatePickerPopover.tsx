@@ -164,8 +164,14 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
             </button>
           )}
         </PopoverTrigger>
-        <PopoverContent className="w-[320px] p-0 max-h-[85vh] flex flex-col overflow-hidden" align={align}>
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
+        <PopoverContent
+          className="w-[320px] p-0 flex flex-col overflow-hidden"
+          style={{ maxHeight: 'min(85vh, 600px)' }}
+          align={align}
+          collisionPadding={16}
+          avoidCollisions
+        >
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           {/* Free-text NLP input */}
           <div className="p-2 border-b border-border">
             <Input
@@ -373,7 +379,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
             </Popover>
           </div>
           </div>
-          <div className="flex gap-2 p-2 border-t border-border bg-popover">
+          <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0 sticky bottom-0">
             {hasValue && (
               <Button
                 size="sm"
