@@ -385,6 +385,22 @@ export function QuickAddDialog() {
           />
         </div>
 
+        {/* AI suggest slot */}
+        <button
+          type="button"
+          onClick={handleAiSuggest}
+          disabled={aiSuggesting || !title.trim()}
+          title="Deixe a IA sugerir o melhor horário"
+          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {aiSuggesting ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          Sugerir horário
+        </button>
+
         {/* Deadline (TODO Fase 4) */}
         <button
           type="button"
