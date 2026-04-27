@@ -15,7 +15,11 @@ export interface Task {
   priority: Priority;
   dueDate?: string;
   dueTime?: string;
+  dueString?: string | null;
+  deadline?: string | null;
+  recurrenceRule?: string | null;
   projectId?: string;
+  sectionId?: string | null;
   parentId?: string;
   labels: string[];
   recurrence?: Recurrence;
@@ -45,4 +49,38 @@ export interface Label {
   isFavorite?: boolean;
 }
 
-export type ViewFilter = 'inbox' | 'today' | 'upcoming' | 'project' | 'label' | 'completed';
+export interface Filter {
+  id: string;
+  name: string;
+  query: string;
+  color: string;
+  isFavorite: boolean;
+  position: number;
+}
+
+export interface UserSettings {
+  language: string;
+  timezone: string;
+  timeFormat: '12h' | '24h';
+  dateFormat: string;
+  weekStart: number;
+  homePage: string;
+  smartDateRecognition: boolean;
+  theme: string;
+  autoDarkMode: boolean;
+  defaultReminderMinutes: number;
+  reminderChannels: string[];
+  dailyGoal: number;
+  weeklyGoal: number;
+  vacationMode: boolean;
+  daysOff: string[];
+  karmaEnabled: boolean;
+  quickAddChips: string[];
+  sidebarOrder: string[];
+  sidebarHidden: string[];
+  showTaskDescription: boolean;
+  celebrations: boolean;
+  deleteCalendarEventOnComplete: boolean;
+}
+
+export type ViewFilter = 'inbox' | 'today' | 'upcoming' | 'project' | 'label' | 'completed' | 'filter';
