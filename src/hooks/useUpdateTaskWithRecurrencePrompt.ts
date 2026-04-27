@@ -37,8 +37,11 @@ export function useUpdateTaskWithRecurrencePrompt() {
         updates.dueTime !== undefined ||
         updates.durationMinutes !== undefined;
 
-      // Non-recurring OR change is unrelated to scheduling → just update.
-      if (!isRecurring || !touchesSchedule) {
+      // If the rule itself is being changed → always treat as series-wide.
+      const touchesRule = updates.recurrenceRule !== undefined;
+
+      // Non-recurring, rule edit, or change unrelated to scheduling → just update.
+      if (!isRecurring || !touchesSchedule || touchesRule) {
         await updateTask(taskId, updates);
         return;
       }
