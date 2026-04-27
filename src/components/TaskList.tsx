@@ -10,7 +10,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { Task } from '@/types/task';
-import { isToday, isBefore, parseISO, addDays, format } from 'date-fns';
+import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function TaskList() {
