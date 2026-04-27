@@ -129,11 +129,6 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         depth > 0 && 'ml-6 pl-4 border-l border-border/60'
       )}
     >
-      {/* Swipe action backgrounds (mobile) */}
-      <div className="lg:hidden absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
-        <span className="text-xs font-semibold text-success-foreground bg-success px-3 py-1 rounded-full">✓ Concluir</span>
-        <span className="text-xs font-semibold text-destructive-foreground bg-destructive px-3 py-1 rounded-full">Excluir</span>
-      </div>
       <motion.div
         drag={!enableDrag ? false : 'x'}
         dragConstraints={{ left: -120, right: 120 }}
