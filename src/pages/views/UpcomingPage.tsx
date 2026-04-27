@@ -28,14 +28,6 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import type { KanbanGroupBy } from '@/hooks/useViewPref';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
@@ -52,7 +44,6 @@ export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [mode, setMode] = useState<Mode>('week');
-  const [kanbanGroupBy, setKanbanGroupBy] = useState<KanbanGroupBy>('date');
   const [weekOffset, setWeekOffset] = useState(0);
 
   const upcoming = useMemo(
@@ -178,19 +169,6 @@ export default function UpcomingPage() {
               <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
             </button>
           </div>
-          {mode === 'kanban' && (
-            <Select value={kanbanGroupBy} onValueChange={(v) => setKanbanGroupBy(v as KanbanGroupBy)}>
-              <SelectTrigger className="h-8 text-xs w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
-                <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
-                <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
-                <SelectItem value="project" className="text-xs">Agrupar: Projeto</SelectItem>
-              </SelectContent>
-            </Select>
-          )}
           {mode !== 'day' && mode !== 'kanban' && (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
@@ -213,7 +191,7 @@ export default function UpcomingPage() {
       </header>
 
       {mode === 'kanban' ? (
-        <KanbanBoard tasks={upcoming} groupBy={kanbanGroupBy} />
+        <KanbanBoard tasks={upcoming} boardKey="upcoming" />
       ) : mode === 'week' || mode === 'day' ? (
         <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
       ) : (
