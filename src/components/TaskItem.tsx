@@ -104,8 +104,19 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const dateValue: DateValue = {
     date: task.dueDate,
     time: task.dueTime,
+    durationMinutes: task.durationMinutes ?? null,
     recurrenceRule: task.recurrenceRule,
   };
+
+  // Calcula horário de fim quando há hora + duração
+  const endTime = (() => {
+    if (!task.dueTime || !task.durationMinutes) return null;
+    const [h, m] = task.dueTime.split(':').map(Number);
+    const total = h * 60 + m + task.durationMinutes;
+    const nh = Math.floor((total % (24 * 60)) / 60);
+    const nm = total % 60;
+    return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+  })();
 
   return (
     <div
@@ -198,7 +209,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                 {task.dueTime && (
                   <>
                     <Clock className="h-3 w-3 ml-0.5" />
-                    {task.dueTime}
+                    {endTime ? `${task.dueTime} → ${endTime}` : task.dueTime}
                   </>
                 )}
               </span>
