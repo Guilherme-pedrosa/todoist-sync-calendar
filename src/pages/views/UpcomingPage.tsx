@@ -138,7 +138,29 @@ export default function UpcomingPage() {
             >
               <ListIcon className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Lista</span>
             </button>
+            <button
+              onClick={() => setMode('kanban')}
+              className={cn(
+                'px-2.5 h-8 text-xs flex items-center gap-1.5 border-l border-border',
+                mode === 'kanban' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
+            </button>
           </div>
+          {mode === 'kanban' && (
+            <Select value={kanbanGroupBy} onValueChange={(v) => setKanbanGroupBy(v as KanbanGroupBy)}>
+              <SelectTrigger className="h-8 text-xs w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date" className="text-xs">Agrupar: Data</SelectItem>
+                <SelectItem value="priority" className="text-xs">Agrupar: Prioridade</SelectItem>
+                <SelectItem value="label" className="text-xs">Agrupar: Etiqueta</SelectItem>
+                <SelectItem value="project" className="text-xs">Agrupar: Projeto</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           {mode !== 'day' && (
             <div className="flex items-center gap-1">
               <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
