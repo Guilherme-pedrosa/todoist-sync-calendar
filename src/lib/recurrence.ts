@@ -3,9 +3,8 @@ import { format, parseISO } from 'date-fns';
 
 /**
  * Expand a recurrence rule between two dates (inclusive), anchored at the
- * task's current due date/time. Returns yyyy-MM-dd strings for each occurrence
- * that falls in [rangeStart, rangeEnd]. The anchor itself is included if it
- * lies in the range.
+ * task's current due date/time. Returns yyyy-MM-dd strings for each real
+ * RRULE occurrence that falls in [rangeStart, rangeEnd].
  */
 export function expandOccurrencesInRange(
   recurrenceRule: string | null | undefined,
@@ -34,12 +33,7 @@ export function expandOccurrencesInRange(
     const lookupStart = anchor < start ? start : anchor;
 
     const occurrences = anchoredRule.between(lookupStart, end, true);
-    // Always include the anchor itself if it's in range (rrule.between excludes
-    // dtstart in some configs).
     const dates = new Set<string>();
-    if (anchor >= start && anchor <= end) {
-      dates.add(format(anchor, 'yyyy-MM-dd'));
-    }
     for (const d of occurrences) dates.add(format(d, 'yyyy-MM-dd'));
     return Array.from(dates);
   } catch (e) {
