@@ -241,6 +241,69 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                 </button>
               )}
             </div>
+
+            {/* Duração — só aparece quando há hora */}
+            {value.time && (
+              <div className="flex items-center gap-2">
+                <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-xs text-muted-foreground">Duração</span>
+                <Popover open={durationMenuOpen} onOpenChange={setDurationMenuOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={cn(
+                        'ml-auto inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
+                        value.durationMinutes
+                          ? 'border-primary/30 text-primary bg-primary/5'
+                          : 'border-border text-muted-foreground hover:border-primary/30'
+                      )}
+                    >
+                      {value.durationMinutes
+                        ? `${formatDuration(value.durationMinutes)} · até ${addMinutesToTime(value.time, value.durationMinutes)}`
+                        : 'Sem duração'}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-1" align="end">
+                    {DURATION_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        onClick={() => {
+                          onChange({ ...value, durationMinutes: p.minutes });
+                          setDurationMenuOpen(false);
+                        }}
+                        className={cn(
+                          'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between',
+                          (value.durationMinutes ?? null) === p.minutes && 'bg-muted text-primary font-medium'
+                        )}
+                      >
+                        <span>{p.label}</span>
+                        {p.minutes && value.time && (
+                          <span className="text-[10px] text-muted-foreground">
+                            até {addMinutesToTime(value.time, p.minutes)}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                    <div className="my-1 border-t border-border" />
+                    <div className="flex items-center gap-2 px-2 py-1.5">
+                      <span className="text-[10px] text-muted-foreground">Outro:</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1440}
+                        placeholder="min"
+                        value={value.durationMinutes && !DURATION_PRESETS.some(p => p.minutes === value.durationMinutes) ? value.durationMinutes : ''}
+                        onChange={(e) => {
+                          const n = parseInt(e.target.value, 10);
+                          onChange({ ...value, durationMinutes: Number.isFinite(n) && n > 0 ? n : null });
+                        }}
+                        className="h-6 text-xs"
+                      />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             <Popover open={recurrenceMenuOpen} onOpenChange={setRecurrenceMenuOpen}>
               <PopoverTrigger asChild>
                 <button
