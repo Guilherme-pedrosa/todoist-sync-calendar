@@ -117,7 +117,6 @@ export function QuickAddDialog() {
   // apply NLP suggestions — sempre que o título mudar, NLP é autoritativa
   // para data/hora/recorrência/prioridade detectadas (igual Todoist).
   // Rastreia o que foi setado pela NLP pra poder limpar quando o token sumir.
-  const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
   useEffect(() => {
     if (!parsed) return;
 
