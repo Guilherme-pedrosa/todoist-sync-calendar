@@ -395,7 +395,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             >
               {m.role === 'assistant' ? (
                 <article className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-1 prose-ul:my-1 prose-li:my-0">
-                  <ReactMarkdown>{m.content}</ReactMarkdown>
+                  <ReactMarkdown>{m.content || ''}</ReactMarkdown>
                 </article>
               ) : (
                 m.content
