@@ -29,9 +29,9 @@ const RECURRENCE_PATTERNS: Array<{
   re: RegExp;
   build: (m: RegExpExecArray) => { rule: string; label: string };
 }> = [
-  // dia útil / dias úteis / todo dia útil / weekdays — MUST come before "todo dia"
+  // dia útil / dias úteis / todo dia útil / work days / seg a sexta — MUST come before "todo dia"
   {
-    re: /\b(?:todo[s]?\s+(?:os\s+)?dias?\s+[úu]te[ií]s|dias?\s+[úu]te[ií]s|every\s+weekday|weekdays?)\b/i,
+    re: /\b(?:todo[s]?\s+(?:os\s+)?dias?\s+(?:[úu]til|[úu]te[ií]s)|dias?\s+(?:[úu]til|[úu]te[ií]s)|every\s+(?:weekday|work\s*day|business\s*day)s?|(?:weekday|work\s*day|business\s*day)s?|seg(?:unda)?\s*(?:a|à|ate|até|-)\s*sex(?:ta)?|segunda(?:-feira)?\s*(?:a|à|ate|até|-)\s*sexta(?:-feira)?|mon(?:day)?\s*(?:to|-)\s*fri(?:day)?)\b/i,
     build: () => ({
       rule: new RRule({
         freq: Frequency.WEEKLY,
