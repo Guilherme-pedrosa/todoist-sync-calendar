@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_tokens: {
         Row: {
           access_token: string
@@ -201,6 +233,41 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      reminders: {
+        Row: {
+          created_at: string
+          id: string
+          notification_sent: boolean
+          task_id: string
+          trigger_at: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notification_sent?: boolean
+          task_id: string
+          trigger_at: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notification_sent?: boolean
+          task_id?: string
+          trigger_at?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reminders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sections: {
         Row: {
