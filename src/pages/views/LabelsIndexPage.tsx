@@ -25,7 +25,7 @@ export default function LabelsIndexPage() {
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
-  const [color, setColor] = useState(LABEL_COLORS[0]?.value || 'hsl(0, 72%, 51%)');
+  const [color, setColor] = useState(TODOIST_COLORS[1]?.hsl || 'hsl(0, 72%, 51%)');
 
   const taskCountByLabel = (id: string) =>
     tasks.filter((t) => !t.completed && t.labels.includes(id)).length;
