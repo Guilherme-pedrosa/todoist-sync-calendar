@@ -9,11 +9,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { CheckCircle2, Mail, Lock, Loader2 } from 'lucide-react';
 
-const getAuthRedirectUri = () => {
-  const publishedOrigin = 'https://calendar-todo-dance.lovable.app';
-  const origin = window.location.origin;
-  return origin.includes('lovableproject.com') || origin.includes('id-preview--') ? publishedOrigin : origin;
-};
+const getAuthRedirectUri = () => window.location.origin;
 
 export default function Auth() {
   const { user, loading } = useAuth();
