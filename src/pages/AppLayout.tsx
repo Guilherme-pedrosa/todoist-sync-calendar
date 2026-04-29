@@ -185,6 +185,10 @@ export default function AppLayout() {
       <AIAssistantPanel />
       <ChatLauncher />
       <MentionNotifier />
+      {/* Floating notification bell — visible on every page */}
+      <div className="fixed top-2 right-2 sm:top-3 sm:right-3 z-40">
+        <NotificationBell />
+      </div>
     </div>
   );
 }
