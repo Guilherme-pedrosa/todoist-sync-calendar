@@ -25,14 +25,16 @@ type ExportType = 'txt' | 'pdf' | 'srt' | 'docx';
 interface TranskriptorFile {
   order_id?: string;
   id?: string;
+  file_id?: string;
   file_name?: string;
   name?: string;
   title?: string;
   duration?: number;
+  minutes?: number;
   language?: string;
   status?: string;
-  created_at?: string;
-  createdAt?: string;
+  created_at?: string | number;
+  createdAt?: string | number;
   service?: string;
 }
 
@@ -203,20 +205,31 @@ export default function TranskriptorPage() {
     );
   }, [files, search]);
 
-  const formatDuration = (s?: number) => {
-    if (!s) return '—';
-    const m = Math.floor(s / 60);
-    const sec = Math.round(s % 60);
-    return `${m}m ${sec}s`;
+  const formatDuration = (file: TranskriptorFile) => {
+    if (typeof file.minutes === 'number' && file.minutes > 0) {
+      return `${file.minutes} min`;
+    }
+    if (file.duration && file.duration > 0) {
+      const m = Math.floor(file.duration / 60);
+      const sec = Math.round(file.duration % 60);
+      return `${m}m ${sec}s`;
+    }
+    return '—';
   };
 
-  const formatDate = (iso?: string) => {
-    if (!iso) return '—';
-    try {
-      return new Date(iso).toLocaleString('pt-BR');
-    } catch {
-      return iso;
+  const formatDate = (raw?: string | number) => {
+    if (raw === undefined || raw === null || raw === '') return '—';
+    // Transkriptor returns ms epoch as string; also accept ISO strings
+    let d: Date;
+    const asNum = typeof raw === 'number' ? raw : Number(raw);
+    if (Number.isFinite(asNum) && asNum > 1_000_000_000) {
+      // seconds vs milliseconds heuristic
+      d = new Date(asNum < 1e12 ? asNum * 1000 : asNum);
+    } else {
+      d = new Date(String(raw));
     }
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('pt-BR');
   };
 
   return (
@@ -324,10 +337,10 @@ export default function TranskriptorPage() {
                             )}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
-                            {formatDate(f.created_at || f.createdAt)}
+                            {formatDate(f.created_at ?? f.createdAt)}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground hidden md:table-cell tabular-nums">
-                            {formatDuration(f.duration)}
+                            {formatDuration(f)}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell uppercase">
                             {f.language || '—'}
