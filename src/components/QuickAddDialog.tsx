@@ -416,15 +416,12 @@ export function QuickAddDialog() {
           Sugerir horário
         </button>
 
-        {/* Deadline (TODO Fase 4) */}
-        <button
-          type="button"
-          disabled
-          title="Prazo (em breve)"
-          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-dashed border-border text-muted-foreground/60 cursor-not-allowed"
-        >
-          🎯 Prazo
-        </button>
+        {/* Responsável */}
+        <AssigneeChip
+          projectId={projectId}
+          value={assigneeIds}
+          onChange={setAssigneeIds}
+        />
 
         {/* Attachment (TODO Fase 4) */}
         <button
