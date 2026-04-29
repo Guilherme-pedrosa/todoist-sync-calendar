@@ -28,6 +28,97 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+function formatMeetingDate(raw?: string | number | null): string {
+  if (raw === null || raw === undefined || raw === "") return "Data não informada";
+  const asNum = typeof raw === "number" ? raw : Number(raw);
+  let d: Date;
+  if (Number.isFinite(asNum) && asNum > 1_000_000_000) {
+    d = new Date(asNum < 1e12 ? asNum * 1000 : asNum);
+  } else {
+    d = new Date(String(raw));
+  }
+  if (isNaN(d.getTime())) return "Data não informada";
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit", month: "long", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+async function prependCoverToPdf(
+  pdfBytes: Uint8Array,
+  title: string,
+  dateLabel: string,
+): Promise<Uint8Array> {
+  const out = await PDFDocument.create();
+  const helv = await out.embedFont(StandardFonts.Helvetica);
+  const helvBold = await out.embedFont(StandardFonts.HelveticaBold);
+
+  // Cover page (A4)
+  const page = out.addPage([595.28, 841.89]);
+  const { width, height } = page;
+
+  // Accent bar
+  page.drawRectangle({ x: 0, y: height - 8, width, height: 8, color: rgb(1, 0.42, 0.13) });
+
+  // Label
+  page.drawText("REUNIÃO TRANSCRITA", {
+    x: 56, y: height - 120, size: 11, font: helvBold, color: rgb(0.45, 0.45, 0.45),
+  });
+
+  // Title (wrap)
+  const maxWidth = width - 112;
+  const titleSize = 26;
+  const words = (title || "Sem título").split(/\s+/);
+  const lines: string[] = [];
+  let current = "";
+  for (const w of words) {
+    const trial = current ? current + " " + w : w;
+    if (helvBold.widthOfTextAtSize(trial, titleSize) > maxWidth) {
+      if (current) lines.push(current);
+      current = w;
+    } else {
+      current = trial;
+    }
+  }
+  if (current) lines.push(current);
+
+  let y = height - 160;
+  for (const line of lines.slice(0, 6)) {
+    page.drawText(line, { x: 56, y, size: titleSize, font: helvBold, color: rgb(0.08, 0.08, 0.1) });
+    y -= titleSize + 6;
+  }
+
+  // Divider
+  y -= 20;
+  page.drawRectangle({ x: 56, y, width: maxWidth, height: 1, color: rgb(0.85, 0.85, 0.85) });
+
+  // Date block
+  y -= 40;
+  page.drawText("Data da reunião", {
+    x: 56, y, size: 10, font: helvBold, color: rgb(0.45, 0.45, 0.45),
+  });
+  y -= 22;
+  page.drawText(dateLabel, {
+    x: 56, y, size: 16, font: helv, color: rgb(0.1, 0.1, 0.12),
+  });
+
+  // Footer
+  page.drawText("Transcrição gerada via Transkriptor", {
+    x: 56, y: 48, size: 9, font: helv, color: rgb(0.55, 0.55, 0.55),
+  });
+
+  // Append original PDF pages
+  try {
+    const original = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const copied = await out.copyPages(original, original.getPageIndices());
+    copied.forEach((p) => out.addPage(p));
+  } catch (e) {
+    console.error("Failed to load original PDF, returning cover only:", e);
+  }
+
+  return await out.save();
+}
+
 async function getUserKey(req: Request): Promise<{ apiKey?: string; error?: Response }> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return { error: json({ error: "Missing authorization" }, 401) };
