@@ -120,6 +120,8 @@ export default function AppLayout() {
   useEffect(() => {
     if (user) {
       fetchData();
+      // Boot único do workspaceStore — todas as páginas consomem do store.
+      void useWorkspaceStore.getState().fetchWorkspaces();
     }
   }, [user, calendarConnected, fetchData]);
 
