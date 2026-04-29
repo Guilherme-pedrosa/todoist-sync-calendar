@@ -139,15 +139,24 @@ function normalizeCalendarTitle(value?: string | null) {
   return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
 }
 
+function getTaskDuplicateKey(task: Pick<Task, 'title' | 'dueDate' | 'dueTime' | 'completed'>): string | null {
+  if (task.completed || !task.dueDate) return null;
+  return [normalizeCalendarTitle(task.title), task.dueDate, task.dueTime ?? 'all-day'].join('|');
+}
+
+function getCalendarEventDuplicateKey(event: GoogleCalendarEvent): string | null {
+  const parsed = getCalendarDateAndTime(event);
+  if (!parsed.dueDate) return null;
+  return [normalizeCalendarTitle(event.summary), parsed.dueDate, parsed.dueTime ?? 'all-day'].join('|');
+}
+
 function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
   const parsed = getCalendarDateAndTime(event);
   return (
     !task.completed &&
-    !task.googleCalendarEventId &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
-    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+    (task.dueTime ?? null) === (parsed.dueTime ?? null)
   );
 }
 
@@ -170,8 +179,7 @@ function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
     !task.completed &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
-    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+    (task.dueTime ?? null) === (parsed.dueTime ?? null)
   );
 }
 
@@ -216,7 +224,28 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
 }
 
 async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
-  return tasks;
+  const groups = new Map<string, Task[]>();
+  for (const task of tasks) {
+    const key = getTaskDuplicateKey(task);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), task]);
+  }
+
+  const duplicateIds = new Set<string>();
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => {
+      if (!!a.googleCalendarEventId !== !!b.googleCalendarEventId) return a.googleCalendarEventId ? -1 : 1;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
+    group.slice(1).forEach((task) => duplicateIds.add(task.id));
+  }
+
+  if (duplicateIds.size > 0) {
+    await supabase.from('tasks').delete().in('id', Array.from(duplicateIds));
+  }
+
+  return tasks.filter((task) => !duplicateIds.has(task.id));
 }
 
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
