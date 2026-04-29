@@ -15,6 +15,18 @@ const json = (payload: unknown, status = 200) =>
 
 const TRANSKRIPTOR_BASE = "https://api.tor.app/developer";
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk)) as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
+
 async function getUserKey(req: Request): Promise<{ apiKey?: string; error?: Response }> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return { error: json({ error: "Missing authorization" }, 401) };
