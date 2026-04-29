@@ -207,6 +207,67 @@ export function TaskDetailPanel() {
     };
   }, [task?.id]);
 
+  // Load task assignees + realtime
+  useEffect(() => {
+    if (!task?.id) {
+      setAssigneeIds([]);
+      return;
+    }
+    let active = true;
+    const refresh = async () => {
+      const { data } = await supabase
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', task.id);
+      if (active && data) setAssigneeIds(data.map((r: any) => r.user_id));
+    };
+    void refresh();
+
+    const ch = supabase
+      .channel(`task-assignees-${task.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_assignees', filter: `task_id=eq.${task.id}` },
+        () => { void refresh(); }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
+    };
+  }, [task?.id]);
+
+  const handleAssigneesChange = async (next: string[]) => {
+    if (!task) return;
+    const prev = assigneeIds;
+    setAssigneeIds(next);
+    const toAdd = next.filter((id) => !prev.includes(id));
+    const toRemove = prev.filter((id) => !next.includes(id));
+    try {
+      if (toRemove.length > 0) {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', task.id)
+          .in('user_id', toRemove);
+      }
+      if (toAdd.length > 0) {
+        await supabase.from('task_assignees').insert(
+          toAdd.map((uid) => ({
+            task_id: task.id,
+            user_id: uid,
+            assigned_by: user?.id,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update assignees', err);
+      toast.error('Falha ao atualizar responsáveis');
+      setAssigneeIds(prev);
+    }
+  };
+
   // Keyboard shortcuts within panel
   useEffect(() => {
     if (!task) return;
