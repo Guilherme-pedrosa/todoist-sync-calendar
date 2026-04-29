@@ -328,6 +328,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     return conv.id;
   },
+
+  uploadAttachment: async (conversationId, file) => {
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
     if (!uid) return null;
