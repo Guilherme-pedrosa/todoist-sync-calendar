@@ -15,6 +15,18 @@ const json = (payload: unknown, status = 200) =>
 
 const TRANSKRIPTOR_BASE = "https://api.tor.app/developer";
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      Array.from(bytes.subarray(i, i + chunk)) as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
+
 async function getUserKey(req: Request): Promise<{ apiKey?: string; error?: Response }> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader) return { error: json({ error: "Missing authorization" }, 401) };
@@ -108,13 +120,41 @@ serve(async (req) => {
         return json({ error: `Transkriptor ${r.status}: ${text}` }, r.status);
       }
 
-      // Return raw bytes (file content) base64-encoded so the client can download
+      const respContentType = r.headers.get("content-type") ?? "";
+      console.log("export response content-type:", respContentType);
+
+      // Transkriptor often returns JSON with a signed download URL instead of raw bytes
+      if (respContentType.includes("application/json")) {
+        const data = await r.json();
+        console.log("export json keys:", Object.keys(data ?? {}));
+        const downloadUrl =
+          data?.url ||
+          data?.download_url ||
+          data?.file_url ||
+          data?.signed_url ||
+          data?.data?.url ||
+          data?.data?.download_url;
+
+        if (downloadUrl) {
+          const fileResp = await fetch(downloadUrl);
+          if (!fileResp.ok) {
+            const t = await fileResp.text();
+            return json({ error: `Download failed ${fileResp.status}: ${t}` }, 500);
+          }
+          const buf = new Uint8Array(await fileResp.arrayBuffer());
+          const b64 = bytesToBase64(buf);
+          const ct = fileResp.headers.get("content-type") ?? "application/octet-stream";
+          return json({ base64: b64, contentType: ct, source: "url" });
+        }
+
+        // No URL found — return the JSON for debugging
+        return json({ error: "no_download_url", payload: data }, 500);
+      }
+
+      // Raw bytes path
       const buf = new Uint8Array(await r.arrayBuffer());
-      let binary = "";
-      for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
-      const b64 = btoa(binary);
-      const contentType = r.headers.get("content-type") ?? "application/octet-stream";
-      return json({ base64: b64, contentType });
+      const b64 = bytesToBase64(buf);
+      return json({ base64: b64, contentType: respContentType || "application/octet-stream", source: "raw" });
     }
 
     return json({ error: "unknown action" }, 400);
