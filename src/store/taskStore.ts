@@ -20,6 +20,7 @@ interface TaskState {
     task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & {
       labels?: string[];
       reminderMinutes?: number | null;
+      assigneeIds?: string[];
     }
   ) => Promise<Task | null>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
