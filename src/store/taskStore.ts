@@ -578,6 +578,14 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
+    // Assignees: trigger inicial já adiciona o owner; aqui adicionamos os extras
+    const assigneeIds = (taskData.assigneeIds || []).filter((id) => id && id !== userId);
+    if (assigneeIds.length > 0) {
+      await supabase.from('task_assignees').insert(
+        assigneeIds.map((uid) => ({ task_id: data.id, user_id: uid, assigned_by: userId }))
+      );
+    }
+
     // Reminder (only if due_time present and reminderMinutes provided/default)
     if (data.due_date && data.due_time && taskData.reminderMinutes != null) {
       const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
