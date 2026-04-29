@@ -21,9 +21,11 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { TODOIST_COLORS, DEFAULT_PROJECT_COLOR } from '@/constants/colors';
 import { useTaskStore } from '@/store/taskStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Project } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { AlertTriangle } from 'lucide-react';
 
 interface ProjectFormDialogProps {
   open: boolean;
@@ -45,15 +47,21 @@ export function ProjectFormDialog({
   const projects = useTaskStore((s) => s.projects);
   const addProject = useTaskStore((s) => s.addProject);
   const updateProject = useTaskStore((s) => s.updateProject);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
 
   const isEdit = !!project;
+  const canMoveWorkspace = isEdit && !project?.isInbox && workspaces.length > 1;
 
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_PROJECT_COLOR);
   const [parentId, setParentId] = useState<string | null>(null);
   const [viewType, setViewType] = useState<'list' | 'board'>('list');
   const [isFavorite, setIsFavorite] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const originalWorkspaceId = project?.workspaceId ?? null;
+  const workspaceChanged = isEdit && workspaceId && workspaceId !== originalWorkspaceId;
 
   // Reset state when opening
   useEffect(() => {
