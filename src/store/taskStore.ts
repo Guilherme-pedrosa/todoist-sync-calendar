@@ -139,15 +139,24 @@ function normalizeCalendarTitle(value?: string | null) {
   return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
 }
 
+function getTaskDuplicateKey(task: Pick<Task, 'title' | 'dueDate' | 'dueTime' | 'completed'>): string | null {
+  if (task.completed || !task.dueDate) return null;
+  return [normalizeCalendarTitle(task.title), task.dueDate, task.dueTime ?? 'all-day'].join('|');
+}
+
+function getCalendarEventDuplicateKey(event: GoogleCalendarEvent): string | null {
+  const parsed = getCalendarDateAndTime(event);
+  if (!parsed.dueDate) return null;
+  return [normalizeCalendarTitle(event.summary), parsed.dueDate, parsed.dueTime ?? 'all-day'].join('|');
+}
+
 function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
   const parsed = getCalendarDateAndTime(event);
   return (
     !task.completed &&
-    !task.googleCalendarEventId &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
-    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+    (task.dueTime ?? null) === (parsed.dueTime ?? null)
   );
 }
 
@@ -170,8 +179,7 @@ function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
     !task.completed &&
     normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
     task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null) &&
-    (task.durationMinutes ?? null) === (parsed.durationMinutes ?? null)
+    (task.dueTime ?? null) === (parsed.dueTime ?? null)
   );
 }
 
@@ -216,7 +224,28 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
 }
 
 async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
-  return tasks;
+  const groups = new Map<string, Task[]>();
+  for (const task of tasks) {
+    const key = getTaskDuplicateKey(task);
+    if (!key) continue;
+    groups.set(key, [...(groups.get(key) ?? []), task]);
+  }
+
+  const duplicateIds = new Set<string>();
+  for (const group of groups.values()) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => {
+      if (!!a.googleCalendarEventId !== !!b.googleCalendarEventId) return a.googleCalendarEventId ? -1 : 1;
+      return a.createdAt.localeCompare(b.createdAt);
+    });
+    group.slice(1).forEach((task) => duplicateIds.add(task.id));
+  }
+
+  if (duplicateIds.size > 0) {
+    await supabase.from('tasks').delete().in('id', Array.from(duplicateIds));
+  }
+
+  return tasks.filter((task) => !duplicateIds.has(task.id));
 }
 
 async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
@@ -337,10 +366,17 @@ async function syncGoogleCalendarEvents(
 
     let nextTasks = [...currentTasks];
     const tasksToInsert: Record<string, any>[] = [];
+    const occupiedTaskKeys = new Set(
+      nextTasks.map((task) => getTaskDuplicateKey(task)).filter((key): key is string => Boolean(key))
+    );
+    const seenCalendarKeys = new Set<string>();
 
     for (const event of events) {
       if (!event.id) continue;
       const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
+      const eventKey = getCalendarEventDuplicateKey(event);
+      if (!eventKey || seenCalendarKeys.has(eventKey)) continue;
+      seenCalendarKeys.add(eventKey);
       const payload = {
         title: event.summary?.trim() || 'Evento do Google Calendar',
         description: event.description || null,
@@ -352,7 +388,20 @@ async function syncGoogleCalendarEvents(
 
       const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
       if (linkedTask) {
-        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        const collisionTask = nextTasks.find((task) => task.id !== linkedTask.id && isSameCalendarSlot(task, event));
+        if (collisionTask) {
+          if (!collisionTask.googleCalendarEventId) {
+            await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', collisionTask.id);
+          }
+          await supabase.from('tasks').delete().eq('id', linkedTask.id);
+          nextTasks = nextTasks
+            .filter((task) => task.id !== linkedTask.id)
+            .map((task) => (task.id === collisionTask.id ? { ...task, googleCalendarEventId: event.id } : task));
+          continue;
+        }
+
+        const { error: updateError } = await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        if (updateError) continue;
         nextTasks = nextTasks.map((task) =>
           task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
         );
@@ -365,12 +414,18 @@ async function syncGoogleCalendarEvents(
 
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
-        await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
-        nextTasks = nextTasks.map((task) =>
-          task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
-        );
+        if (!duplicateTask.googleCalendarEventId) {
+          const { error: linkError } = await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
+          if (linkError) continue;
+          nextTasks = nextTasks.map((task) =>
+            task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
+          );
+        }
         continue;
       }
+
+      if (occupiedTaskKeys.has(eventKey)) continue;
+      occupiedTaskKeys.add(eventKey);
 
       tasksToInsert.push({
         user_id: userId,
@@ -563,7 +618,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     if (Object.keys(dbUpdates).length > 0) {
-      await supabase.from('tasks').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
+      if (error) {
+        console.error('updateTask error', error);
+        return;
+      }
     }
 
     set((state) => ({
