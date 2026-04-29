@@ -72,12 +72,14 @@ export function ProjectFormDialog({
       setParentId(project.parentId ?? null);
       setViewType(project.viewType ?? 'list');
       setIsFavorite(!!project.isFavorite);
+      setWorkspaceId(project.workspaceId ?? null);
     } else {
       setName('');
       setColor(DEFAULT_PROJECT_COLOR);
       setParentId(defaultParentId);
       setViewType('list');
       setIsFavorite(false);
+      setWorkspaceId(null);
     }
   }, [open, project, defaultParentId]);
 
@@ -114,14 +116,24 @@ export function ProjectFormDialog({
     setSubmitting(true);
     try {
       if (isEdit && project) {
-        await updateProject(project.id, {
+        const updates: Partial<Project> = {
           name: trimmed,
           color,
-          parentId,
           viewType,
           isFavorite,
-        });
-        toast.success(`Projeto "${trimmed}" atualizado`);
+        };
+        if (workspaceChanged) {
+          // Ao mover de workspace, o projeto vira raiz no destino (parentId pode não existir lá)
+          updates.workspaceId = workspaceId;
+        } else {
+          updates.parentId = parentId;
+        }
+        await updateProject(project.id, updates);
+        toast.success(
+          workspaceChanged
+            ? `Projeto "${trimmed}" movido`
+            : `Projeto "${trimmed}" atualizado`
+        );
       } else {
         const created = await addProject({
           name: trimmed,
