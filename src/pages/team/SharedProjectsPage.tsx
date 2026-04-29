@@ -32,23 +32,20 @@ export default function SharedProjectsPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const members = useWorkspaceStore((s) => s.members);
+  const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
 
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [filter, setFilter] = useState<'all' | 'private' | 'team' | 'workspace'>('all');
 
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
     if (currentWorkspaceId) {
-      fetchMembers(currentWorkspaceId);
+      if (membersWorkspaceId !== currentWorkspaceId) fetchMembers(currentWorkspaceId);
       loadProjects();
     }
-  }, [currentWorkspaceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspaceId, membersWorkspaceId]);
 
   const loadProjects = async () => {
     if (!currentWorkspaceId) return;

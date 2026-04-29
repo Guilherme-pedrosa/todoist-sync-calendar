@@ -31,25 +31,27 @@ export default function MembersPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const members = useWorkspaceStore((s) => s.members);
+  const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
+  const loadingMembers = useWorkspaceStore((s) => s.loadingMembers);
+  const canManageCurrent = useWorkspaceStore((s) => s.canManageCurrent);
 
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
 
+  // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
-    if (currentWorkspaceId) fetchMembers(currentWorkspaceId);
-  }, [currentWorkspaceId, fetchMembers]);
+    if (currentWorkspaceId && membersWorkspaceId !== currentWorkspaceId) {
+      fetchMembers(currentWorkspaceId);
+    }
+  }, [currentWorkspaceId, membersWorkspaceId, fetchMembers]);
 
   const ws = workspaces.find((w) => w.id === currentWorkspaceId);
-  const myMembership = members.find((m) => m.userId === user?.id);
-  const isAdmin = myMembership?.role === 'owner' || myMembership?.role === 'admin';
+  const isAdmin = canManageCurrent(user?.id);
+  const showSkeleton = loadingMembers || membersWorkspaceId !== currentWorkspaceId;
+  const visibleMembers = membersWorkspaceId === currentWorkspaceId ? members : [];
 
   const callAdminFn = async (body: Record<string, any>) => {
     const { data: sess } = await supabase.auth.getSession();
@@ -208,10 +210,24 @@ export default function MembersPage() {
       </div>
 
       <div className="border border-border rounded-lg divide-y divide-border bg-card">
-        {members.length === 0 && (
+        {showSkeleton && (
+          <>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                <div className="h-9 w-9 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 bg-muted rounded" />
+                  <div className="h-2 w-20 bg-muted rounded" />
+                </div>
+                <div className="h-6 w-16 bg-muted rounded" />
+              </div>
+            ))}
+          </>
+        )}
+        {!showSkeleton && visibleMembers.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">Nenhum membro.</div>
         )}
-        {members.map((m) => {
+        {!showSkeleton && visibleMembers.map((m) => {
           const isMe = m.userId === user?.id;
           const isWsOwner = m.role === 'owner';
           return (
