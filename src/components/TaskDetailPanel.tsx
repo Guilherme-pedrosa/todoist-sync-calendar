@@ -734,6 +734,14 @@ export function TaskDetailPanel() {
               </Popover>
             </DetailRow>
 
+            <DetailRow icon={Users} label="Responsável">
+              <AssigneeChip
+                projectId={task.projectId ?? null}
+                value={assigneeIds}
+                onChange={handleAssigneesChange}
+              />
+            </DetailRow>
+
             <DetailRow icon={Flag} label="Prioridade">
               <Popover>
                 <PopoverTrigger asChild>
