@@ -179,6 +179,8 @@ export default function AppLayout() {
       <InstallPwaBanner />
       <RecurringEditDialog />
       <AIAssistantPanel />
+      <ChatLauncher />
+      <MentionNotifier />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import MembersPage from "./pages/team/MembersPage";
 import TeamsPage from "./pages/team/TeamsPage";
 import SharedProjectsPage from "./pages/team/SharedProjectsPage";
 import WorkloadPage from "./pages/team/WorkloadPage";
+import ConversationsPage from "./pages/Conversations";
 import Auth from "./pages/Auth";
 import CalendarCallback from "./pages/CalendarCallback";
 import NotFound from "./pages/NotFound";
