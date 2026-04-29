@@ -34,9 +34,9 @@ export default function TeamsPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const members = useWorkspaceStore((s) => s.members);
+  const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
 
   const [teams, setTeams] = useState<Team[]>([]);
   const [open, setOpen] = useState(false);
@@ -46,15 +46,14 @@ export default function TeamsPage() {
   const [teamMemberIds, setTeamMemberIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
     if (currentWorkspaceId) {
-      fetchMembers(currentWorkspaceId);
+      if (membersWorkspaceId !== currentWorkspaceId) fetchMembers(currentWorkspaceId);
       loadTeams();
     }
-  }, [currentWorkspaceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspaceId, membersWorkspaceId]);
+
+  const visibleMembers = membersWorkspaceId === currentWorkspaceId ? members : [];
 
   const loadTeams = async () => {
     if (!currentWorkspaceId) return;
