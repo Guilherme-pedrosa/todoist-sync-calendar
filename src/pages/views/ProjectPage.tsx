@@ -348,6 +348,15 @@ function ProjectHeader({
           </button>
         </div>
 
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={onShare}
+        >
+          <Share2 className="h-3.5 w-3.5" /> Compartilhar
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8">
