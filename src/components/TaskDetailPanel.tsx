@@ -23,6 +23,7 @@ import {
   Send,
   Paperclip,
   MessageSquare,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -51,6 +52,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { AssigneeChip } from '@/components/AssigneeChip';
 import { supabase } from '@/integrations/supabase/client';
 import { parseNlp } from '@/lib/nlp';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -143,6 +145,7 @@ export function TaskDetailPanel() {
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
@@ -203,6 +206,67 @@ export function TaskDetailPanel() {
       supabase.removeChannel(channel);
     };
   }, [task?.id]);
+
+  // Load task assignees + realtime
+  useEffect(() => {
+    if (!task?.id) {
+      setAssigneeIds([]);
+      return;
+    }
+    let active = true;
+    const refresh = async () => {
+      const { data } = await supabase
+        .from('task_assignees')
+        .select('user_id')
+        .eq('task_id', task.id);
+      if (active && data) setAssigneeIds(data.map((r: any) => r.user_id));
+    };
+    void refresh();
+
+    const ch = supabase
+      .channel(`task-assignees-${task.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_assignees', filter: `task_id=eq.${task.id}` },
+        () => { void refresh(); }
+      )
+      .subscribe();
+
+    return () => {
+      active = false;
+      supabase.removeChannel(ch);
+    };
+  }, [task?.id]);
+
+  const handleAssigneesChange = async (next: string[]) => {
+    if (!task) return;
+    const prev = assigneeIds;
+    setAssigneeIds(next);
+    const toAdd = next.filter((id) => !prev.includes(id));
+    const toRemove = prev.filter((id) => !next.includes(id));
+    try {
+      if (toRemove.length > 0) {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', task.id)
+          .in('user_id', toRemove);
+      }
+      if (toAdd.length > 0) {
+        await supabase.from('task_assignees').insert(
+          toAdd.map((uid) => ({
+            task_id: task.id,
+            user_id: uid,
+            assigned_by: user?.id,
+          }))
+        );
+      }
+    } catch (err) {
+      console.error('Failed to update assignees', err);
+      toast.error('Falha ao atualizar responsáveis');
+      setAssigneeIds(prev);
+    }
+  };
 
   // Keyboard shortcuts within panel
   useEffect(() => {
@@ -668,6 +732,14 @@ export function TaskDetailPanel() {
                     ))}
                 </PopoverContent>
               </Popover>
+            </DetailRow>
+
+            <DetailRow icon={Users} label="Responsável">
+              <AssigneeChip
+                projectId={task.projectId ?? null}
+                value={assigneeIds}
+                onChange={handleAssigneesChange}
+              />
             </DetailRow>
 
             <DetailRow icon={Flag} label="Prioridade">
