@@ -23,24 +23,25 @@ export default function WorkloadPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const members = useWorkspaceStore((s) => s.members);
+  const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
+  const loadingMembers = useWorkspaceStore((s) => s.loadingMembers);
 
   const [tasks, setTasks] = useState<AssignedTask[]>([]);
   const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), []);
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
     if (currentWorkspaceId) {
-      fetchMembers(currentWorkspaceId);
+      if (membersWorkspaceId !== currentWorkspaceId) fetchMembers(currentWorkspaceId);
       loadTasks();
     }
-  }, [currentWorkspaceId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspaceId, membersWorkspaceId]);
+
+  const showSkeleton = loadingMembers || membersWorkspaceId !== currentWorkspaceId;
+  const visibleMembers = membersWorkspaceId === currentWorkspaceId ? members : [];
 
   const loadTasks = async () => {
     if (!currentWorkspaceId) return;
