@@ -187,7 +187,12 @@ serve(async (req) => {
         merge_same_speaker_segments = true,
         is_single_paragraph = false,
         paragraph_size = 4,
+        meeting_title = "",
+        meeting_date = null,
       } = body ?? {};
+
+      const wantsCover = export_type === "pdf";
+      const dateLabel = formatMeetingDate(meeting_date);
 
       if (!order_id) return json({ error: "order_id required" }, 400);
 
