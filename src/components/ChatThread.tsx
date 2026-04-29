@@ -307,11 +307,15 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       <div className="relative border-t p-2">
         {mentionState.open && filteredMentions.length > 0 && (
           <div className="absolute bottom-full left-2 right-2 mb-2 bg-popover border rounded-lg shadow-lg overflow-hidden z-10 max-h-56 overflow-y-auto">
-            {filteredMentions.map((m) => (
+            {filteredMentions.map((m, idx) => (
               <button
                 key={m.userId}
+                onMouseEnter={() => setMentionIndex(idx)}
                 onClick={() => insertMention(m)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent text-sm"
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 text-left text-sm',
+                  idx === mentionIndex ? 'bg-accent' : 'hover:bg-accent/60'
+                )}
               >
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={m.avatar || undefined} />
