@@ -161,6 +161,17 @@ export default function ProjectPage() {
             navigate('/today');
           }}
         />
+        {project.workspaceId && (
+          <ProjectAccessDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            projectId={project.id}
+            workspaceId={project.workspaceId}
+            visibility={project.visibility ?? 'private'}
+            ownerId={project.ownerId ?? null}
+            isPersonalWorkspace={!!projectWorkspace?.isPersonal}
+          />
+        )}
       </div>
     );
   }
