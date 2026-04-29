@@ -1,16 +1,56 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, ExternalLink, FileText, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChatStore } from '@/store/chatStore';
 import { ChatThread } from '@/components/ChatThread';
 import { EmbedAuthForm } from '@/components/EmbedAuthForm';
+import { Button } from '@/components/ui/button';
 
+/**
+ * Embed do chat TaskFlow para uso em iframes (ex: Auvo GC Sync).
+ *
+ * Parâmetros aceitos:
+ *  - contextId  (obrigatório) → chave única da conversa. Se não vier, é gerado a partir de osId+page.
+ *  - osId       → ID da Ordem de Serviço no Auvo (compõe contextId quando não informado).
+ *  - osNumber   → Número/código amigável da OS (exibido no header).
+ *  - title      → Título customizado (sobrescreve montagem padrão).
+ *  - page       → Identificador da página onde o chat foi aberto (ex: "kanban-os", "agenda").
+ *  - auvoLink   → URL pra abrir a OS no Auvo.
+ *  - gcLink     → URL pra abrir a OS no GestãoClick.
+ *  - sourceUrl  → URL completa da página atual no host (deep link).
+ */
 export default function EmbedChat() {
   const { user, loading: authLoading } = useAuth();
   const [params] = useSearchParams();
-  const contextId = params.get('contextId') || params.get('context') || '';
-  const title = params.get('title') || undefined;
+
+  const osId = params.get('osId') || '';
+  const osNumber = params.get('osNumber') || '';
+  const page = params.get('page') || '';
+  const auvoLink = params.get('auvoLink') || '';
+  const gcLink = params.get('gcLink') || '';
+  const sourceUrl = params.get('sourceUrl') || '';
+  const titleParam = params.get('title') || '';
+
+  // Monta um contextId composto se não veio explícito.
+  // Prioridade: contextId param > osId+page > osId > page
+  const contextId = useMemo(() => {
+    const explicit = params.get('contextId') || params.get('context');
+    if (explicit) return explicit;
+    if (osId && page) return `os:${osId}@${page}`;
+    if (osId) return `os:${osId}`;
+    if (page) return `page:${page}`;
+    return '';
+  }, [params, osId, page]);
+
+  const computedTitle = useMemo(() => {
+    if (titleParam) return titleParam;
+    const parts: string[] = [];
+    if (osNumber) parts.push(`OS ${osNumber}`);
+    else if (osId) parts.push(`OS #${osId}`);
+    if (page) parts.push(page);
+    return parts.join(' · ') || undefined;
+  }, [titleParam, osNumber, osId, page]);
 
   const ensureContextConversation = useChatStore((s) => s.ensureContextConversation);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -22,7 +62,7 @@ export default function EmbedChat() {
     let active = true;
     setLoading(true);
     setError(null);
-    ensureContextConversation(contextId, title)
+    ensureContextConversation(contextId, computedTitle)
       .then((id) => {
         if (!active) return;
         if (id) setConversationId(id);
@@ -38,7 +78,7 @@ export default function EmbedChat() {
     return () => {
       active = false;
     };
-  }, [user, contextId, title, ensureContextConversation]);
+  }, [user, contextId, computedTitle, ensureContextConversation]);
 
   if (authLoading) {
     return (
@@ -55,7 +95,8 @@ export default function EmbedChat() {
           <AlertCircle className="h-8 w-8 mx-auto text-destructive" />
           <h1 className="font-display text-base font-semibold">Parâmetro faltando</h1>
           <p className="text-xs text-muted-foreground">
-            A URL do chat precisa do parâmetro <code className="font-mono">?contextId=…</code> para identificar a conversa.
+            Informe pelo menos <code className="font-mono">?contextId=…</code> ou{' '}
+            <code className="font-mono">?osId=…</code> na URL.
           </p>
         </div>
       </div>
@@ -86,11 +127,67 @@ export default function EmbedChat() {
     );
   }
 
+  const hasContextBar = computedTitle || auvoLink || gcLink || sourceUrl;
+
   return (
     <div className="h-screen bg-background flex flex-col">
-      {title && (
-        <div className="px-4 py-2 border-b bg-card/40">
-          <h1 className="font-display text-sm font-semibold truncate">{title}</h1>
+      {hasContextBar && (
+        <div className="px-3 py-2 border-b bg-card/40 flex items-center gap-2 min-w-0">
+          <div className="flex-1 min-w-0">
+            {computedTitle && (
+              <h1 className="font-display text-sm font-semibold truncate">{computedTitle}</h1>
+            )}
+            {page && (
+              <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                <MapPin className="h-2.5 w-2.5" />
+                {page}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {auvoLink && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1"
+                asChild
+                title="Abrir OS no Auvo"
+              >
+                <a href={auvoLink} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3 w-3" />
+                  Auvo
+                </a>
+              </Button>
+            )}
+            {gcLink && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1"
+                asChild
+                title="Abrir no GestãoClick"
+              >
+                <a href={gcLink} target="_blank" rel="noopener noreferrer">
+                  <FileText className="h-3 w-3" />
+                  GC
+                </a>
+              </Button>
+            )}
+            {sourceUrl && !auvoLink && !gcLink && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1"
+                asChild
+                title="Abrir página de origem"
+              >
+                <a href={sourceUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3 w-3" />
+                  Abrir
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
       )}
       <div className="flex-1 overflow-hidden">
