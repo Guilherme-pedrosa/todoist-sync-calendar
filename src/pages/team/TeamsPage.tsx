@@ -242,7 +242,7 @@ export default function TeamsPage() {
             <DialogTitle>Membros do time {memberDialog?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-[400px] overflow-auto">
-            {members.map((m) => (
+            {visibleMembers.map((m) => (
               <label
                 key={m.userId}
                 className="flex items-center gap-3 p-2 hover:bg-accent rounded-md cursor-pointer"
