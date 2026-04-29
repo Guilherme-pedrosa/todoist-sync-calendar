@@ -20,6 +20,8 @@ interface Props {
   showOpenFull?: boolean;
 }
 
+const EMPTY_MESSAGES: Message[] = [];
+
 interface MentionPick {
   userId: string;
   display: string;
