@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu } from 'lucide-react';
+import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2 } from 'lucide-react';
 import { TaskList } from '@/components/TaskList';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { TaskItem } from '@/components/TaskItem';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
+import { ProjectAccessDialog } from '@/components/ProjectAccessDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/task';
 import { toast } from 'sonner';
@@ -58,6 +60,9 @@ export default function ProjectPage() {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
 
   const project = projects.find((p) => p.id === projectId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const projectWorkspace = workspaces.find((w) => w.id === project?.workspaceId);
+
   const [view, setView] = useState<'list' | 'board'>(
     (project?.viewType as 'list' | 'board') || 'list'
   );
@@ -65,6 +70,7 @@ export default function ProjectPage() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
@@ -140,6 +146,7 @@ export default function ProjectPage() {
           }}
           onDelete={() => setConfirmDelete(true)}
           onEdit={() => toast.info('Editar projeto: use o menu da barra lateral')}
+          onShare={() => setShareOpen(true)}
           onToggleSidebar={toggleSidebar}
         />
         <div className="flex-1 overflow-hidden">
@@ -154,6 +161,17 @@ export default function ProjectPage() {
             navigate('/today');
           }}
         />
+        {project.workspaceId && (
+          <ProjectAccessDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            projectId={project.id}
+            workspaceId={project.workspaceId}
+            visibility={project.visibility ?? 'private'}
+            ownerId={project.ownerId ?? null}
+            isPersonalWorkspace={!!projectWorkspace?.isPersonal}
+          />
+        )}
       </div>
     );
   }
@@ -177,6 +195,7 @@ export default function ProjectPage() {
         }}
         onDelete={() => setConfirmDelete(true)}
         onEdit={() => toast.info('Editar projeto: use o menu da barra lateral')}
+        onShare={() => setShareOpen(true)}
         onToggleSidebar={toggleSidebar}
       />
 
@@ -197,6 +216,17 @@ export default function ProjectPage() {
           navigate('/today');
         }}
       />
+      {project.workspaceId && (
+        <ProjectAccessDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          projectId={project.id}
+          workspaceId={project.workspaceId}
+          visibility={project.visibility ?? 'private'}
+          ownerId={project.ownerId ?? null}
+          isPersonalWorkspace={!!projectWorkspace?.isPersonal}
+        />
+      )}
     </div>
   );
 }
@@ -250,6 +280,7 @@ function ProjectHeader({
   onArchive,
   onDelete,
   onEdit,
+  onShare,
   onToggleSidebar,
 }: any) {
   return (
@@ -316,6 +347,15 @@ function ProjectHeader({
             <KanbanSquare className="h-3.5 w-3.5" /> Quadro
           </button>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={onShare}
+        >
+          <Share2 className="h-3.5 w-3.5" /> Compartilhar
+        </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -41,6 +41,10 @@ export interface Project {
   description?: string | null;
   archivedAt?: string | null;
   position?: number;
+  workspaceId?: string | null;
+  ownerId?: string | null;
+  teamId?: string | null;
+  visibility?: 'private' | 'team' | 'workspace';
 }
 
 export interface Label {

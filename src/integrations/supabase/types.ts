@@ -563,6 +563,30 @@ export type Database = {
           },
         ]
       }
+      project_teams: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          default_role: Database["public"]["Enums"]["project_role"]
+          project_id: string
+          team_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          default_role?: Database["public"]["Enums"]["project_role"]
+          project_id: string
+          team_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          default_role?: Database["public"]["Enums"]["project_role"]
+          project_id?: string
+          team_id?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           archived_at: string | null
@@ -1564,6 +1588,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workspace_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          after: Json | null
+          before: Json | null
+          created_at: string
+          entity_id: string | null
+          entity_type: string
+          id: string
+          workspace_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          workspace_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          after?: Json | null
+          before?: Json | null
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       workspace_members: {
         Row: {
