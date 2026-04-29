@@ -280,6 +280,7 @@ function ProjectHeader({
   onArchive,
   onDelete,
   onEdit,
+  onShare,
   onToggleSidebar,
 }: any) {
   return (
