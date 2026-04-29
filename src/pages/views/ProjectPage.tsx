@@ -60,6 +60,9 @@ export default function ProjectPage() {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
 
   const project = projects.find((p) => p.id === projectId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const projectWorkspace = workspaces.find((w) => w.id === project?.workspaceId);
+
   const [view, setView] = useState<'list' | 'board'>(
     (project?.viewType as 'list' | 'board') || 'list'
   );
@@ -67,6 +70,7 @@ export default function ProjectPage() {
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
