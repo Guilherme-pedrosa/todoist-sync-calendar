@@ -237,6 +237,43 @@ export function ProjectFormDialog({
             </Select>
           </div>
 
+          {/* Workspace (apenas em edição, com mais de 1 workspace) */}
+          {canMoveWorkspace && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Workspace</Label>
+              <Select
+                value={workspaceId ?? ''}
+                onValueChange={(v) => setWorkspaceId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      <span className="inline-flex items-center gap-2">
+                        {w.name}
+                        {w.isPersonal && (
+                          <span className="text-[10px] text-muted-foreground">(pessoal)</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {workspaceChanged && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                  <div className="text-amber-700 dark:text-amber-300">
+                    Ao mover, o projeto vira <strong>privado</strong>, fica como{' '}
+                    <strong>raiz</strong> e os membros/times atuais perdem acesso. As tarefas vão
+                    junto.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* View type */}
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-muted-foreground">Visualização</Label>
