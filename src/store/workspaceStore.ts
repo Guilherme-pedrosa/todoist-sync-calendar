@@ -25,18 +25,28 @@ interface WorkspaceState {
   workspaces: Workspace[];
   currentWorkspaceId: string | null;
   members: WorkspaceMember[];
+  /** Workspace id que `members` representa atualmente (null = não carregado / inválido). */
+  membersWorkspaceId: string | null;
   loading: boolean;
+  loadingMembers: boolean;
+  /** Token incremental para descartar respostas antigas em caso de troca rápida de workspace. */
+  _fetchMembersToken: number;
   fetchWorkspaces: () => Promise<void>;
   setCurrentWorkspace: (id: string) => void;
   fetchMembers: (workspaceId: string) => Promise<void>;
   currentRole: () => WorkspaceRole | null;
+  /** True se o usuário tem permissão de gerir o workspace atual (owner|admin) — funciona mesmo enquanto members ainda carrega. */
+  canManageCurrent: (userId: string | undefined | null) => boolean;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   workspaces: [],
   currentWorkspaceId: null,
   members: [],
+  membersWorkspaceId: null,
   loading: false,
+  loadingMembers: false,
+  _fetchMembersToken: 0,
 
   fetchWorkspaces: async () => {
     set({ loading: true });
@@ -73,7 +83,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       isPersonal: !!w.is_personal,
     }));
 
-    // Default to first non-personal (shared) workspace if any, else personal
+    // Default: workspace compartilhado primeiro, senão pessoal.
     const current =
       get().currentWorkspaceId ||
       workspaces.find((w) => !w.isPersonal)?.id ||
@@ -81,15 +91,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       null;
 
     set({ workspaces, currentWorkspaceId: current, loading: false });
+
+    // Pré-carrega members do workspace atual no boot.
+    if (current) {
+      void get().fetchMembers(current);
+    }
   },
 
-  setCurrentWorkspace: (id) => set({ currentWorkspaceId: id, members: [] }),
+  setCurrentWorkspace: (id) => {
+    if (get().currentWorkspaceId === id) return;
+    // NÃO zera `members` — mantém o anterior visível até a nova lista chegar,
+    // mas invalida `membersWorkspaceId` para o consumidor saber que precisa esperar.
+    set({ currentWorkspaceId: id, membersWorkspaceId: null });
+    void get().fetchMembers(id);
+  },
 
   fetchMembers: async (workspaceId) => {
-    const { data: rows } = await supabase
+    const token = get()._fetchMembersToken + 1;
+    set({ loadingMembers: true, _fetchMembersToken: token });
+
+    const { data: rows, error } = await supabase
       .from('workspace_members')
       .select('workspace_id, user_id, role, joined_at')
       .eq('workspace_id', workspaceId);
+
+    if (error) {
+      console.error('[workspaceStore] fetchMembers error', error);
+    }
 
     const userIds = (rows || []).map((r) => r.user_id);
     let profiles: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
@@ -99,7 +127,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         .select('user_id, display_name, avatar_url')
         .in('user_id', userIds);
       profiles = Object.fromEntries(
-        (profRows || []).map((p: any) => [p.user_id, { display_name: p.display_name, avatar_url: p.avatar_url }])
+        (profRows || []).map((p: any) => [
+          p.user_id,
+          { display_name: p.display_name, avatar_url: p.avatar_url },
+        ])
       );
     }
 
@@ -113,17 +144,38 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       email: null,
     }));
 
-    set({ members });
+    // Descarta resposta se outro fetch foi iniciado depois (anti-corrida).
+    if (get()._fetchMembersToken !== token) return;
+
+    set({
+      members,
+      membersWorkspaceId: workspaceId,
+      loadingMembers: false,
+    });
   },
 
   currentRole: () => {
-    const { workspaces, currentWorkspaceId, members } = get();
+    const { workspaces, currentWorkspaceId, members, membersWorkspaceId } = get();
     if (!currentWorkspaceId) return null;
     const ws = workspaces.find((w) => w.id === currentWorkspaceId);
     if (!ws) return null;
-    // Quick path for personal workspace
     if (ws.isPersonal) return 'owner';
-    const m = members.find((x) => x.workspaceId === currentWorkspaceId);
-    return m?.role ?? null;
+    // Se members ainda não bate com o workspace atual, não há resposta confiável.
+    if (membersWorkspaceId !== currentWorkspaceId) return null;
+    return members.find((x) => x.workspaceId === currentWorkspaceId)?.role ?? null;
+  },
+
+  canManageCurrent: (userId) => {
+    if (!userId) return false;
+    const { workspaces, currentWorkspaceId, members, membersWorkspaceId } = get();
+    if (!currentWorkspaceId) return false;
+    const ws = workspaces.find((w) => w.id === currentWorkspaceId);
+    if (!ws) return false;
+    // Owner conhecido pelo workspace — funciona mesmo antes de members carregar.
+    if (ws.ownerId === userId) return true;
+    // Caso contrário precisa do members carregado.
+    if (membersWorkspaceId !== currentWorkspaceId) return false;
+    const me = members.find((m) => m.userId === userId);
+    return me?.role === 'owner' || me?.role === 'admin';
   },
 }));
