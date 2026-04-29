@@ -349,9 +349,9 @@ function ProjectHeader({
         </div>
 
         <Button
-          variant="outline"
+          variant="default"
           size="sm"
-          className="h-8 gap-1.5"
+          className="h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
           onClick={onShare}
         >
           <Share2 className="h-3.5 w-3.5" /> Compartilhar
