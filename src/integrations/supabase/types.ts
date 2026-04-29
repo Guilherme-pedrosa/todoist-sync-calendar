@@ -150,6 +150,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string
+          external_context_id: string | null
           id: string
           task_id: string | null
           title: string | null
@@ -160,6 +161,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by: string
+          external_context_id?: string | null
           id?: string
           task_id?: string | null
           title?: string | null
@@ -170,6 +172,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string
+          external_context_id?: string | null
           id?: string
           task_id?: string | null
           title?: string | null
@@ -1788,7 +1791,7 @@ export type Database = {
       }
     }
     Enums: {
-      conversation_type: "workspace" | "task"
+      conversation_type: "workspace" | "task" | "context"
       project_role: "admin" | "editor" | "commenter" | "viewer"
       project_visibility: "private" | "team" | "workspace"
       team_role: "lead" | "member"
@@ -1920,7 +1923,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      conversation_type: ["workspace", "task"],
+      conversation_type: ["workspace", "task", "context"],
       project_role: ["admin", "editor", "commenter", "viewer"],
       project_visibility: ["private", "team", "workspace"],
       team_role: ["lead", "member"],
