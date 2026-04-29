@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu } from 'lucide-react';
+import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2 } from 'lucide-react';
 import { TaskList } from '@/components/TaskList';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { TaskItem } from '@/components/TaskItem';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
+import { ProjectAccessDialog } from '@/components/ProjectAccessDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { Task } from '@/types/task';
 import { toast } from 'sonner';
