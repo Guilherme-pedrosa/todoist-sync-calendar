@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/popover';
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
+import { TaskConversationButton } from '@/components/TaskConversationButton';
 import { supabase } from '@/integrations/supabase/client';
 import { parseNlp } from '@/lib/nlp';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
