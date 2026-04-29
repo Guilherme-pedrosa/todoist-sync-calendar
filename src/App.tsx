@@ -51,6 +51,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/embed/chat" element={<EmbedChat />} />
             <Route
               path="/calendar-callback"
               element={
