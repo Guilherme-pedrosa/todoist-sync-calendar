@@ -78,6 +78,7 @@ function mapConv(row: any): Conversation {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    externalContextId: row.external_context_id ?? null,
   };
 }
 
