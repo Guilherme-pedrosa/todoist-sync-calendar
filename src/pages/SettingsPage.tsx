@@ -21,6 +21,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -381,22 +382,8 @@ export default function SettingsPage() {
         <div className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="max-w-2xl mx-auto p-4 sm:p-6">
             <TabsContent value="account" className="space-y-6 mt-0">
-              <Section title="Informações da conta">
-                <Field label="Nome">
-                  <Input
-                    value={(user as any)?.user_metadata?.full_name || ''}
-                    disabled
-                    className="bg-muted/40"
-                  />
-                </Field>
-                <Field label="E-mail">
-                  <Input value={user?.email || ''} disabled className="bg-muted/40" />
-                </Field>
-                <Field label="Foto">
-                  <div className="h-12 w-12 rounded-full bg-primary/15 text-primary flex items-center justify-center text-lg font-semibold">
-                    {(user?.email || '?').slice(0, 1).toUpperCase()}
-                  </div>
-                </Field>
+              <Section title="Perfil">
+                <ProfileSettings />
               </Section>
               <Section title="Segurança">
                 <Button variant="outline" size="sm" onClick={() => navigate('/auth')}>
