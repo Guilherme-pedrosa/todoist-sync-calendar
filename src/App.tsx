@@ -79,6 +79,8 @@ const App = () => (
               <Route path="/team/teams" element={<TeamsPage />} />
               <Route path="/team/projects" element={<SharedProjectsPage />} />
               <Route path="/team/workload" element={<WorkloadPage />} />
+              <Route path="/conversations" element={<ConversationsPage />} />
+              <Route path="/conversations/:id" element={<ConversationsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
