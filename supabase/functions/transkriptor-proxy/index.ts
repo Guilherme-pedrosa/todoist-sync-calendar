@@ -251,10 +251,17 @@ serve(async (req) => {
             const t = await fileResp.text();
             return json({ error: `Download failed ${fileResp.status}: ${t}` }, 500);
           }
-          const buf = new Uint8Array(await fileResp.arrayBuffer());
-          const b64 = bytesToBase64(buf);
-          const ct = fileResp.headers.get("content-type") ?? "application/octet-stream";
-          return json({ base64: b64, contentType: ct, source: "url" });
+          let buf = new Uint8Array(await fileResp.arrayBuffer());
+          let ct = fileResp.headers.get("content-type") ?? "application/octet-stream";
+          if (wantsCover) {
+            try {
+              buf = await prependCoverToPdf(buf, meeting_title, dateLabel);
+              ct = "application/pdf";
+            } catch (e) {
+              console.error("prependCoverToPdf failed:", e);
+            }
+          }
+          return json({ base64: bytesToBase64(buf), contentType: ct, source: "url" });
         }
 
         // No URL found — return the JSON for debugging
@@ -262,9 +269,17 @@ serve(async (req) => {
       }
 
       // Raw bytes path
-      const buf = new Uint8Array(await r.arrayBuffer());
-      const b64 = bytesToBase64(buf);
-      return json({ base64: b64, contentType: respContentType || "application/octet-stream", source: "raw" });
+      let buf = new Uint8Array(await r.arrayBuffer());
+      let outCt = respContentType || "application/octet-stream";
+      if (wantsCover) {
+        try {
+          buf = await prependCoverToPdf(buf, meeting_title, dateLabel);
+          outCt = "application/pdf";
+        } catch (e) {
+          console.error("prependCoverToPdf failed:", e);
+        }
+      }
+      return json({ base64: bytesToBase64(buf), contentType: outCt, source: "raw" });
     }
 
     return json({ error: "unknown action" }, 400);
