@@ -234,6 +234,11 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
               task.completed && 'line-through text-success'
             )}
           >
+            {task.taskNumber != null && (
+              <span className="text-muted-foreground/70 font-mono text-xs mr-1.5 tabular-nums">
+                #{task.taskNumber}
+              </span>
+            )}
             {task.title}
           </p>
 
