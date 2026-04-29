@@ -243,6 +243,7 @@ export function QuickAddDialog() {
         parentId: defaultParentId || undefined,
         labels: selectedLabels,
         reminderMinutes: firstRelative?.relative_minutes ?? null,
+        assigneeIds,
       });
       // Insert any additional absolute reminders (besides the auto one)
       if (created && reminders.length > 0) {
