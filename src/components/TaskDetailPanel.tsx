@@ -532,6 +532,9 @@ export function TaskDetailPanel() {
               )}
             </div>
 
+            {/* Task conversation launcher */}
+            {task.id && <TaskConversationButton taskId={task.id} />}
+
             {/* Comments */}
             <div className="pt-4 border-t border-border space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
