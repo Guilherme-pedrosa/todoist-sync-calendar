@@ -166,6 +166,7 @@ export default function AppLayout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
+        <SyncPausedBanner />
         <Outlet />
       </div>
       <QuickAddDialog />
