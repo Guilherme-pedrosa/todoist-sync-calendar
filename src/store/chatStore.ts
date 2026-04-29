@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-export type ConversationType = 'workspace' | 'task';
+export type ConversationType = 'workspace' | 'task' | 'context';
 
 export interface Conversation {
   id: string;
@@ -13,6 +13,7 @@ export interface Conversation {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  externalContextId?: string | null;
 }
 
 export interface ChatAttachment {
