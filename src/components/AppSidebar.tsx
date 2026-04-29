@@ -476,6 +476,10 @@ export function AppSidebar() {
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Concluídas</span>
         </NavLink>
+        <NavLink to="/settings" className={({ isActive }) => navLinkClass(isActive)}>
+          <Settings className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Configurações</span>
+        </NavLink>
 
         {/* Favorites */}
         {(favoriteProjects.length > 0 || favoriteLabels.length > 0 || favoriteFilters.length > 0) && (
