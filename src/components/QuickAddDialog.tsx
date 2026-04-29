@@ -606,7 +606,7 @@ export function QuickAddDialog() {
           </Button>
           <Button
             size="sm"
-            onClick={() => submit(false)}
+            onClick={() => submit(true)}
             disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
             className="h-8 text-xs gap-1.5"
           >
