@@ -21,9 +21,11 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { TODOIST_COLORS, DEFAULT_PROJECT_COLOR } from '@/constants/colors';
 import { useTaskStore } from '@/store/taskStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Project } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { AlertTriangle } from 'lucide-react';
 
 interface ProjectFormDialogProps {
   open: boolean;
@@ -45,15 +47,21 @@ export function ProjectFormDialog({
   const projects = useTaskStore((s) => s.projects);
   const addProject = useTaskStore((s) => s.addProject);
   const updateProject = useTaskStore((s) => s.updateProject);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
 
   const isEdit = !!project;
+  const canMoveWorkspace = isEdit && !project?.isInbox && workspaces.length > 1;
 
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(DEFAULT_PROJECT_COLOR);
   const [parentId, setParentId] = useState<string | null>(null);
   const [viewType, setViewType] = useState<'list' | 'board'>('list');
   const [isFavorite, setIsFavorite] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const originalWorkspaceId = project?.workspaceId ?? null;
+  const workspaceChanged = isEdit && workspaceId && workspaceId !== originalWorkspaceId;
 
   // Reset state when opening
   useEffect(() => {
@@ -64,12 +72,14 @@ export function ProjectFormDialog({
       setParentId(project.parentId ?? null);
       setViewType(project.viewType ?? 'list');
       setIsFavorite(!!project.isFavorite);
+      setWorkspaceId(project.workspaceId ?? null);
     } else {
       setName('');
       setColor(DEFAULT_PROJECT_COLOR);
       setParentId(defaultParentId);
       setViewType('list');
       setIsFavorite(false);
+      setWorkspaceId(null);
     }
   }, [open, project, defaultParentId]);
 
@@ -106,14 +116,24 @@ export function ProjectFormDialog({
     setSubmitting(true);
     try {
       if (isEdit && project) {
-        await updateProject(project.id, {
+        const updates: Partial<Project> = {
           name: trimmed,
           color,
-          parentId,
           viewType,
           isFavorite,
-        });
-        toast.success(`Projeto "${trimmed}" atualizado`);
+        };
+        if (workspaceChanged) {
+          // Ao mover de workspace, o projeto vira raiz no destino (parentId pode não existir lá)
+          updates.workspaceId = workspaceId;
+        } else {
+          updates.parentId = parentId;
+        }
+        await updateProject(project.id, updates);
+        toast.success(
+          workspaceChanged
+            ? `Projeto "${trimmed}" movido`
+            : `Projeto "${trimmed}" atualizado`
+        );
       } else {
         const created = await addProject({
           name: trimmed,
@@ -216,6 +236,43 @@ export function ProjectFormDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Workspace (apenas em edição, com mais de 1 workspace) */}
+          {canMoveWorkspace && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Workspace</Label>
+              <Select
+                value={workspaceId ?? ''}
+                onValueChange={(v) => setWorkspaceId(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map((w) => (
+                    <SelectItem key={w.id} value={w.id}>
+                      <span className="inline-flex items-center gap-2">
+                        {w.name}
+                        {w.isPersonal && (
+                          <span className="text-[10px] text-muted-foreground">(pessoal)</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {workspaceChanged && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                  <div className="text-amber-700 dark:text-amber-300">
+                    Ao mover, o projeto vira <strong>privado</strong>, fica como{' '}
+                    <strong>raiz</strong> e os membros/times atuais perdem acesso. As tarefas vão
+                    junto.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* View type */}
           <div className="space-y-1.5">

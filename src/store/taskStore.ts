@@ -917,11 +917,41 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.isFavorite !== undefined) dbUpdates.is_favorite = updates.isFavorite;
     if (updates.viewType !== undefined) dbUpdates.view_type = updates.viewType;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.workspaceId !== undefined) {
+      dbUpdates.workspace_id = updates.workspaceId;
+      // Visibilidade segura ao trocar de workspace: força privado e limpa team_id
+      dbUpdates.visibility = 'private';
+      dbUpdates.team_id = null;
+      dbUpdates.parent_id = null; // pais podem não existir no novo workspace
+    }
     if (Object.keys(dbUpdates).length > 0) {
-      await supabase.from('projects').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('projects').update(dbUpdates).eq('id', id);
+      if (error) throw error;
+    }
+    // Se mudou de workspace, atualiza também as tasks do projeto (workspace_id é NOT NULL)
+    if (updates.workspaceId !== undefined) {
+      const { error: tErr } = await supabase
+        .from('tasks')
+        .update({ workspace_id: updates.workspaceId })
+        .eq('project_id', id);
+      if (tErr) throw tErr;
     }
     set((state) => ({
-      projects: state.projects.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      projects: state.projects.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              ...updates,
+              ...(updates.workspaceId !== undefined
+                ? { visibility: 'private' as const, teamId: null, parentId: null }
+                : {}),
+            }
+          : p
+      ),
+      tasks:
+        updates.workspaceId !== undefined
+          ? state.tasks.map((t) => (t.projectId === id ? { ...t, workspaceId: updates.workspaceId } : t))
+          : state.tasks,
     }));
   },
 
