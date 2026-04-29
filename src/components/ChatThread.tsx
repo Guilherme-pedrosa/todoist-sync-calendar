@@ -20,6 +20,8 @@ interface Props {
   showOpenFull?: boolean;
 }
 
+const EMPTY_MESSAGES: Message[] = [];
+
 interface MentionPick {
   userId: string;
   display: string;
@@ -55,7 +57,8 @@ function renderBodyWithMentions(body: string, members: { userId: string; display
 export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const messages = useChatStore((s) => s.messagesByConversation[conversationId] || []);
+  const messagesMap = useChatStore((s) => s.messagesByConversation);
+  const messages = useMemo(() => messagesMap[conversationId] ?? EMPTY_MESSAGES, [messagesMap, conversationId]);
   const fetchMessages = useChatStore((s) => s.fetchMessages);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const editMessage = useChatStore((s) => s.editMessage);
