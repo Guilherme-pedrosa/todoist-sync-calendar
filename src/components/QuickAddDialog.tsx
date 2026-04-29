@@ -333,7 +333,8 @@ export function QuickAddDialog() {
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              submit(false);
+              // Shift+Enter (ou Ctrl+Enter) = adicionar e continuar; Enter = adicionar e fechar
+              submit(!(e.ctrlKey || e.metaKey));
             }
             if (e.key === 'Escape') {
               e.preventDefault();
