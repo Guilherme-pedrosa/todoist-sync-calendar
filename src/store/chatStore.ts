@@ -62,6 +62,7 @@ interface ChatState {
   markRead: (conversationId: string) => Promise<void>;
   setActiveConversation: (id: string | null) => void;
   ensureTaskConversation: (taskId: string) => Promise<string | null>;
+  ensureContextConversation: (contextId: string, title?: string) => Promise<string | null>;
   subscribeRealtime: (workspaceId: string) => void;
   unsubscribeRealtime: () => void;
   uploadAttachment: (conversationId: string, file: File) => Promise<ChatAttachment | null>;
