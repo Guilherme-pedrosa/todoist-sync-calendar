@@ -79,6 +79,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
     query: '',
     pos: 0,
   });
+  const [mentionIndex, setMentionIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
