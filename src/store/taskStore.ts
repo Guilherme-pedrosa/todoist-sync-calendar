@@ -92,6 +92,7 @@ function mapDbTaskToTask(t: any): Task {
       ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
       : undefined,
     googleCalendarEventId: t.google_calendar_event_id || undefined,
+    taskNumber: t.task_number ?? null,
     createdAt: t.created_at,
   };
 }
