@@ -146,6 +146,9 @@ function ConvLink({
       )}
     >
       <span className="text-muted-foreground">{icon}</span>
+      {prefix && (
+        <span className="text-muted-foreground/70 font-mono text-xs tabular-nums">{prefix}</span>
+      )}
       <span className="flex-1 truncate">{label}</span>
       {unread > 0 && (
         <Badge
