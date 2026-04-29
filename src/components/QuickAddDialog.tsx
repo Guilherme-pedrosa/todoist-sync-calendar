@@ -268,6 +268,7 @@ export function QuickAddDialog() {
       setPriority(4);
       setSelectedLabels([]);
       setReminders([]);
+      setAssigneeIds([]);
       setLocation_('');
       setShowLocation(false);
       setTimeout(() => inputRef.current?.focus(), 30);
