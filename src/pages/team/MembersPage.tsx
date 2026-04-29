@@ -210,10 +210,24 @@ export default function MembersPage() {
       </div>
 
       <div className="border border-border rounded-lg divide-y divide-border bg-card">
-        {members.length === 0 && (
+        {showSkeleton && (
+          <>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex items-center gap-3 p-3 animate-pulse">
+                <div className="h-9 w-9 rounded-full bg-muted" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-32 bg-muted rounded" />
+                  <div className="h-2 w-20 bg-muted rounded" />
+                </div>
+                <div className="h-6 w-16 bg-muted rounded" />
+              </div>
+            ))}
+          </>
+        )}
+        {!showSkeleton && visibleMembers.length === 0 && (
           <div className="p-8 text-center text-sm text-muted-foreground">Nenhum membro.</div>
         )}
-        {members.map((m) => {
+        {!showSkeleton && visibleMembers.map((m) => {
           const isMe = m.userId === user?.id;
           const isWsOwner = m.role === 'owner';
           return (
