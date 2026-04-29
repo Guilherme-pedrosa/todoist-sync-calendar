@@ -61,7 +61,13 @@ serve(async (req) => {
       const text = await r.text();
       if (!r.ok) return json({ error: `Transkriptor ${r.status}: ${text}` }, r.status);
       try {
-        return json(JSON.parse(text));
+        const parsed = JSON.parse(text);
+        const sample = Array.isArray(parsed)
+          ? parsed[0]
+          : parsed?.files?.[0] ?? parsed?.data?.[0] ?? parsed?.results?.[0];
+        console.log("transkriptor sample item keys:", sample ? Object.keys(sample) : "none");
+        console.log("transkriptor sample item:", JSON.stringify(sample));
+        return json(parsed);
       } catch {
         return json({ raw: text });
       }
