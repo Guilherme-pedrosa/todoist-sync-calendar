@@ -499,17 +499,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const tasks: Task[] = await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask));
     const inboxProjectId = projects.find((p) => p.isInbox)?.id;
 
-    // Check if sync is paused (Phase 1 multi-tenant migration)
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('sync_paused_at')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const syncPaused = !!settings?.sync_paused_at;
-
-    const syncedTasks = syncPaused
-      ? tasks
-      : await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
+    const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
     set({ projects, labels, tasks: syncedTasks, loading: false });
   },
