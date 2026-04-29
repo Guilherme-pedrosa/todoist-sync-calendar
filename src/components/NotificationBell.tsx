@@ -1,0 +1,170 @@
+import { useMemo, useState } from 'react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { formatDistanceToNow, parseISO } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { useNotificationStore, type AppNotification } from '@/store/notificationStore';
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+} from '@/lib/browserNotifications';
+import { cn } from '@/lib/utils';
+
+export function NotificationBell() {
+  const navigate = useNavigate();
+  const items = useNotificationStore((s) => s.items);
+  const markRead = useNotificationStore((s) => s.markRead);
+  const markAllRead = useNotificationStore((s) => s.markAllRead);
+  const [open, setOpen] = useState(false);
+  const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(
+    getNotificationPermission()
+  );
+
+  const unreadCount = useMemo(() => items.filter((n) => !n.readAt).length, [items]);
+
+  const handleClick = (n: AppNotification) => {
+    markRead(n.id);
+    setOpen(false);
+    if (n.type === 'chat_mention' && n.payload?.conversation_id) {
+      navigate(`/conversations/${n.payload.conversation_id}`);
+    } else if (n.type === 'task_assigned' && n.payload?.task_id) {
+      navigate(`/?task=${n.payload.task_id}`);
+    }
+  };
+
+  const askPermission = async () => {
+    const result = await requestNotificationPermission();
+    setPerm(result);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9"
+          aria-label="Notificações"
+        >
+          {unreadCount > 0 ? (
+            <BellRing className="h-[18px] w-[18px] text-primary" />
+          ) : (
+            <Bell className="h-[18px] w-[18px]" />
+          )}
+          {unreadCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 h-4 min-w-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center tabular-nums">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[360px] p-0">
+        <div className="flex items-center justify-between px-3 py-2 border-b">
+          <div className="font-display font-semibold text-sm">Notificações</div>
+          {unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => markAllRead()}
+            >
+              <CheckCheck className="h-3.5 w-3.5 mr-1" />
+              Marcar todas
+            </Button>
+          )}
+        </div>
+
+        {perm === 'default' && (
+          <button
+            onClick={askPermission}
+            className="w-full flex items-center gap-2 px-3 py-2 border-b bg-primary/5 hover:bg-primary/10 text-left text-xs"
+          >
+            <BellRing className="h-4 w-4 text-primary shrink-0" />
+            <span>
+              <span className="font-medium text-foreground">Ativar alertas do sistema</span>
+              <span className="text-muted-foreground block">
+                Receba notificações mesmo com a aba em segundo plano.
+              </span>
+            </span>
+          </button>
+        )}
+
+        {perm === 'denied' && (
+          <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/40 text-xs text-muted-foreground">
+            <BellOff className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              Notificações bloqueadas no navegador. Habilite nas configurações do site.
+            </span>
+          </div>
+        )}
+
+        <div className="max-h-[380px] overflow-y-auto">
+          {items.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Nenhuma notificação ainda.
+            </div>
+          ) : (
+            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} />)
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
+  const isMention = n.type === 'chat_mention';
+  const isAssigned = n.type === 'task_assigned';
+  const Icon = isMention ? AtSign : MessageSquare;
+
+  const title = isMention
+    ? 'Você foi mencionado'
+    : isAssigned
+      ? 'Você é o responsável'
+      : 'Notificação';
+
+  const body =
+    n.payload?.snippet ||
+    n.payload?.task_title ||
+    '';
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full flex items-start gap-2.5 px-3 py-2.5 text-left border-b last:border-b-0 transition-colors',
+        n.readAt ? 'hover:bg-accent/40' : 'bg-primary/5 hover:bg-primary/10'
+      )}
+    >
+      <div
+        className={cn(
+          'mt-0.5 h-7 w-7 rounded-full flex items-center justify-center shrink-0',
+          n.readAt ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'
+        )}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className={cn('text-sm', !n.readAt && 'font-semibold')}>{title}</span>
+          <span className="text-[10px] text-muted-foreground shrink-0">
+            {formatDistanceToNow(parseISO(n.createdAt), { addSuffix: false, locale: ptBR })}
+          </span>
+        </div>
+        {body && (
+          <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{body}</div>
+        )}
+      </div>
+      {!n.readAt && (
+        <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+      )}
+    </button>
+  );
+}
