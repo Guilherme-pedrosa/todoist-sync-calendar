@@ -392,6 +392,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          last_seen_at: string | null
           updated_at: string
           user_id: string
         }
@@ -400,6 +401,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          last_seen_at?: string | null
           updated_at?: string
           user_id: string
         }
@@ -408,6 +410,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          last_seen_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -1319,7 +1322,6 @@ export type Database = {
           sidebar_hidden: Json
           sidebar_order: Json
           smart_date_recognition: boolean
-          sync_paused_at: string | null
           theme: string
           time_format: string
           timezone: string
@@ -1355,7 +1357,6 @@ export type Database = {
           sidebar_hidden?: Json
           sidebar_order?: Json
           smart_date_recognition?: boolean
-          sync_paused_at?: string | null
           theme?: string
           time_format?: string
           timezone?: string
@@ -1391,7 +1392,6 @@ export type Database = {
           sidebar_hidden?: Json
           sidebar_order?: Json
           smart_date_recognition?: boolean
-          sync_paused_at?: string | null
           theme?: string
           time_format?: string
           timezone?: string
@@ -1572,6 +1572,7 @@ export type Database = {
         Args: { _project_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["project_role"]
       }
+      touch_last_seen: { Args: never; Returns: undefined }
       workspace_role: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: Database["public"]["Enums"]["workspace_role"]
