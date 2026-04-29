@@ -127,12 +127,14 @@ function ConvLink({
   onClick,
   icon,
   label,
+  prefix,
 }: {
   active: boolean;
   unread: number;
   onClick: () => void;
   icon: React.ReactNode;
   label: string;
+  prefix?: string;
 }) {
   return (
     <button
