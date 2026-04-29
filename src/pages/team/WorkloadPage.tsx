@@ -97,14 +97,21 @@ export default function WorkloadPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {members.length === 0 && (
+            {showSkeleton && (
+              <tr>
+                <td colSpan={9} className="text-center p-6 text-muted-foreground">
+                  Carregando…
+                </td>
+              </tr>
+            )}
+            {!showSkeleton && visibleMembers.length === 0 && (
               <tr>
                 <td colSpan={9} className="text-center p-6 text-muted-foreground">
                   Nenhum membro.
                 </td>
               </tr>
             )}
-            {members.map((m) => {
+            {!showSkeleton && visibleMembers.map((m) => {
               const memberTasks = tasks.filter((t) => t.user_id === m.userId);
               const total = memberTasks.length;
               const overload = total > 15;
