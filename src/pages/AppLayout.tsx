@@ -11,6 +11,7 @@ import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
+import { SyncPausedBanner } from '@/components/SyncPausedBanner';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -165,6 +166,7 @@ export default function AppLayout() {
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
+        <SyncPausedBanner />
         <Outlet />
       </div>
       <QuickAddDialog />

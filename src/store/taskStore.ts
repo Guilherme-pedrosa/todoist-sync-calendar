@@ -498,7 +498,18 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const tasks: Task[] = await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask));
     const inboxProjectId = projects.find((p) => p.isInbox)?.id;
-    const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
+
+    // Check if sync is paused (Phase 1 multi-tenant migration)
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('sync_paused_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const syncPaused = !!settings?.sync_paused_at;
+
+    const syncedTasks = syncPaused
+      ? tasks
+      : await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
 
     set({ projects, labels, tasks: syncedTasks, loading: false });
   },
@@ -508,9 +519,35 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!userId) return null;
 
     const inboxProject = get().projects.find((p) => p.isInbox);
+    const targetProjectId = taskData.projectId || inboxProject?.id || null;
+    const targetProject = targetProjectId
+      ? get().projects.find((p) => p.id === targetProjectId)
+      : null;
+    // Resolve workspace from target project (every project now has workspace_id)
+    let workspaceId: string | null = (targetProject as any)?.workspaceId ?? null;
+    if (!workspaceId && targetProjectId) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('workspace_id')
+        .eq('id', targetProjectId)
+        .maybeSingle();
+      workspaceId = proj?.workspace_id ?? null;
+    }
+    if (!workspaceId) {
+      // Fallback: user's personal workspace
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', userId)
+        .eq('is_personal', true)
+        .maybeSingle();
+      workspaceId = ws?.id ?? null;
+    }
 
     const insertPayload: Record<string, any> = {
       user_id: userId,
+      workspace_id: workspaceId,
+      created_by: userId,
       title: taskData.title,
       description: taskData.description || null,
       priority: taskData.priority || 4,
@@ -521,7 +558,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
       google_calendar_event_id: taskData.googleCalendarEventId || null,
-      project_id: taskData.projectId || inboxProject?.id || null,
+      project_id: targetProjectId,
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
     };
@@ -817,10 +854,26 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const maxPosition = Math.max(0, ...get().projects.map((p) => p.position ?? 0));
 
+    // Find user's personal workspace
+    const { data: ws } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('is_personal', true)
+      .maybeSingle();
+
+    if (!ws) {
+      console.error('Workspace pessoal não encontrado para o usuário');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('projects')
       .insert({
         user_id: userId,
+        workspace_id: ws.id,
+        owner_id: userId,
+        visibility: 'private',
         name: projectData.name,
         color: projectData.color,
         parent_id: projectData.parentId || null,
