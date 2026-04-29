@@ -1,0 +1,104 @@
+import { create } from 'zustand';
+import { supabase } from '@/integrations/supabase/client';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  workspaceId: string | null;
+  payload: Record<string, any>;
+  readAt: string | null;
+  createdAt: string;
+}
+
+interface State {
+  items: AppNotification[];
+  loading: boolean;
+  channel: RealtimeChannel | null;
+
+  fetch: () => Promise<void>;
+  markRead: (id: string) => Promise<void>;
+  markAllRead: () => Promise<void>;
+  subscribe: (userId: string) => void;
+  unsubscribe: () => void;
+  pushLocal: (n: AppNotification) => void;
+}
+
+function mapRow(row: any): AppNotification {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type,
+    workspaceId: row.workspace_id,
+    payload: row.payload || {},
+    readAt: row.read_at,
+    createdAt: row.created_at,
+  };
+}
+
+export const useNotificationStore = create<State>((set, get) => ({
+  items: [],
+  loading: false,
+  channel: null,
+
+  fetch: async () => {
+    set({ loading: true });
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (!error && data) set({ items: data.map(mapRow) });
+    set({ loading: false });
+  },
+
+  markRead: async (id) => {
+    const now = new Date().toISOString();
+    set({
+      items: get().items.map((n) => (n.id === id ? { ...n, readAt: now } : n)),
+    });
+    await supabase.from('notifications').update({ read_at: now }).eq('id', id);
+  },
+
+  markAllRead: async () => {
+    const now = new Date().toISOString();
+    const ids = get().items.filter((n) => !n.readAt).map((n) => n.id);
+    if (ids.length === 0) return;
+    set({
+      items: get().items.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+    });
+    await supabase.from('notifications').update({ read_at: now }).in('id', ids);
+  },
+
+  pushLocal: (n) => {
+    if (get().items.find((x) => x.id === n.id)) return;
+    set({ items: [n, ...get().items].slice(0, 100) });
+  },
+
+  subscribe: (userId) => {
+    get().unsubscribe();
+    const ch = supabase
+      .channel(`notifications-store-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          get().pushLocal(mapRow(payload.new));
+        }
+      )
+      .subscribe();
+    set({ channel: ch });
+  },
+
+  unsubscribe: () => {
+    const ch = get().channel;
+    if (ch) supabase.removeChannel(ch);
+    set({ channel: null });
+  },
+}));
