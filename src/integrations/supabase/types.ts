@@ -1136,6 +1136,7 @@ export type Database = {
           recurrence_type: string | null
           section_id: string | null
           status_id: string | null
+          task_number: number | null
           title: string
           updated_at: string
           user_id: string
@@ -1164,6 +1165,7 @@ export type Database = {
           recurrence_type?: string | null
           section_id?: string | null
           status_id?: string | null
+          task_number?: number | null
           title: string
           updated_at?: string
           user_id: string
@@ -1192,6 +1194,7 @@ export type Database = {
           recurrence_type?: string | null
           section_id?: string | null
           status_id?: string | null
+          task_number?: number | null
           title?: string
           updated_at?: string
           user_id?: string

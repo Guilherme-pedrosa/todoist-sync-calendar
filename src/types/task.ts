@@ -27,6 +27,7 @@ export interface Task {
   createdAt: string;
   completedAt?: string;
   googleCalendarEventId?: string;
+  taskNumber?: number | null;
 }
 
 export interface Project {
