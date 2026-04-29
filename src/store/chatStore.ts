@@ -262,7 +262,72 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return null;
   },
 
-  uploadAttachment: async (conversationId, file) => {
+  ensureContextConversation: async (contextId, title) => {
+    const trimmedId = contextId?.trim();
+    if (!trimmedId) return null;
+
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData?.user?.id;
+    if (!uid) return null;
+
+    // Find personal workspace of the current user
+    const { data: ws } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', uid)
+      .eq('is_personal', true)
+      .maybeSingle();
+    if (!ws?.id) return null;
+
+    // Check existing conversation
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('workspace_id', ws.id)
+      .eq('external_context_id', trimmedId)
+      .maybeSingle();
+
+    if (existing) {
+      const conv = mapConv(existing);
+      set((state) => ({
+        conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
+      }));
+      // Ensure participant
+      await supabase
+        .from('conversation_participants')
+        .insert({ conversation_id: conv.id, user_id: uid })
+        .select()
+        .maybeSingle();
+      return conv.id;
+    }
+
+    // Create new
+    const { data: created, error } = await supabase
+      .from('conversations')
+      .insert({
+        workspace_id: ws.id,
+        type: 'context' as any,
+        external_context_id: trimmedId,
+        title: title?.trim() || `Contexto ${trimmedId}`,
+        created_by: uid,
+      })
+      .select()
+      .single();
+
+    if (error || !created) return null;
+
+    const conv = mapConv(created);
+    set((state) => ({
+      conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
+    }));
+
+    // Add self as participant (criador deve participar)
+    await supabase
+      .from('conversation_participants')
+      .insert({ conversation_id: conv.id, user_id: uid });
+
+    return conv.id;
+  },
     const { data: userData } = await supabase.auth.getUser();
     const uid = userData?.user?.id;
     if (!uid) return null;
