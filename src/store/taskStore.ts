@@ -20,6 +20,7 @@ interface TaskState {
     task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & {
       labels?: string[];
       reminderMinutes?: number | null;
+      assigneeIds?: string[];
     }
   ) => Promise<Task | null>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
@@ -574,6 +575,14 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
         labelIds.map((labelId) => ({ task_id: data.id, label_id: labelId }))
+      );
+    }
+
+    // Assignees: trigger inicial já adiciona o owner; aqui adicionamos os extras
+    const assigneeIds = (taskData.assigneeIds || []).filter((id) => id && id !== userId);
+    if (assigneeIds.length > 0) {
+      await supabase.from('task_assignees').insert(
+        assigneeIds.map((uid) => ({ task_id: data.id, user_id: uid, assigned_by: userId }))
       );
     }
 

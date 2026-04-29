@@ -37,6 +37,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { AssigneeChip } from '@/components/AssigneeChip';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'Prioridade 1',
@@ -93,6 +94,7 @@ export function QuickAddDialog() {
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
@@ -156,6 +158,7 @@ export function QuickAddDialog() {
     setPriority(4);
     setSelectedLabels([]);
     setReminders([]);
+    setAssigneeIds([]);
     setLocation_('');
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
@@ -241,6 +244,7 @@ export function QuickAddDialog() {
         parentId: defaultParentId || undefined,
         labels: selectedLabels,
         reminderMinutes: firstRelative?.relative_minutes ?? null,
+        assigneeIds,
       });
       // Insert any additional absolute reminders (besides the auto one)
       if (created && reminders.length > 0) {
@@ -265,6 +269,7 @@ export function QuickAddDialog() {
       setPriority(4);
       setSelectedLabels([]);
       setReminders([]);
+      setAssigneeIds([]);
       setLocation_('');
       setShowLocation(false);
       setTimeout(() => inputRef.current?.focus(), 30);
@@ -411,15 +416,12 @@ export function QuickAddDialog() {
           Sugerir horário
         </button>
 
-        {/* Deadline (TODO Fase 4) */}
-        <button
-          type="button"
-          disabled
-          title="Prazo (em breve)"
-          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-dashed border-border text-muted-foreground/60 cursor-not-allowed"
-        >
-          🎯 Prazo
-        </button>
+        {/* Responsável */}
+        <AssigneeChip
+          projectId={projectId}
+          value={assigneeIds}
+          onChange={setAssigneeIds}
+        />
 
         {/* Attachment (TODO Fase 4) */}
         <button
