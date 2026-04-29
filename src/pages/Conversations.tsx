@@ -47,8 +47,8 @@ export default function ConversationsPage() {
   }, [activeId, workspaceConvs]);
 
   const taskTitleMap = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const t of tasks) map.set(t.id, t.title);
+    const map = new Map<string, { title: string; number: number | null }>();
+    for (const t of tasks) map.set(t.id, { title: t.title, number: t.taskNumber ?? null });
     return map;
   }, [tasks]);
 
@@ -87,16 +87,21 @@ export default function ConversationsPage() {
                   Nenhuma conversa de tarefa ainda.
                 </div>
               ) : (
-                taskConvs.map((c) => (
-                  <ConvLink
-                    key={c.id}
-                    active={activeId === c.id}
-                    unread={unread[c.id] || 0}
-                    onClick={() => navigate(`/conversations/${c.id}`)}
-                    icon={<MessageSquare className="h-3.5 w-3.5" />}
-                    label={(c.taskId && taskTitleMap.get(c.taskId)) || c.title || 'Tarefa'}
-                  />
-                ))
+                taskConvs.map((c) => {
+                  const t = c.taskId ? taskTitleMap.get(c.taskId) : undefined;
+                  const label = t?.title || c.title || 'Tarefa';
+                  return (
+                    <ConvLink
+                      key={c.id}
+                      active={activeId === c.id}
+                      unread={unread[c.id] || 0}
+                      onClick={() => navigate(`/conversations/${c.id}`)}
+                      icon={<MessageSquare className="h-3.5 w-3.5" />}
+                      label={label}
+                      prefix={t?.number != null ? `#${t.number}` : undefined}
+                    />
+                  );
+                })
               )}
             </div>
           </div>
