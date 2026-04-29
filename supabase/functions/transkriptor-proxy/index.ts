@@ -214,6 +214,13 @@ serve(async (req) => {
 
       if (!r.ok) {
         const text = await r.text();
+        const lower = text.toLowerCase();
+        if (lower.includes("still processing")) {
+          return json({ error: "TRANSCRIPTION_PROCESSING", message: "A transcrição ainda está sendo processada. Tente novamente em alguns minutos." }, 200);
+        }
+        if (lower.includes("is failed") || lower.includes("transcription is failed")) {
+          return json({ error: "TRANSCRIPTION_FAILED", message: "A transcrição falhou no Transkriptor e não pode ser baixada." }, 200);
+        }
         return json({ error: `Transkriptor ${r.status}: ${text}` }, r.status);
       }
 
