@@ -164,6 +164,8 @@ export default function TranskriptorPage() {
           export_type: type,
           include_speaker_names: true,
           include_timestamps: type === 'srt',
+          meeting_title: file.file_name || file.name || file.title || '',
+          meeting_date: file.created_at ?? null,
         }),
       });
       const data = await r.json();
