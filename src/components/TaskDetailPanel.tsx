@@ -23,6 +23,7 @@ import {
   Send,
   Paperclip,
   MessageSquare,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
