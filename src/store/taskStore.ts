@@ -388,7 +388,20 @@ async function syncGoogleCalendarEvents(
 
       const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
       if (linkedTask) {
-        await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        const collisionTask = nextTasks.find((task) => task.id !== linkedTask.id && isSameCalendarSlot(task, event));
+        if (collisionTask) {
+          if (!collisionTask.googleCalendarEventId) {
+            await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', collisionTask.id);
+          }
+          await supabase.from('tasks').delete().eq('id', linkedTask.id);
+          nextTasks = nextTasks
+            .filter((task) => task.id !== linkedTask.id)
+            .map((task) => (task.id === collisionTask.id ? { ...task, googleCalendarEventId: event.id } : task));
+          continue;
+        }
+
+        const { error: updateError } = await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
+        if (updateError) continue;
         nextTasks = nextTasks.map((task) =>
           task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
         );
@@ -402,7 +415,8 @@ async function syncGoogleCalendarEvents(
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
         if (!duplicateTask.googleCalendarEventId) {
-          await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
+          const { error: linkError } = await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
+          if (linkError) continue;
           nextTasks = nextTasks.map((task) =>
             task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
           );
