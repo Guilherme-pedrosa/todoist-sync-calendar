@@ -27,6 +27,10 @@ import {
   Settings,
   User as UserIcon,
   RefreshCw,
+  Users,
+  UsersRound,
+  FolderKanban,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -479,6 +483,27 @@ export function AppSidebar() {
         <NavLink to="/settings" className={({ isActive }) => navLinkClass(isActive)}>
           <Settings className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Configurações</span>
+        </NavLink>
+
+        {/* Equipe */}
+        <div className="pt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+          Equipe
+        </div>
+        <NavLink to="/team/members" className={({ isActive }) => navLinkClass(isActive)}>
+          <Users className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Membros</span>
+        </NavLink>
+        <NavLink to="/team/teams" className={({ isActive }) => navLinkClass(isActive)}>
+          <UsersRound className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Times</span>
+        </NavLink>
+        <NavLink to="/team/projects" className={({ isActive }) => navLinkClass(isActive)}>
+          <FolderKanban className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Projetos</span>
+        </NavLink>
+        <NavLink to="/team/workload" className={({ isActive }) => navLinkClass(isActive)}>
+          <BarChart3 className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Carga de trabalho</span>
         </NavLink>
 
         {/* Favorites */}
