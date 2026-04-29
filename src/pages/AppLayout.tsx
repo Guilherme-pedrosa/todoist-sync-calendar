@@ -11,6 +11,7 @@ import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
+import { SyncPausedBanner } from '@/components/SyncPausedBanner';
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
