@@ -128,12 +128,25 @@ serve(async (req) => {
         const data = await r.json();
         console.log("export json keys:", Object.keys(data ?? {}));
         const downloadUrl =
+          data?.presignedUrl ||
+          data?.presigned_url ||
           data?.url ||
           data?.download_url ||
           data?.file_url ||
           data?.signed_url ||
           data?.data?.url ||
-          data?.data?.download_url;
+          data?.data?.download_url ||
+          data?.data?.presignedUrl;
+
+        // If only inline content is available (txt), return it directly
+        if (!downloadUrl && typeof data?.content === "string") {
+          const bytes = new TextEncoder().encode(data.content);
+          return json({
+            base64: bytesToBase64(bytes),
+            contentType: "text/plain; charset=utf-8",
+            source: "inline",
+          });
+        }
 
         if (downloadUrl) {
           const fileResp = await fetch(downloadUrl);
