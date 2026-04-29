@@ -16,6 +16,7 @@ import { MentionNotifier } from '@/components/MentionNotifier';
 
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
