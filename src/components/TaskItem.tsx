@@ -81,7 +81,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const complete = useCompleteTask();
   const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
