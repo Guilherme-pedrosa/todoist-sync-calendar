@@ -366,10 +366,17 @@ async function syncGoogleCalendarEvents(
 
     let nextTasks = [...currentTasks];
     const tasksToInsert: Record<string, any>[] = [];
+    const occupiedTaskKeys = new Set(
+      nextTasks.map((task) => getTaskDuplicateKey(task)).filter((key): key is string => Boolean(key))
+    );
+    const seenCalendarKeys = new Set<string>();
 
     for (const event of events) {
       if (!event.id) continue;
       const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
+      const eventKey = getCalendarEventDuplicateKey(event);
+      if (!eventKey || seenCalendarKeys.has(eventKey)) continue;
+      seenCalendarKeys.add(eventKey);
       const payload = {
         title: event.summary?.trim() || 'Evento do Google Calendar',
         description: event.description || null,
@@ -394,12 +401,17 @@ async function syncGoogleCalendarEvents(
 
       const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
       if (duplicateTask) {
-        await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
-        nextTasks = nextTasks.map((task) =>
-          task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
-        );
+        if (!duplicateTask.googleCalendarEventId) {
+          await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
+          nextTasks = nextTasks.map((task) =>
+            task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
+          );
+        }
         continue;
       }
+
+      if (occupiedTaskKeys.has(eventKey)) continue;
+      occupiedTaskKeys.add(eventKey);
 
       tasksToInsert.push({
         user_id: userId,
