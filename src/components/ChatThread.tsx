@@ -140,6 +140,11 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       .slice(0, 6);
   }, [mentionState.query, mentionables]);
 
+  // Reset highlighted item when list changes
+  useEffect(() => {
+    setMentionIndex(0);
+  }, [mentionState.query, mentionState.open]);
+
   const insertMention = (m: MentionPick) => {
     const el = inputRef.current;
     if (!el) return;
