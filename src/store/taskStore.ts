@@ -604,7 +604,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     if (Object.keys(dbUpdates).length > 0) {
-      await supabase.from('tasks').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
+      if (error) {
+        console.error('updateTask error', error);
+        return;
+      }
     }
 
     set((state) => ({
