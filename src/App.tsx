@@ -19,6 +19,7 @@ import MembersPage from "./pages/team/MembersPage";
 import TeamsPage from "./pages/team/TeamsPage";
 import SharedProjectsPage from "./pages/team/SharedProjectsPage";
 import WorkloadPage from "./pages/team/WorkloadPage";
+import ConversationsPage from "./pages/Conversations";
 import Auth from "./pages/Auth";
 import CalendarCallback from "./pages/CalendarCallback";
 import NotFound from "./pages/NotFound";
@@ -78,6 +79,8 @@ const App = () => (
               <Route path="/team/teams" element={<TeamsPage />} />
               <Route path="/team/projects" element={<SharedProjectsPage />} />
               <Route path="/team/workload" element={<WorkloadPage />} />
+              <Route path="/conversations" element={<ConversationsPage />} />
+              <Route path="/conversations/:id" element={<ConversationsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -11,6 +11,8 @@ import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
+import { ChatLauncher } from '@/components/ChatLauncher';
+import { MentionNotifier } from '@/components/MentionNotifier';
 
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
 import { useAuth } from '@/contexts/AuthContext';
@@ -177,6 +179,8 @@ export default function AppLayout() {
       <InstallPwaBanner />
       <RecurringEditDialog />
       <AIAssistantPanel />
+      <ChatLauncher />
+      <MentionNotifier />
     </div>
   );
 }
