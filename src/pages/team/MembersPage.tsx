@@ -31,25 +31,27 @@ export default function MembersPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const setCurrentWorkspace = useWorkspaceStore((s) => s.setCurrentWorkspace);
-  const fetchWorkspaces = useWorkspaceStore((s) => s.fetchWorkspaces);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
   const members = useWorkspaceStore((s) => s.members);
+  const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
+  const loadingMembers = useWorkspaceStore((s) => s.loadingMembers);
+  const canManageCurrent = useWorkspaceStore((s) => s.canManageCurrent);
 
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
 
+  // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
-    if (currentWorkspaceId) fetchMembers(currentWorkspaceId);
-  }, [currentWorkspaceId, fetchMembers]);
+    if (currentWorkspaceId && membersWorkspaceId !== currentWorkspaceId) {
+      fetchMembers(currentWorkspaceId);
+    }
+  }, [currentWorkspaceId, membersWorkspaceId, fetchMembers]);
 
   const ws = workspaces.find((w) => w.id === currentWorkspaceId);
-  const myMembership = members.find((m) => m.userId === user?.id);
-  const isAdmin = myMembership?.role === 'owner' || myMembership?.role === 'admin';
+  const isAdmin = canManageCurrent(user?.id);
+  const showSkeleton = loadingMembers || membersWorkspaceId !== currentWorkspaceId;
+  const visibleMembers = membersWorkspaceId === currentWorkspaceId ? members : [];
 
   const callAdminFn = async (body: Record<string, any>) => {
     const { data: sess } = await supabase.auth.getSession();
