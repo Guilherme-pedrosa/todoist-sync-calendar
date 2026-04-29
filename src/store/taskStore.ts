@@ -817,10 +817,26 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const maxPosition = Math.max(0, ...get().projects.map((p) => p.position ?? 0));
 
+    // Find user's personal workspace
+    const { data: ws } = await supabase
+      .from('workspaces')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('is_personal', true)
+      .maybeSingle();
+
+    if (!ws) {
+      console.error('Workspace pessoal não encontrado para o usuário');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('projects')
       .insert({
         user_id: userId,
+        workspace_id: ws.id,
+        owner_id: userId,
+        visibility: 'private',
         name: projectData.name,
         color: projectData.color,
         parent_id: projectData.parentId || null,
