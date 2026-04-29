@@ -508,9 +508,35 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!userId) return null;
 
     const inboxProject = get().projects.find((p) => p.isInbox);
+    const targetProjectId = taskData.projectId || inboxProject?.id || null;
+    const targetProject = targetProjectId
+      ? get().projects.find((p) => p.id === targetProjectId)
+      : null;
+    // Resolve workspace from target project (every project now has workspace_id)
+    let workspaceId: string | null = (targetProject as any)?.workspaceId ?? null;
+    if (!workspaceId && targetProjectId) {
+      const { data: proj } = await supabase
+        .from('projects')
+        .select('workspace_id')
+        .eq('id', targetProjectId)
+        .maybeSingle();
+      workspaceId = proj?.workspace_id ?? null;
+    }
+    if (!workspaceId) {
+      // Fallback: user's personal workspace
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', userId)
+        .eq('is_personal', true)
+        .maybeSingle();
+      workspaceId = ws?.id ?? null;
+    }
 
     const insertPayload: Record<string, any> = {
       user_id: userId,
+      workspace_id: workspaceId,
+      created_by: userId,
       title: taskData.title,
       description: taskData.description || null,
       priority: taskData.priority || 4,
@@ -521,7 +547,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
       google_calendar_event_id: taskData.googleCalendarEventId || null,
-      project_id: taskData.projectId || inboxProject?.id || null,
+      project_id: targetProjectId,
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
     };
