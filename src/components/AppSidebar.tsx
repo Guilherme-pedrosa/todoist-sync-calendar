@@ -31,6 +31,7 @@ import {
   UsersRound,
   FolderKanban,
   BarChart3,
+  FileText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -479,6 +480,10 @@ export function AppSidebar() {
         <NavLink to="/completed" className={({ isActive }) => navLinkClass(isActive)}>
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Concluídas</span>
+        </NavLink>
+        <NavLink to="/transkriptor" className={({ isActive }) => navLinkClass(isActive)}>
+          <FileText className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Transkriptor</span>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => navLinkClass(isActive)}>
           <Settings className="h-4 w-4 shrink-0" />
