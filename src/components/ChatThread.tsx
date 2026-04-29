@@ -79,6 +79,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
     query: '',
     pos: 0,
   });
+  const [mentionIndex, setMentionIndex] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -138,6 +139,11 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       .filter((m) => m.display.toLowerCase().includes(q))
       .slice(0, 6);
   }, [mentionState.query, mentionables]);
+
+  // Reset highlighted item when list changes
+  useEffect(() => {
+    setMentionIndex(0);
+  }, [mentionState.query, mentionState.open]);
 
   const insertMention = (m: MentionPick) => {
     const el = inputRef.current;
@@ -301,11 +307,15 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       <div className="relative border-t p-2">
         {mentionState.open && filteredMentions.length > 0 && (
           <div className="absolute bottom-full left-2 right-2 mb-2 bg-popover border rounded-lg shadow-lg overflow-hidden z-10 max-h-56 overflow-y-auto">
-            {filteredMentions.map((m) => (
+            {filteredMentions.map((m, idx) => (
               <button
                 key={m.userId}
+                onMouseEnter={() => setMentionIndex(idx)}
                 onClick={() => insertMention(m)}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent text-sm"
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 text-left text-sm',
+                  idx === mentionIndex ? 'bg-accent' : 'hover:bg-accent/60'
+                )}
               >
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={m.avatar || undefined} />
@@ -340,7 +350,26 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             value={draft}
             onChange={(e) => handleDraftChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !mentionState.open) {
+              const mentionOpen = mentionState.open && filteredMentions.length > 0;
+              if (mentionOpen) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setMentionIndex((i) => (i + 1) % filteredMentions.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setMentionIndex((i) => (i - 1 + filteredMentions.length) % filteredMentions.length);
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  const pick = filteredMentions[mentionIndex] || filteredMentions[0];
+                  if (pick) insertMention(pick);
+                  return;
+                }
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
               }
