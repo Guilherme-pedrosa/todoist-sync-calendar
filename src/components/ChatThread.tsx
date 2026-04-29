@@ -350,7 +350,26 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             value={draft}
             onChange={(e) => handleDraftChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !mentionState.open) {
+              const mentionOpen = mentionState.open && filteredMentions.length > 0;
+              if (mentionOpen) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setMentionIndex((i) => (i + 1) % filteredMentions.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setMentionIndex((i) => (i - 1 + filteredMentions.length) % filteredMentions.length);
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  const pick = filteredMentions[mentionIndex] || filteredMentions[0];
+                  if (pick) insertMention(pick);
+                  return;
+                }
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
               }
