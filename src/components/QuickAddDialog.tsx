@@ -37,6 +37,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { AssigneeChip } from '@/components/AssigneeChip';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'Prioridade 1',
