@@ -469,9 +469,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!userId) return;
 
     const [projectsRes, labelsRes, tasksRes] = await Promise.all([
-      supabase.from('projects').select('*').eq('user_id', userId).order('position'),
+      // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
+      // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
+      supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      supabase.from('tasks').select('*, task_labels(label_id)').eq('user_id', userId),
+      supabase.from('tasks').select('*, task_labels(label_id)'),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -487,6 +489,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         description: p.description || null,
         archivedAt: p.archived_at || null,
         position: p.position ?? 0,
+        workspaceId: p.workspace_id || null,
+        ownerId: p.owner_id || null,
+        teamId: p.team_id || null,
+        visibility: (p.visibility as 'private' | 'team' | 'workspace') || 'private',
       }));
 
     const labels: Label[] = (labelsRes.data || []).map((l: any) => ({
