@@ -214,6 +214,13 @@ serve(async (req) => {
 
       if (!r.ok) {
         const text = await r.text();
+        const lower = text.toLowerCase();
+        if (lower.includes("still processing")) {
+          return json({ error: "TRANSCRIPTION_PROCESSING", message: "A transcrição ainda está sendo processada. Tente novamente em alguns minutos." }, 200);
+        }
+        if (lower.includes("is failed") || lower.includes("transcription is failed")) {
+          return json({ error: "TRANSCRIPTION_FAILED", message: "A transcrição falhou no Transkriptor e não pode ser baixada." }, 200);
+        }
         return json({ error: `Transkriptor ${r.status}: ${text}` }, r.status);
       }
 
@@ -264,8 +271,15 @@ serve(async (req) => {
           return json({ base64: bytesToBase64(buf), contentType: ct, source: "url" });
         }
 
-        // No URL found — return the JSON for debugging
-        return json({ error: "no_download_url", payload: data }, 500);
+        // No URL found — interpret status messages from Transkriptor
+        const msg = String(data?.message ?? "").toLowerCase();
+        if (msg.includes("still processing")) {
+          return json({ error: "TRANSCRIPTION_PROCESSING", message: "A transcrição ainda está sendo processada. Tente novamente em alguns minutos." }, 200);
+        }
+        if (msg.includes("is failed") || msg.includes("failed")) {
+          return json({ error: "TRANSCRIPTION_FAILED", message: "A transcrição falhou no Transkriptor e não pode ser baixada." }, 200);
+        }
+        return json({ error: "no_download_url", payload: data }, 200);
       }
 
       // Raw bytes path

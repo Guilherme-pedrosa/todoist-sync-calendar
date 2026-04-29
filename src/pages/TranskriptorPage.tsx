@@ -169,6 +169,14 @@ export default function TranskriptorPage() {
         }),
       });
       const data = await r.json();
+      if (data?.error === 'TRANSCRIPTION_PROCESSING') {
+        toast.info(data.message || 'Transcrição ainda em processamento.');
+        return;
+      }
+      if (data?.error === 'TRANSCRIPTION_FAILED') {
+        toast.error(data.message || 'Transcrição falhou no Transkriptor.');
+        return;
+      }
       if (!r.ok || !data?.base64) {
         throw new Error(data?.error || 'Falha ao exportar');
       }
