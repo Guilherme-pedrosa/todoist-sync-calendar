@@ -524,6 +524,11 @@ export function TaskDetailPanel() {
                   </DropdownMenu>
                 )}
               </div>
+              {task.taskNumber != null && (
+                <div className="text-xs font-mono text-muted-foreground/70 tabular-nums mb-1">
+                  #{task.taskNumber}
+                </div>
+              )}
               <Textarea
                 ref={titleRef}
                 value={titleDraft}
