@@ -342,6 +342,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }));
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'conversation_participants' },
+        async (payload) => {
+          // Quando viro participante de uma conversa nova (ex.: fui adicionado como responsável),
+          // re-busca a lista para incluí-la.
+          const { data: userData } = await supabase.auth.getUser();
+          const uid = userData?.user?.id;
+          const newRow: any = payload.new;
+          if (!uid || newRow.user_id !== uid) return;
+          if (get().conversations.some((c) => c.id === newRow.conversation_id)) return;
+          await get().fetchConversations(workspaceId);
+        }
+      )
       .subscribe();
 
     set({ channel });
