@@ -443,7 +443,7 @@ async function syncGoogleCalendarEvents(
       const { data: insertedRows, error: insertError } = await supabase
         .from('tasks')
         .insert(tasksToInsert as any)
-        .select('*, task_labels(label_id)');
+        .select('*, task_labels(label_id), task_assignees(user_id)');
 
       if (insertError || !insertedRows) return currentTasks;
       const syncedTasks = insertedRows.map(mapDbTaskToTask);
