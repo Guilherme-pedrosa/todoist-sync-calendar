@@ -64,7 +64,10 @@ export default function UpcomingPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const { user } = useAuth();
   const currentUserId = user?.id;
-  const [mode, setMode] = useState<Mode>('week');
+  // Em telas pequenas (mobile), começa em modo "dia" — semana com 7 colunas é inutilizável no celular.
+  const [mode, setMode] = useState<Mode>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+  );
   const [weekOffset, setWeekOffset] = useState(0);
 
   // Mostra somente tarefas atribuídas ao usuário atual.
