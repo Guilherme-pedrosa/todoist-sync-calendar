@@ -201,6 +201,43 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === 'update_member') {
+      const { user_id, display_name, email, password } = body;
+      if (!user_id) return json({ error: 'user_id required' }, 400);
+      const before = await assertWorkspaceMember(user_id);
+
+      // Update auth (email/password)
+      const authPatch: Record<string, unknown> = {};
+      if (typeof email === 'string' && email.trim()) authPatch.email = email.trim();
+      if (typeof password === 'string' && password.length > 0) {
+        if (password.length < 8) return json({ error: 'Password must be at least 8 characters' }, 400);
+        authPatch.password = password;
+      }
+      if (typeof display_name === 'string') {
+        authPatch.user_metadata = { full_name: display_name.trim() };
+      }
+      if (Object.keys(authPatch).length > 0) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(user_id, authPatch);
+        if (authErr) return json({ error: authErr.message }, 400);
+      }
+
+      // Update profile display_name
+      if (typeof display_name === 'string') {
+        const { error: profErr } = await admin
+          .from('profiles')
+          .update({ display_name: display_name.trim() })
+          .eq('user_id', user_id);
+        if (profErr) return json({ error: profErr.message }, 400);
+      }
+
+      await audit('workspace_member', user_id, 'update', before, {
+        display_name,
+        email_changed: !!authPatch.email,
+        password_changed: !!authPatch.password,
+      });
+      return json({ ok: true });
+    }
+
     // ===== TEAMS =====
     if (action === 'team_create') {
       const { name, description } = body;
