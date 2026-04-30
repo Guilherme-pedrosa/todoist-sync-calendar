@@ -506,9 +506,14 @@ function MessageBubble({
                   const isImg = att.mimeType.startsWith('image/');
                   if (isImg && url) {
                     return (
-                      <a key={att.path} href={url} target="_blank" rel="noreferrer" className="block">
-                        <img src={url} alt={att.name} className="rounded-lg max-h-56 object-cover" />
-                      </a>
+                      <button
+                        key={att.path}
+                        type="button"
+                        onClick={() => setLightbox({ url, name: att.name })}
+                        className="block focus:outline-none focus:ring-2 focus:ring-primary rounded-lg"
+                      >
+                        <img src={url} alt={att.name} className="rounded-lg max-h-56 object-cover cursor-zoom-in" />
+                      </button>
                     );
                   }
                   return (
