@@ -588,17 +588,31 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
-    // Reminder (only if due_time present and reminderMinutes provided/default)
-    if (data.due_date && data.due_time && taskData.reminderMinutes != null) {
-      const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
-      triggerAt.setMinutes(triggerAt.getMinutes() - taskData.reminderMinutes);
-      await supabase.from('reminders').insert({
-        task_id: data.id,
-        trigger_at: triggerAt.toISOString(),
-        type: 'absolute',
-        relative_minutes: taskData.reminderMinutes,
-        channel: 'push',
-      });
+    // Reminder: usa o valor passado ou cai no default do usuário (15min).
+    if (data.due_date && data.due_time) {
+      let minutes = taskData.reminderMinutes;
+      if (minutes == null) {
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('default_reminder_minutes')
+          .eq('user_id', userId)
+          .maybeSingle();
+        minutes = settings?.default_reminder_minutes ?? 15;
+      }
+      if (minutes != null && minutes >= 0) {
+        const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
+        triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
+        // Só agenda se o trigger ainda está no futuro
+        if (triggerAt.getTime() > Date.now()) {
+          await supabase.from('reminders').insert({
+            task_id: data.id,
+            trigger_at: triggerAt.toISOString(),
+            type: 'absolute',
+            relative_minutes: minutes,
+            channel: 'push',
+          });
+        }
+      }
     }
 
     const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
@@ -744,6 +758,41 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         }
       } catch (error) {
         console.error('Falha ao sincronizar atualização com Google Calendar:', error);
+      }
+    }
+
+    // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
+    const reminderTouched =
+      updates.dueDate !== undefined || updates.dueTime !== undefined || updates.completed !== undefined;
+    if (existing && merged && reminderTouched) {
+      try {
+        // Remove reminders ainda não disparados desta tarefa
+        await supabase.from('reminders').delete().eq('task_id', id).is('fired_at', null);
+
+        if (merged.dueDate && merged.dueTime && !merged.completed) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: settings } = await supabase
+              .from('user_settings')
+              .select('default_reminder_minutes')
+              .eq('user_id', user.id)
+              .maybeSingle();
+            const minutes = settings?.default_reminder_minutes ?? 15;
+            const triggerAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
+            triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
+            if (triggerAt.getTime() > Date.now()) {
+              await supabase.from('reminders').insert({
+                task_id: id,
+                trigger_at: triggerAt.toISOString(),
+                type: 'absolute',
+                relative_minutes: minutes,
+                channel: 'push',
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Falha ao re-sincronizar lembrete:', e);
       }
     }
   },
