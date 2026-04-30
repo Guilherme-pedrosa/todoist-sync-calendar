@@ -242,6 +242,10 @@ export function TaskDetailPanel() {
     if (!task) return;
     const prev = assigneeIds;
     setAssigneeIds(next);
+    // Sync into store so views (calendar) react immediately
+    useTaskStore.setState((state) => ({
+      tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: next } : t)),
+    }));
     const toAdd = next.filter((id) => !prev.includes(id));
     const toRemove = prev.filter((id) => !next.includes(id));
     try {
@@ -265,6 +269,9 @@ export function TaskDetailPanel() {
       console.error('Failed to update assignees', err);
       toast.error('Falha ao atualizar responsáveis');
       setAssigneeIds(prev);
+      useTaskStore.setState((state) => ({
+        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: prev } : t)),
+      }));
     }
   };
 

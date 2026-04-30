@@ -34,6 +34,7 @@ import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecu
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
@@ -50,15 +51,30 @@ const DAY_END_MIN = DAY_END_HOUR * 60;
 export default function UpcomingPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+  const { user } = useAuth();
+  const currentUserId = user?.id;
   const [mode, setMode] = useState<Mode>('week');
   const [weekOffset, setWeekOffset] = useState(0);
 
+  // Mostra somente tarefas atribuídas ao usuário atual.
+  // Se ainda não há lista de responsáveis carregada (legado), mantemos a tarefa visível para não esconder dados.
+  const visibleTasks = useMemo(
+    () =>
+      tasks.filter((t) => {
+        if (!currentUserId) return true;
+        const ids = t.assigneeIds;
+        if (!ids || ids.length === 0) return true;
+        return ids.includes(currentUserId);
+      }),
+    [tasks, currentUserId]
+  );
+
   const upcoming = useMemo(
     () =>
-      tasks.filter(
+      visibleTasks.filter(
         (t) => !t.completed && !t.parentId && t.dueDate && t.dueDate >= new Date().toISOString().slice(0, 10)
       ),
-    [tasks]
+    [visibleTasks]
   );
 
   const weekStart = useMemo(
@@ -89,7 +105,7 @@ export default function UpcomingPage() {
     const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
-    for (const t of tasks) {
+    for (const t of visibleTasks) {
       if (t.parentId || !t.dueDate) continue;
 
       let dayKeys: string[] = [];
@@ -114,7 +130,7 @@ export default function UpcomingPage() {
       }
     }
     return map;
-  }, [tasks, rangeStart, rangeEnd]);
+  }, [visibleTasks, rangeStart, rangeEnd]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">

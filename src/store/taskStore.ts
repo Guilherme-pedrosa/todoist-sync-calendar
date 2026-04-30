@@ -93,6 +93,7 @@ function mapDbTaskToTask(t: any): Task {
       : undefined,
     googleCalendarEventId: t.google_calendar_event_id || undefined,
     taskNumber: t.task_number ?? null,
+    assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
     createdAt: t.created_at,
   };
 }
@@ -442,7 +443,7 @@ async function syncGoogleCalendarEvents(
       const { data: insertedRows, error: insertError } = await supabase
         .from('tasks')
         .insert(tasksToInsert as any)
-        .select('*, task_labels(label_id)');
+        .select('*, task_labels(label_id), task_assignees(user_id)');
 
       if (insertError || !insertedRows) return currentTasks;
       const syncedTasks = insertedRows.map(mapDbTaskToTask);
@@ -475,7 +476,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      supabase.from('tasks').select('*, task_labels(label_id)'),
+      supabase.from('tasks').select('*, task_labels(label_id), task_assignees(user_id)'),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -600,7 +601,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
     }
 
-    const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
+    const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
+    const newTask: Task = mapDbTaskToTask({
+      ...data,
+      task_labels: labelIds.map((id) => ({ label_id: id })),
+      task_assignees: allAssignees.map((uid) => ({ user_id: uid })),
+    });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
     if (newTask.dueDate && !newTask.completed) {
