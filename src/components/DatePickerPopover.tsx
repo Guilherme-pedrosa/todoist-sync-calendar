@@ -166,7 +166,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           {trigger ?? (
             <button
