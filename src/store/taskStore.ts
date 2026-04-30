@@ -588,17 +588,31 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
-    // Reminder (only if due_time present and reminderMinutes provided/default)
-    if (data.due_date && data.due_time && taskData.reminderMinutes != null) {
-      const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
-      triggerAt.setMinutes(triggerAt.getMinutes() - taskData.reminderMinutes);
-      await supabase.from('reminders').insert({
-        task_id: data.id,
-        trigger_at: triggerAt.toISOString(),
-        type: 'absolute',
-        relative_minutes: taskData.reminderMinutes,
-        channel: 'push',
-      });
+    // Reminder: usa o valor passado ou cai no default do usuário (15min).
+    if (data.due_date && data.due_time) {
+      let minutes = taskData.reminderMinutes;
+      if (minutes == null) {
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('default_reminder_minutes')
+          .eq('user_id', userId)
+          .maybeSingle();
+        minutes = settings?.default_reminder_minutes ?? 15;
+      }
+      if (minutes != null && minutes >= 0) {
+        const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
+        triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
+        // Só agenda se o trigger ainda está no futuro
+        if (triggerAt.getTime() > Date.now()) {
+          await supabase.from('reminders').insert({
+            task_id: data.id,
+            trigger_at: triggerAt.toISOString(),
+            type: 'absolute',
+            relative_minutes: minutes,
+            channel: 'push',
+          });
+        }
+      }
     }
 
     const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
