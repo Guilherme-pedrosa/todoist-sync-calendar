@@ -115,9 +115,9 @@ export function AIAssistantPanel() {
         side="right"
         className="w-full sm:max-w-[440px] p-0 flex flex-col"
       >
-        <SheetHeader className="px-5 py-4 border-b border-border">
+        <SheetHeader className="px-5 py-4 border-b border-border pt-[max(1rem,env(safe-area-inset-top))]">
           <SheetTitle className="flex items-center gap-2 font-display">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Sparkles className="h-5 w-5 text-primary shrink-0" />
             Assistente IA
           </SheetTitle>
           <SheetDescription className="text-xs">
