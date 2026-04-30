@@ -476,7 +476,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      supabase.from('tasks').select('*, task_labels(label_id)'),
+      supabase.from('tasks').select('*, task_labels(label_id), task_assignees(user_id)'),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
