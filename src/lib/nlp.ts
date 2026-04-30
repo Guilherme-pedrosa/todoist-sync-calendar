@@ -257,7 +257,9 @@ export function parseNlp(input: string): ParsedNlp {
   // 5) date/time via chrono
   let dueDate: string | undefined;
   let dueTime: string | undefined;
+  let durationMinutes: number | undefined;
   let hasTime = false;
+  const timeRange = extractTimeRange(working);
   try {
     const results = ptParser.parse(working, new Date(), { forwardDate: true });
     if (results.length > 0) {
@@ -269,10 +271,24 @@ export function parseNlp(input: string): ParsedNlp {
         dueTime = format(d, 'HH:mm');
       }
       const range = expandDateRange(working, r.index, r.index + r.text.length);
-      matchedRanges.push({ ...range, type: 'date' });
+      if (timeRange) {
+        dueTime = timeRange.dueTime;
+        durationMinutes = timeRange.durationMinutes;
+        hasTime = true;
+        matchedRanges.push({ start: Math.min(range.start, timeRange.start), end: Math.max(range.end, timeRange.end), type: 'date' });
+      } else {
+        matchedRanges.push({ ...range, type: 'date' });
+      }
     }
   } catch {
     // ignore
+  }
+
+  if (!dueDate && timeRange) {
+    dueTime = timeRange.dueTime;
+    durationMinutes = timeRange.durationMinutes;
+    hasTime = true;
+    matchedRanges.push({ start: timeRange.start, end: timeRange.end, type: 'date' });
   }
 
   // 5b) Se a recorrência for "N-ésimo dia útil do mês" e nenhuma data foi
@@ -300,6 +316,7 @@ export function parseNlp(input: string): ParsedNlp {
     cleanedTitle: cleaned || input.trim(),
     dueDate,
     dueTime,
+    durationMinutes,
     hasTime,
     recurrenceRule,
     recurrenceLabel,
