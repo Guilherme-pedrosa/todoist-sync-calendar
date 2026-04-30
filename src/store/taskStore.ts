@@ -93,6 +93,7 @@ function mapDbTaskToTask(t: any): Task {
       : undefined,
     googleCalendarEventId: t.google_calendar_event_id || undefined,
     taskNumber: t.task_number ?? null,
+    assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
     createdAt: t.created_at,
   };
 }
