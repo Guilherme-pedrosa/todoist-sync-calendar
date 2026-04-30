@@ -1075,13 +1075,20 @@ function EventBlock({
         </button>
         <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
           {task.dueTime && (
-            <span className="text-muted-foreground mr-1">
-              {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
+            <span className={cn('mr-1', isDragging ? 'text-primary font-semibold' : 'text-muted-foreground')}>
+              {`${minutesToTime(startMin)}–${minutesToTime(startMin + durationMin)}`}
             </span>
           )}
           {task.title}
         </span>
       </div>
+      {isDragging && (
+        <div
+          className="pointer-events-none absolute -left-1 -top-3 z-40 rounded-md bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-lg"
+        >
+          {`${minutesToTime(startMin)} – ${minutesToTime(startMin + durationMin)}`}
+        </div>
+      )}
       {project && !project.isInbox && height > 32 && (
         <div className="px-1.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
           <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: project.color }} />
