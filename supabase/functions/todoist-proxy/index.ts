@@ -306,6 +306,61 @@ async function getUserTodoistToken(
   return data?.access_token || null;
 }
 
+async function ensurePersonalWorkspaceAndInbox(supabase: any, userId: string): Promise<{ workspaceId: string; inboxProjectId: string }> {
+  const slug = `pessoal-${userId}`;
+  let { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("owner_id", userId)
+    .eq("is_personal", true)
+    .maybeSingle();
+
+  if (!workspace?.id) {
+    const { data: insertedWorkspace } = await supabase
+      .from("workspaces")
+      .insert({ name: "Pessoal", slug, owner_id: userId, is_personal: true })
+      .select("id")
+      .maybeSingle();
+    workspace = insertedWorkspace;
+  }
+
+  if (!workspace?.id) throw new Error("Workspace pessoal não encontrado");
+
+  await supabase
+    .from("workspace_members")
+    .upsert({ workspace_id: workspace.id, user_id: userId, role: "owner" }, { onConflict: "workspace_id,user_id" });
+
+  let { data: inbox } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("workspace_id", workspace.id)
+    .eq("is_inbox", true)
+    .maybeSingle();
+
+  if (!inbox?.id) {
+    const { data: insertedInbox, error } = await supabase
+      .from("projects")
+      .insert({
+        user_id: userId,
+        workspace_id: workspace.id,
+        owner_id: userId,
+        name: "Caixa de Entrada",
+        color: "hsl(230, 10%, 50%)",
+        is_inbox: true,
+        position: 0,
+        visibility: "private",
+      })
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(`Erro ao criar Caixa de Entrada: ${error.message}`);
+    inbox = insertedInbox;
+  }
+
+  if (!inbox?.id) throw new Error("Caixa de Entrada do app não encontrada");
+  return { workspaceId: workspace.id, inboxProjectId: inbox.id };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
