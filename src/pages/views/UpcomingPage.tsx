@@ -35,8 +35,19 @@ import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
+type RecurringCompletionRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  occurrence_date: string;
+  occurrence_time: string | null;
+  duration_minutes: number | null;
+  title: string;
+  completed_at: string;
+};
 
 const DAY_START_HOUR = 6; // grid começa às 06:00
 const DAY_END_HOUR = 24; // até meia-noite
@@ -99,6 +110,28 @@ export default function UpcomingPage() {
     [weekDays, weekStart]
   );
   const rangeStart = useMemo(() => weekDays[0] ?? weekStart, [weekDays, weekStart]);
+  const [recurringCompletions, setRecurringCompletions] = useState<RecurringCompletionRow[]>([]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
+    const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
+
+    supabase
+      .from('recurring_task_completions' as any)
+      .select('id, task_id, user_id, occurrence_date, occurrence_time, duration_minutes, title, completed_at')
+      .eq('user_id', currentUserId)
+      .gte('occurrence_date', rangeStartIso)
+      .lte('occurrence_date', rangeEndIso)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Erro ao carregar ocorrências concluídas', error);
+          setRecurringCompletions([]);
+          return;
+        }
+        setRecurringCompletions((data || []) as unknown as RecurringCompletionRow[]);
+      });
+  }, [currentUserId, rangeStart, rangeEnd]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -129,8 +162,29 @@ export default function UpcomingPage() {
         map.get(k)!.push(t);
       }
     }
+
+    for (const completion of recurringCompletions) {
+      const source = visibleTasks.find((t) => t.id === completion.task_id);
+      const k = completion.occurrence_date;
+      if (!source || k < rangeStartIso || k > rangeEndIso) continue;
+      const completedOccurrence: Task = {
+        ...source,
+        id: `recurring-completion:${completion.id}`,
+        sourceTaskId: source.id,
+        recurringCompletionId: completion.id,
+        isRecurringCompletion: true,
+        title: completion.title || source.title,
+        dueDate: k,
+        dueTime: completion.occurrence_time?.slice(0, 5) || source.dueTime,
+        durationMinutes: completion.duration_minutes ?? source.durationMinutes ?? null,
+        completed: true,
+        completedAt: completion.completed_at,
+      };
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(completedOccurrence);
+    }
     return map;
-  }, [visibleTasks, rangeStart, rangeEnd]);
+  }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
