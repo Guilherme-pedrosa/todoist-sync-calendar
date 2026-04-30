@@ -64,7 +64,10 @@ export default function UpcomingPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const { user } = useAuth();
   const currentUserId = user?.id;
-  const [mode, setMode] = useState<Mode>('week');
+  // Em telas pequenas (mobile), começa em modo "dia" — semana com 7 colunas é inutilizável no celular.
+  const [mode, setMode] = useState<Mode>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
+  );
   const [weekOffset, setWeekOffset] = useState(0);
 
   // Mostra somente tarefas atribuídas ao usuário atual.
@@ -95,9 +98,9 @@ export default function UpcomingPage() {
   const weekDays = useMemo(
     () =>
       mode === 'day'
-        ? [new Date()]
+        ? [addDays(new Date(), weekOffset)]
         : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart, mode]
+    [weekStart, mode, weekOffset]
   );
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
@@ -203,7 +206,7 @@ export default function UpcomingPage() {
           </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
             {mode === 'day'
-              ? format(new Date(), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
+              ? format(addDays(new Date(), weekOffset), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
               : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}`}
           </p>
         </div>
@@ -246,9 +249,9 @@ export default function UpcomingPage() {
               <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
             </button>
           </div>
-          {mode !== 'day' && mode !== 'kanban' && (
+          {mode !== 'kanban' && (
             <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)} aria-label={mode === 'day' ? 'Dia anterior' : 'Semana anterior'}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
@@ -259,7 +262,7 @@ export default function UpcomingPage() {
               >
                 Hoje
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)} aria-label={mode === 'day' ? 'Próximo dia' : 'Próxima semana'}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

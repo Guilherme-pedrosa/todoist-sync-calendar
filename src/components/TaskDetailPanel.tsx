@@ -6,6 +6,7 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
   MoreHorizontal,
   Hash,
   Inbox,
@@ -403,17 +404,26 @@ export function TaskDetailPanel() {
   const content = (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
+        {isMobile && (
+          <button
+            onClick={close}
+            className="-ml-1 mr-1 h-9 w-9 flex items-center justify-center rounded-md hover:bg-muted active:bg-muted text-foreground"
+            aria-label="Voltar"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
         <button
           onClick={() => task.projectId && navigate(`/projects/${task.projectId}`)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors min-w-0 truncate"
         >
           {project?.isInbox ? (
-            <Inbox className="h-3.5 w-3.5" />
+            <Inbox className="h-3.5 w-3.5 shrink-0" />
           ) : (
-            <Hash className="h-3.5 w-3.5" style={{ color: project?.color }} />
+            <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: project?.color }} />
           )}
-          {project?.name || 'Projeto'}
+          <span className="truncate">{project?.name || 'Projeto'}</span>
         </button>
         <div className="ml-auto flex items-center">
           <button
@@ -478,10 +488,10 @@ export function TaskDetailPanel() {
           </DropdownMenu>
           <button
             onClick={close}
-            className="p-1.5 hover:bg-muted rounded text-muted-foreground ml-1"
+            className="p-2 hover:bg-muted active:bg-muted rounded text-foreground ml-1 h-9 w-9 flex items-center justify-center"
             aria-label="Fechar (Esc)"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
       </div>
