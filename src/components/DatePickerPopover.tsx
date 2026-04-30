@@ -86,20 +86,35 @@ function buildPresets(anchor?: string): Array<{ label: string; build: () => stri
   ];
 }
 
-export function DatePickerPopover({ value, onChange, trigger, align = 'start' }: Props) {
+export function DatePickerPopover({ value, onChange, trigger, align = 'start', commitOnClose = false }: Props) {
   const [open, setOpen] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
-  const selected = value.date ? new Date(`${value.date}T00:00:00`) : undefined;
+
+  // When commitOnClose is enabled, edits go to a local buffer and are only
+  // pushed to the parent on close (OK button or outside click). This avoids
+  // firing the recurring-edit prompt on every keystroke/day-click.
+  const [draft, setDraft] = useState<DateValue>(value);
+  useEffect(() => {
+    if (!open) setDraft(value);
+  }, [value, open]);
+
+  const current = commitOnClose ? draft : value;
+  const emit = (v: DateValue) => {
+    if (commitOnClose) setDraft(v);
+    else onChange(v);
+  };
+
+  const selected = current.date ? new Date(`${current.date}T00:00:00`) : undefined;
 
   useEffect(() => {
     if (!open) setTextInput('');
   }, [open]);
 
   const setQuick = (d: Date) => {
-    onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
+    emit({ ...current, date: format(d, 'yyyy-MM-dd') });
   };
 
   const recurrenceLabel = recurrenceRuleToLabel(value.recurrenceRule);
