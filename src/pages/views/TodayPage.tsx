@@ -13,6 +13,8 @@ import { ptBR } from 'date-fns/locale';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { ViewModeToolbar } from '@/components/ViewModeToolbar';
 import { useViewPref } from '@/hooks/useViewPref';
+import { useShowCompleted } from '@/hooks/useShowCompleted';
+import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
