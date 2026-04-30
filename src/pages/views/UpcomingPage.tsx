@@ -697,7 +697,14 @@ function DayColumn({
     registerRef(el);
   };
 
-  const downStateRef = useRef<{ y: number; moved: boolean; startMin: number } | null>(null);
+  const downStateRef = useRef<{
+    y: number;
+    moved: boolean;
+    startMin: number;
+    pointerType: string;
+    longPressTimer: number | null;
+    longPressFired: boolean;
+  } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     // Only start a create when clicking empty space (target is the column itself)
@@ -707,7 +714,24 @@ function DayColumn({
     const rect = el.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const min = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
-    downStateRef.current = { y, moved: false, startMin: min };
+    const isTouch = e.pointerType === 'touch';
+    const state = {
+      y,
+      moved: false,
+      startMin: min,
+      pointerType: e.pointerType,
+      longPressTimer: null as number | null,
+      longPressFired: false,
+    };
+    if (isTouch) {
+      state.longPressTimer = window.setTimeout(() => {
+        const current = downStateRef.current;
+        if (!current || current.moved) return;
+        current.longPressFired = true;
+        try { (navigator as any).vibrate?.(15); } catch {}
+      }, 420) as unknown as number;
+    }
+    downStateRef.current = state;
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -716,8 +740,17 @@ function DayColumn({
     const el = localRef.current!;
     const rect = el.getBoundingClientRect();
     const dy = Math.abs(e.clientY - rect.top - s.y);
-    if (dy > 4) {
+    const isTouch = s.pointerType === 'touch';
+    if (dy > (isTouch ? 12 : 4)) {
       s.moved = true;
+      if (s.longPressTimer != null) {
+        clearTimeout(s.longPressTimer);
+        s.longPressTimer = null;
+      }
+      if (isTouch) {
+        downStateRef.current = null;
+        return;
+      }
       onStartCreate(s.startMin);
     }
   };
@@ -726,9 +759,17 @@ function DayColumn({
     const s = downStateRef.current;
     downStateRef.current = null;
     if (!s) return;
-    if (!s.moved && e.target === e.currentTarget) {
+    if (s.longPressTimer != null) clearTimeout(s.longPressTimer);
+    const isTouch = s.pointerType === 'touch';
+    if (!s.moved && e.target === e.currentTarget && (!isTouch || s.longPressFired)) {
       onClickEmpty(s.startMin);
     }
+  };
+
+  const onPointerCancel = () => {
+    const s = downStateRef.current;
+    downStateRef.current = null;
+    if (s?.longPressTimer != null) clearTimeout(s.longPressTimer);
   };
 
   return (
@@ -738,10 +779,11 @@ function DayColumn({
         'relative border-l border-border cursor-cell',
         isToday && 'bg-primary/[0.03]'
       )}
-      style={{ height: hoursLen * HOUR_HEIGHT }}
+      style={{ height: hoursLen * HOUR_HEIGHT, touchAction: 'pan-y' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
       {/* Hour lines com sub-divisões de 15 min */}
       {Array.from({ length: hoursLen }, (_, h) => (
@@ -1036,8 +1078,9 @@ function EventBlock({
           clearTimeout(d.longPressTimer);
         }
         endInteraction(e.currentTarget, e.pointerId);
-        if (d && !d.moved && !d.longPressFired) {
-          // Clean tap → open task
+        const isTouch = d?.pointerType === 'touch';
+        if (d && !d.moved && (!isTouch || d.longPressFired)) {
+          // Mouse click opens immediately; touch opens only after long press.
           e.stopPropagation();
           onClick();
         }
@@ -1121,32 +1164,74 @@ function AllDayChip({
   onOpen: () => void;
   onStartDrag: (pointerOffsetMin: number) => void;
 }) {
-  const downRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const downRef = useRef<{
+    x: number;
+    y: number;
+    moved: boolean;
+    pointerType: string;
+    longPressTimer: number | null;
+    longPressFired: boolean;
+  } | null>(null);
   return (
     <div
       role="button"
       tabIndex={0}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        downRef.current = { x: e.clientX, y: e.clientY, moved: false };
+        const isTouch = e.pointerType === 'touch';
+        const state = {
+          x: e.clientX,
+          y: e.clientY,
+          moved: false,
+          pointerType: e.pointerType,
+          longPressTimer: null as number | null,
+          longPressFired: false,
+        };
+        if (isTouch) {
+          state.longPressTimer = window.setTimeout(() => {
+            const current = downRef.current;
+            if (!current || current.moved) return;
+            current.longPressFired = true;
+            try { (navigator as any).vibrate?.(15); } catch {}
+          }, 420) as unknown as number;
+        }
+        downRef.current = state;
       }}
       onPointerMove={(e) => {
         const d = downRef.current;
         if (!d || d.moved) return;
-        if (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4) {
+        const isTouch = d.pointerType === 'touch';
+        const threshold = isTouch ? 12 : 4;
+        if (Math.abs(e.clientX - d.x) > threshold || Math.abs(e.clientY - d.y) > threshold) {
           d.moved = true;
+          if (d.longPressTimer != null) {
+            clearTimeout(d.longPressTimer);
+            d.longPressTimer = null;
+          }
+          if (isTouch && !d.longPressFired) {
+            downRef.current = null;
+            return;
+          }
           onStartDrag(0);
         }
       }}
       onPointerUp={(e) => {
         const d = downRef.current;
         downRef.current = null;
-        if (d && !d.moved) {
+        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
+        const isTouch = d?.pointerType === 'touch';
+        if (d && !d.moved && (!isTouch || d.longPressFired)) {
           e.stopPropagation();
           onOpen();
         }
       }}
+      onPointerCancel={() => {
+        const d = downRef.current;
+        downRef.current = null;
+        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
+      }}
       className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none"
+      style={{ touchAction: 'pan-y' }}
       title={`${task.title} — arraste para um horário`}
     >
       {task.title}
