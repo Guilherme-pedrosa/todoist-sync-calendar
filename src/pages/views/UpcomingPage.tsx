@@ -206,7 +206,7 @@ export default function UpcomingPage() {
           </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
             {mode === 'day'
-              ? format(new Date(), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
+              ? format(addDays(new Date(), weekOffset), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
               : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}`}
           </p>
         </div>
