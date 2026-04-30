@@ -98,9 +98,9 @@ export default function UpcomingPage() {
   const weekDays = useMemo(
     () =>
       mode === 'day'
-        ? [new Date()]
+        ? [addDays(new Date(), weekOffset)]
         : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart, mode]
+    [weekStart, mode, weekOffset]
   );
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
