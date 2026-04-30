@@ -34,6 +34,7 @@ import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecu
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
