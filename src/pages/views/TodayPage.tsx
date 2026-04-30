@@ -171,6 +171,19 @@ export default function TodayPage() {
 
         <AddTaskForm defaultDate={today} />
 
+        {showCompleted && completedToday.length > 0 && (
+          <div className="mt-4">
+            <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Concluídas hoje · {completedToday.length}
+            </h3>
+            <div className="opacity-60">
+              {completedToday.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {total === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="h-16 w-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
