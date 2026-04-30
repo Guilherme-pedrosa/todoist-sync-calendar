@@ -324,6 +324,15 @@ async function ensurePersonalWorkspaceAndInbox(supabase: any, userId: string): P
     workspace = insertedWorkspace;
   }
 
+  if (!workspace?.id) {
+    const { data: existingWorkspace } = await supabase
+      .from("workspaces")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    workspace = existingWorkspace;
+  }
+
   if (!workspace?.id) throw new Error("Workspace pessoal não encontrado");
 
   await supabase
