@@ -803,12 +803,22 @@ function EventBlock({
   onClick: () => void;
 }) {
   const project = useTaskStore((s) => s.projects.find((p) => p.id === task.projectId));
+  const completeTask = useCompleteTask();
+  const isRecurring = !!task.recurrenceRule;
+  const isDone = task.completed;
+
+  // Variant styles: completed wins, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
     1: 'border-l-priority-1',
     2: 'border-l-priority-2',
     3: 'border-l-priority-3',
     4: 'border-l-muted-foreground/40',
   };
+  const variantClasses = isDone
+    ? 'bg-success/15 border-l-success border-success/40'
+    : isRecurring
+    ? 'bg-info/10 border-l-info border-info/30'
+    : `bg-card ${priorityBorder[task.priority]}`;
   const downRef = useRef<{
     x: number;
     y: number;
