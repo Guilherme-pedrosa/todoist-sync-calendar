@@ -891,13 +891,35 @@ function EventBlock({
         if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
-        {task.dueTime && (
-          <span className="text-muted-foreground mr-1">
-            {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
-          </span>
-        )}
-        {task.title}
+      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal flex items-start gap-1.5">
+        <button
+          type="button"
+          aria-label={isDone ? 'Marcar como pendente' : 'Marcar como concluída'}
+          onPointerDown={(e) => { e.stopPropagation(); }}
+          onPointerUp={(e) => { e.stopPropagation(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            completeTask(task.id);
+          }}
+          className={cn(
+            'mt-[1px] h-3.5 w-3.5 shrink-0 rounded-full border flex items-center justify-center transition-colors',
+            isDone
+              ? 'bg-success border-success text-success-foreground'
+              : isRecurring
+              ? 'border-recurring hover:bg-recurring/20'
+              : 'border-muted-foreground/40 hover:bg-muted'
+          )}
+        >
+          {isDone && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+        </button>
+        <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
+          {task.dueTime && (
+            <span className="text-muted-foreground mr-1">
+              {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
+            </span>
+          )}
+          {task.title}
+        </span>
       </div>
       {project && !project.isInbox && height > 32 && (
         <div className="px-1.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
