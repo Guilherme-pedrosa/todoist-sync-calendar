@@ -64,6 +64,8 @@ interface Props {
   onChange: (v: DateValue) => void;
   trigger?: React.ReactNode;
   align?: 'start' | 'center' | 'end';
+  /** When true, edits are buffered locally and only committed on OK / popover close. */
+  commitOnClose?: boolean;
 }
 
 function buildPresets(anchor?: string): Array<{ label: string; build: () => string }> {
@@ -84,23 +86,40 @@ function buildPresets(anchor?: string): Array<{ label: string; build: () => stri
   ];
 }
 
-export function DatePickerPopover({ value, onChange, trigger, align = 'start' }: Props) {
+export function DatePickerPopover({ value, onChange, trigger, align = 'start', commitOnClose = false }: Props) {
   const [open, setOpen] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
-  const selected = value.date ? new Date(`${value.date}T00:00:00`) : undefined;
+
+  // When commitOnClose is enabled, edits go to a local buffer and are only
+  // pushed to the parent on close (OK button or outside click). This avoids
+  // firing the recurring-edit prompt on every keystroke/day-click.
+  const [draft, setDraft] = useState<DateValue>(value);
+  useEffect(() => {
+    if (!open) setDraft(value);
+  }, [value, open]);
+
+  const current = commitOnClose ? draft : value;
+  const emit = (v: DateValue) => {
+    if (commitOnClose) setDraft(v);
+    else onChange(v);
+  };
+
+  const selected = current.date ? new Date(`${current.date}T00:00:00`) : undefined;
 
   useEffect(() => {
     if (!open) setTextInput('');
   }, [open]);
 
   const setQuick = (d: Date) => {
-    onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
+    emit({ ...current, date: format(d, 'yyyy-MM-dd') });
   };
 
   const recurrenceLabel = recurrenceRuleToLabel(value.recurrenceRule);
+  const currentRecurrenceLabel = recurrenceRuleToLabel(current.recurrenceRule);
+  const hasCurrentValue = !!(current.date || current.recurrenceRule);
 
   const summary = (() => {
     if (!value.date && !value.recurrenceRule) return 'Sem data';
@@ -125,19 +144,31 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
   const handleTextSubmit = () => {
     if (!textInput.trim()) return;
     const parsed = parseNlp(textInput);
-    const next: DateValue = { ...value };
+    const next: DateValue = { ...current };
     if (parsed.dueDate) next.date = parsed.dueDate;
     if (parsed.dueTime) next.time = parsed.dueTime;
     if (parsed.recurrenceRule) next.recurrenceRule = parsed.recurrenceRule;
-    onChange(next);
+    emit(next);
     setTextInput('');
   };
 
-  const presets = buildPresets(value.date);
+  const presets = buildPresets(current.date);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && commitOnClose) {
+      const changed =
+        draft.date !== value.date ||
+        draft.time !== value.time ||
+        draft.durationMinutes !== value.durationMinutes ||
+        draft.recurrenceRule !== value.recurrenceRule;
+      if (changed) onChange(draft);
+    }
+    setOpen(next);
+  };
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={handleOpenChange}>
         <PopoverTrigger asChild>
           {trigger ?? (
             <button
@@ -213,11 +244,11 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
               shortcut={format(addDays(new Date(), 7), 'EEE d', { locale: ptBR })}
               onClick={() => setQuick(addDays(new Date(), 7))}
             />
-            {value.date && (
+            {current.date && (
               <PresetRow
                 icon={<CalendarX className="h-3.5 w-3.5 text-muted-foreground" />}
                 label="Sem vencimento"
-                onClick={() => onChange({ date: undefined, time: undefined, recurrenceRule: value.recurrenceRule })}
+                onClick={() => emit({ date: undefined, time: undefined, recurrenceRule: current.recurrenceRule })}
               />
             )}
           </div>
@@ -225,7 +256,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
             mode="single"
             selected={selected}
             onSelect={(d) => {
-              if (d) onChange({ ...value, date: format(d, 'yyyy-MM-dd') });
+              if (d) emit({ ...current, date: format(d, 'yyyy-MM-dd') });
             }}
             locale={ptBR}
             className={cn('p-3 pointer-events-auto')}
@@ -236,13 +267,13 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
               <span className="text-xs text-muted-foreground">Hora</span>
               <Input
                 type="time"
-                value={value.time ?? ''}
-                onChange={(e) => onChange({ ...value, time: e.target.value || undefined })}
+                value={current.time ?? ''}
+                onChange={(e) => emit({ ...current, time: e.target.value || undefined })}
                 className="h-7 text-xs ml-auto w-[110px]"
               />
-              {value.time && (
+              {current.time && (
                 <button
-                  onClick={() => onChange({ ...value, time: undefined })}
+                  onClick={() => emit({ ...current, time: undefined })}
                   className="p-1 rounded hover:bg-muted"
                   aria-label="Remover hora"
                 >
@@ -252,7 +283,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
             </div>
 
             {/* Duração — só aparece quando há hora */}
-            {value.time && (
+            {current.time && (
               <div className="flex items-center gap-2">
                 <Clock3 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 <span className="text-xs text-muted-foreground">Duração</span>
@@ -262,13 +293,13 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                       type="button"
                       className={cn(
                         'ml-auto inline-flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors',
-                        value.durationMinutes
+                        current.durationMinutes
                           ? 'border-primary/30 text-primary bg-primary/5'
                           : 'border-border text-muted-foreground hover:border-primary/30'
                       )}
                     >
-                      {value.durationMinutes
-                        ? `${formatDuration(value.durationMinutes)} · até ${addMinutesToTime(value.time, value.durationMinutes)}`
+                      {current.durationMinutes
+                        ? `${formatDuration(current.durationMinutes)} · até ${addMinutesToTime(current.time, current.durationMinutes)}`
                         : 'Sem duração'}
                     </button>
                   </PopoverTrigger>
@@ -277,18 +308,18 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                       <button
                         key={p.label}
                         onClick={() => {
-                          onChange({ ...value, durationMinutes: p.minutes });
+                          emit({ ...current, durationMinutes: p.minutes });
                           setDurationMenuOpen(false);
                         }}
                         className={cn(
                           'w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted flex items-center justify-between',
-                          (value.durationMinutes ?? null) === p.minutes && 'bg-muted text-primary font-medium'
+                          (current.durationMinutes ?? null) === p.minutes && 'bg-muted text-primary font-medium'
                         )}
                       >
                         <span>{p.label}</span>
-                        {p.minutes && value.time && (
+                        {p.minutes && current.time && (
                           <span className="text-[10px] text-muted-foreground">
-                            até {addMinutesToTime(value.time, p.minutes)}
+                            até {addMinutesToTime(current.time, p.minutes)}
                           </span>
                         )}
                       </button>
@@ -301,10 +332,10 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                         min={1}
                         max={1440}
                         placeholder="min"
-                        value={value.durationMinutes && !DURATION_PRESETS.some(p => p.minutes === value.durationMinutes) ? value.durationMinutes : ''}
+                        value={current.durationMinutes && !DURATION_PRESETS.some(p => p.minutes === current.durationMinutes) ? current.durationMinutes : ''}
                         onChange={(e) => {
                           const n = parseInt(e.target.value, 10);
-                          onChange({ ...value, durationMinutes: Number.isFinite(n) && n > 0 ? n : null });
+                          emit({ ...current, durationMinutes: Number.isFinite(n) && n > 0 ? n : null });
                         }}
                         className="h-6 text-xs"
                       />
@@ -319,20 +350,20 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                   type="button"
                   className={cn(
                     'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md border transition-colors',
-                    value.recurrenceRule
+                    current.recurrenceRule
                       ? 'border-accent/40 text-accent bg-accent/5'
                       : 'border-border text-muted-foreground hover:border-accent/40'
                   )}
                 >
                   <Repeat className="h-3.5 w-3.5" />
-                  {recurrenceLabel || 'Repetir'}
-                  {value.recurrenceRule && (
+                  {currentRecurrenceLabel || 'Repetir'}
+                  {current.recurrenceRule && (
                     <X
                       className="h-3 w-3 ml-auto"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        onChange({ ...value, recurrenceRule: null });
+                        emit({ ...current, recurrenceRule: null });
                       }}
                     />
                   )}
@@ -343,7 +374,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                   <button
                     key={p.label}
                     onClick={() => {
-                      onChange({ ...value, recurrenceRule: p.build() });
+                      emit({ ...current, recurrenceRule: p.build() });
                       setRecurrenceMenuOpen(false);
                     }}
                     className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
@@ -361,12 +392,12 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
                 >
                   Personalizar…
                 </button>
-                {value.recurrenceRule && (
+                {current.recurrenceRule && (
                   <>
                     <div className="my-1 border-t border-border" />
                     <button
                       onClick={() => {
-                        onChange({ ...value, recurrenceRule: null });
+                        emit({ ...current, recurrenceRule: null });
                         setRecurrenceMenuOpen(false);
                       }}
                       className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-destructive/10 text-destructive"
@@ -380,19 +411,19 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
           </div>
           </div>
           <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0 sticky bottom-0">
-            {hasValue && (
+            {hasCurrentValue && (
               <Button
                 size="sm"
                 variant="ghost"
                 className="flex-1 h-8 text-xs"
                 onClick={() => {
-                  onChange({ date: undefined, time: undefined, recurrenceRule: null });
+                  emit({ date: undefined, time: undefined, recurrenceRule: null });
                 }}
               >
                 Limpar
               </Button>
             )}
-            <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => setOpen(false)}>
+            <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => handleOpenChange(false)}>
               <Check className="h-3 w-3 mr-1" /> OK
             </Button>
           </div>
@@ -402,9 +433,9 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start' }:
       <RecurrenceCustomDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
-        initialRule={value.recurrenceRule}
-        startDate={value.date}
-        onSave={(rule) => onChange({ ...value, recurrenceRule: rule })}
+        initialRule={current.recurrenceRule}
+        startDate={current.date}
+        onSave={(rule) => emit({ ...current, recurrenceRule: rule })}
       />
     </>
   );
