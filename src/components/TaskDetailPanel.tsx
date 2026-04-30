@@ -344,6 +344,7 @@ export function TaskDetailPanel() {
     if (nextTitle !== task.title) updates.title = nextTitle;
     if (parsed.dueDate) updates.dueDate = parsed.dueDate;
     if (parsed.dueTime) updates.dueTime = parsed.dueTime;
+    if (parsed.durationMinutes !== undefined) updates.durationMinutes = parsed.durationMinutes;
     if (parsed.recurrenceRule) updates.recurrenceRule = parsed.recurrenceRule;
     if (parsed.priority) updates.priority = parsed.priority;
     if (Object.keys(updates).length > 0) {
