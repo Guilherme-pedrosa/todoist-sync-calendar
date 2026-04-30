@@ -1065,6 +1065,7 @@ function EventBlock({
     longPressTimer: number | null;
     longPressFired: boolean;
   } | null>(null);
+  const lastTapRef = useRef<number>(0);
 
   const endInteraction = (el: HTMLDivElement, pointerId: number) => {
     try {
