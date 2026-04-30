@@ -1,5 +1,22 @@
 import { RRule, rrulestr } from 'rrule';
 import { addDays, format, parseISO } from 'date-fns';
+import { getHolidayForDate } from '@/lib/holidays';
+
+/**
+ * Detects "every weekday" rules (FREQ=WEEKLY with BYDAY=MO,TU,WE,TH,FR).
+ * For these, occurrences that fall on a national holiday should be skipped.
+ */
+function isWeekdayOnlyRule(recurrenceRule: string): boolean {
+  const upper = recurrenceRule.toUpperCase();
+  if (!upper.includes('FREQ=WEEKLY')) return false;
+  const byday = upper.match(/BYDAY=([A-Z,]+)/)?.[1];
+  if (!byday) return false;
+  const days = new Set(byday.split(','));
+  return (
+    days.size === 5 &&
+    days.has('MO') && days.has('TU') && days.has('WE') && days.has('TH') && days.has('FR')
+  );
+}
 
 /**
  * Parse a stored recurrence string. Supports a bare RRULE (e.g.
@@ -45,8 +62,16 @@ export function expandOccurrencesInRange(
     const lookupStart = anchor < start ? start : anchor;
 
     const occurrences = rule.between(lookupStart, end, true);
+    const skipHolidays = isWeekdayOnlyRule(recurrenceRule);
     const dates = new Set<string>();
-    for (const d of occurrences) dates.add(format(d, 'yyyy-MM-dd'));
+    for (const d of occurrences) {
+      const key = format(d, 'yyyy-MM-dd');
+      if (skipHolidays) {
+        const h = getHolidayForDate(key);
+        if (h?.type === 'national') continue;
+      }
+      dates.add(key);
+    }
     return Array.from(dates);
   } catch (e) {
     console.error('expandOccurrencesInRange error', e);
