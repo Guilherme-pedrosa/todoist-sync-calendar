@@ -105,7 +105,7 @@ export default function UpcomingPage() {
     const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
-    for (const t of tasks) {
+    for (const t of visibleTasks) {
       if (t.parentId || !t.dueDate) continue;
 
       let dayKeys: string[] = [];
@@ -130,7 +130,7 @@ export default function UpcomingPage() {
       }
     }
     return map;
-  }, [tasks, rangeStart, rangeEnd]);
+  }, [visibleTasks, rangeStart, rangeEnd]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
