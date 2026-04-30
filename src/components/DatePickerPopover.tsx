@@ -356,7 +356,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                   )}
                 >
                   <Repeat className="h-3.5 w-3.5" />
-                  {recurrenceLabel || 'Repetir'}
+                  {currentRecurrenceLabel || 'Repetir'}
                   {current.recurrenceRule && (
                     <X
                       className="h-3 w-3 ml-auto"
