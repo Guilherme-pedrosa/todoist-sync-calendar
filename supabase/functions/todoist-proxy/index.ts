@@ -394,10 +394,7 @@ serve(async (req) => {
       const todoistInbox = tdProjects.find((p) => p.inbox_project || p.is_inbox_project);
       if (!todoistInbox) return json({ error: "Inbox do Todoist não encontrado" }, 404);
 
-      const { data: appProjects } = await supabase
-        .from("projects").select("id, is_inbox").eq("user_id", user.id).eq("is_inbox", true).limit(1);
-      const appInbox = appProjects?.[0];
-      if (!appInbox) return json({ error: "Caixa de Entrada do app não encontrada" }, 404);
+      const { workspaceId: personalWorkspaceId, inboxProjectId } = await ensurePersonalWorkspaceAndInbox(supabase, user.id);
 
       const tdLabels = await todoistFetch<TodoistLabel>("labels", TODOIST_API_KEY);
       const { data: existingLabels } = await supabase
@@ -427,7 +424,7 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", appInbox.id);
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", inboxProjectId);
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
         existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.parent_id || ""}`, t);
@@ -473,7 +470,9 @@ serve(async (req) => {
             due_string: dueString,
             recurrence_rule: recurrenceRule,
             deadline: deadline,
-            project_id: appInbox.id,
+            project_id: inboxProjectId,
+            workspace_id: personalWorkspaceId,
+            created_by: user.id,
           },
         });
       }
