@@ -1,8 +1,22 @@
 import { Plus } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { useQuickAddStore } from '@/store/quickAddStore';
+
+// Routes where the floating "+" doesn't make sense (no task creation context).
+const HIDDEN_ROUTES = [
+  '/settings',
+  '/team',
+  '/profile',
+  '/auth',
+  '/login',
+];
 
 export function MobileFab() {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const { pathname } = useLocation();
+
+  if (HIDDEN_ROUTES.some((r) => pathname.startsWith(r))) return null;
+
   return (
     <button
       onClick={() => openQuickAdd()}

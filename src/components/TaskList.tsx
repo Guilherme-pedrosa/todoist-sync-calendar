@@ -263,10 +263,10 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <header className="flex items-center gap-3 px-6 py-5 border-b border-border/50">
+      <header className="hidden sm:flex items-center gap-3 px-6 py-5 border-b border-border/50">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+          className="hidden p-1.5 rounded-md hover:bg-muted transition-colors"
           aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
@@ -291,6 +291,17 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
           </div>
         )}
       </header>
+      {/* Mobile mini-bar with task count + completed toggle */}
+      <div className="sm:hidden flex items-center justify-between px-4 py-2 border-b border-border/50 text-xs text-muted-foreground">
+        <span>{filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''}</span>
+        {supportsCompletedToggle && (
+          <ShowCompletedToggle
+            show={showCompleted}
+            onChange={setShowCompleted}
+            count={completedList.length}
+          />
+        )}
+      </div>
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">

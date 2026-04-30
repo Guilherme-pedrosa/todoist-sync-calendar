@@ -340,7 +340,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <header className="flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-border/50">
+      <header className="hidden sm:flex items-center gap-3 px-4 sm:px-6 py-3 border-b border-border/50">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="h-8 w-8">
           <ArrowLeft className="h-4 w-4" />
         </Button>

@@ -194,7 +194,7 @@ export default function UpcomingPage() {
       <header className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-border/50">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors shrink-0"
+          className="hidden p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors shrink-0"
           aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
