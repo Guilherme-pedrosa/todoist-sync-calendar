@@ -118,6 +118,8 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
   };
 
   const recurrenceLabel = recurrenceRuleToLabel(value.recurrenceRule);
+  const currentRecurrenceLabel = recurrenceRuleToLabel(current.recurrenceRule);
+  const hasCurrentValue = !!(current.date || current.recurrenceRule);
 
   const summary = (() => {
     if (!value.date && !value.recurrenceRule) return 'Sem data';
