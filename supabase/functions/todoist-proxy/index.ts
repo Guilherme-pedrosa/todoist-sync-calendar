@@ -293,14 +293,22 @@ async function todoistFetch<T>(path: string, apiKey: string): Promise<T[]> {
   return results;
 }
 
+async function getUserTodoistToken(
+  supabase: any,
+  userId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("user_integrations")
+    .select("access_token")
+    .eq("user_id", userId)
+    .eq("provider", "todoist")
+    .maybeSingle();
+  return data?.access_token || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
-  }
-
-  const TODOIST_API_KEY = Deno.env.get("TODOIST_API_KEY");
-  if (!TODOIST_API_KEY) {
-    return json({ error: "TODOIST_API_KEY not configured" }, 500);
   }
 
   const url = new URL(req.url);
@@ -320,6 +328,11 @@ serve(async (req) => {
     const userToken = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(userToken);
     if (userError || !user) return json({ error: "Usuário inválido" }, 401);
+
+    const TODOIST_API_KEY = await getUserTodoistToken(supabase, user.id);
+    if (!TODOIST_API_KEY) {
+      return json({ error: "Token do Todoist não configurado. Vá em Configurações → Integrações." }, 400);
+    }
 
     try {
       const tdProjects = await todoistFetch<TodoistProject>("projects", TODOIST_API_KEY);
