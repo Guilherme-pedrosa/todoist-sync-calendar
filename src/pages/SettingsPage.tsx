@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Settings,
   User,
@@ -115,6 +115,7 @@ const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingFlash, setSavingFlash] = useState(false);
@@ -123,7 +124,10 @@ export default function SettingsPage() {
   const [confirmWipeTasks, setConfirmWipeTasks] = useState(false);
   const [confirmWipeLabels, setConfirmWipeLabels] = useState(false);
   const [wiping, setWiping] = useState(false);
-  const [activeTab, setActiveTab] = useState('account');
+  const [activeTab, setActiveTab] = useState(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab');
+    return TAB_ITEMS.some((item) => item.value === tab) ? tab! : 'account';
+  });
   const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
   const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
   const [syncPaused, setSyncPaused] = useState(
@@ -132,6 +136,11 @@ export default function SettingsPage() {
       (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged' ||
         localStorage.getItem(GOOGLE_SYNC_PAUSED_KEY) !== 'false')
   );
+
+  useEffect(() => {
+    const tab = new URLSearchParams(location.search).get('tab');
+    if (tab && TAB_ITEMS.some((item) => item.value === tab)) setActiveTab(tab);
+  }, [location.search]);
 
   useEffect(() => {
     if (!user) return;

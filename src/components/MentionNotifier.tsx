@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { MessageSquare, AtSign } from 'lucide-react';
+import { MessageSquare, AtSign, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -54,7 +54,7 @@ export function MentionNotifier() {
         markRead(n.id);
         if (n.type === 'chat_mention' && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
-        } else if (n.type === 'task_assigned' && n.payload?.task_id) {
+        } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
           navigate(`/?task=${n.payload.task_id}`);
         }
       };
@@ -106,6 +106,31 @@ export function MentionNotifier() {
           title: 'Nova tarefa atribuída',
           body: title,
           tag: `task-${n.id}`,
+          onClick: handleOpen,
+        });
+        playChime();
+      } else if (n.type === 'task_reminder') {
+        const title: string = n.payload?.task_title || 'uma tarefa';
+        toast(
+          <div className="flex items-start gap-2">
+            <BellRing className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+            <div>
+              <div className="font-semibold text-sm">Lembrete de tarefa</div>
+              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {title}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 8000,
+            action: { label: 'Abrir', onClick: handleOpen },
+            className: 'border-primary/60 ring-2 ring-primary/40 shadow-lg',
+          }
+        );
+        showSystemNotification({
+          title: 'Lembrete de tarefa',
+          body: title,
+          tag: `reminder-${n.id}`,
           onClick: handleOpen,
         });
         playChime();

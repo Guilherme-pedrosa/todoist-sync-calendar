@@ -306,6 +306,70 @@ async function getUserTodoistToken(
   return data?.access_token || null;
 }
 
+async function ensurePersonalWorkspaceAndInbox(supabase: any, userId: string): Promise<{ workspaceId: string; inboxProjectId: string }> {
+  const slug = `pessoal-${userId}`;
+  let { data: workspace } = await supabase
+    .from("workspaces")
+    .select("id")
+    .eq("owner_id", userId)
+    .eq("is_personal", true)
+    .maybeSingle();
+
+  if (!workspace?.id) {
+    const { data: insertedWorkspace } = await supabase
+      .from("workspaces")
+      .insert({ name: "Pessoal", slug, owner_id: userId, is_personal: true })
+      .select("id")
+      .maybeSingle();
+    workspace = insertedWorkspace;
+  }
+
+  if (!workspace?.id) {
+    const { data: existingWorkspace } = await supabase
+      .from("workspaces")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    workspace = existingWorkspace;
+  }
+
+  if (!workspace?.id) throw new Error("Workspace pessoal não encontrado");
+
+  await supabase
+    .from("workspace_members")
+    .upsert({ workspace_id: workspace.id, user_id: userId, role: "owner" }, { onConflict: "workspace_id,user_id" });
+
+  let { data: inbox } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("workspace_id", workspace.id)
+    .eq("is_inbox", true)
+    .maybeSingle();
+
+  if (!inbox?.id) {
+    const { data: insertedInbox, error } = await supabase
+      .from("projects")
+      .insert({
+        user_id: userId,
+        workspace_id: workspace.id,
+        owner_id: userId,
+        name: "Caixa de Entrada",
+        color: "hsl(230, 10%, 50%)",
+        is_inbox: true,
+        position: 0,
+        visibility: "private",
+      })
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(`Erro ao criar Caixa de Entrada: ${error.message}`);
+    inbox = insertedInbox;
+  }
+
+  if (!inbox?.id) throw new Error("Caixa de Entrada do app não encontrada");
+  return { workspaceId: workspace.id, inboxProjectId: inbox.id };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -339,10 +403,7 @@ serve(async (req) => {
       const todoistInbox = tdProjects.find((p) => p.inbox_project || p.is_inbox_project);
       if (!todoistInbox) return json({ error: "Inbox do Todoist não encontrado" }, 404);
 
-      const { data: appProjects } = await supabase
-        .from("projects").select("id, is_inbox").eq("user_id", user.id).eq("is_inbox", true).limit(1);
-      const appInbox = appProjects?.[0];
-      if (!appInbox) return json({ error: "Caixa de Entrada do app não encontrada" }, 404);
+      const { workspaceId: personalWorkspaceId, inboxProjectId } = await ensurePersonalWorkspaceAndInbox(supabase, user.id);
 
       const tdLabels = await todoistFetch<TodoistLabel>("labels", TODOIST_API_KEY);
       const { data: existingLabels } = await supabase
@@ -372,7 +433,7 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", appInbox.id);
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", inboxProjectId);
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
         existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.parent_id || ""}`, t);
@@ -418,7 +479,9 @@ serve(async (req) => {
             due_string: dueString,
             recurrence_rule: recurrenceRule,
             deadline: deadline,
-            project_id: appInbox.id,
+            project_id: inboxProjectId,
+            workspace_id: personalWorkspaceId,
+            created_by: user.id,
           },
         });
       }
@@ -489,7 +552,7 @@ serve(async (req) => {
       // 2. Existing app data
       const [{ data: existingProjects }, { data: existingLabels }, { data: existingTasks }] =
         await Promise.all([
-          supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
+          supabase.from("projects").select("id, name, is_inbox, workspace_id").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
           supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id, parent_id").eq("user_id", user.id),
         ]);
@@ -501,6 +564,9 @@ serve(async (req) => {
         projectsByName.set(p.name.toLowerCase(), { id: p.id, isInbox: p.is_inbox });
       }
       const inboxProject = (existingProjects || []).find((p) => p.is_inbox);
+      const { workspaceId: personalWorkspaceId, inboxProjectId } = inboxProject
+        ? { workspaceId: inboxProject.workspace_id, inboxProjectId: inboxProject.id }
+        : await ensurePersonalWorkspaceAndInbox(supabase, user.id);
 
       let createdProjects = 0;
       const projectsToInsert: any[] = [];
@@ -508,8 +574,8 @@ serve(async (req) => {
 
       for (const tp of tdProjects) {
         const isInbox = tp.inbox_project || tp.is_inbox_project;
-        if (isInbox && inboxProject) {
-          projectIdMap.set(tp.id, inboxProject.id);
+        if (isInbox) {
+          projectIdMap.set(tp.id, inboxProjectId);
           continue;
         }
         const existing = projectsByName.get(tp.name.toLowerCase());
@@ -519,9 +585,12 @@ serve(async (req) => {
         }
         projectsToInsert.push({
           user_id: user.id,
+          workspace_id: personalWorkspaceId,
+          owner_id: user.id,
           name: tp.name,
           color: colorFromTodoist(tp.color),
           is_inbox: false,
+          visibility: "private",
         });
         todoistProjectByTempKey.set(tp.name.toLowerCase(), tp);
       }
@@ -579,7 +648,7 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
 
-        const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
+        const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProjectId;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
         const existing = existingByKey.get(key);
         if (existing) {
@@ -612,6 +681,8 @@ serve(async (req) => {
             recurrence_rule: recurrenceRule,
             deadline: deadline,
             project_id: projectId,
+            workspace_id: personalWorkspaceId,
+            created_by: user.id,
           },
         });
       }

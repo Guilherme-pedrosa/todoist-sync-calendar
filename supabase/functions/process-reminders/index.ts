@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     const { data: due, error: selErr } = await supabase
       .from('reminders')
-      .select('id, task_id, trigger_at, type, channel, relative_minutes')
+      .select('id, task_id, trigger_at, type, channel, relative_minutes, tasks(id, title, user_id, workspace_id)')
       .lte('trigger_at', nowIso)
       .is('fired_at', null)
       .limit(200);
@@ -45,6 +45,29 @@ Deno.serve(async (req) => {
       .in('id', ids);
 
     if (updErr) throw updErr;
+
+    const notificationRows = due
+      .map((r) => {
+        const task = Array.isArray((r as any).tasks) ? (r as any).tasks[0] : (r as any).tasks;
+        if (!task?.user_id || !task?.workspace_id) return null;
+        return {
+          user_id: task.user_id,
+          type: 'task_reminder',
+          workspace_id: task.workspace_id,
+          payload: {
+            task_id: r.task_id,
+            task_title: task.title,
+            reminder_id: r.id,
+            trigger_at: r.trigger_at,
+          },
+        };
+      })
+      .filter(Boolean);
+
+    if (notificationRows.length > 0) {
+      const { error: notifErr } = await supabase.from('notifications').insert(notificationRows);
+      if (notifErr) throw notifErr;
+    }
 
     console.log(`[process-reminders] Marcados ${ids.length} lembretes em ${nowIso}`);
 

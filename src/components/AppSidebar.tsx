@@ -250,6 +250,16 @@ export function AppSidebar() {
   const handleImportTodoist = async () => {
     setImportingTodoist(true);
     try {
+      const { data: integration } = await supabase
+        .from('user_integrations')
+        .select('id')
+        .eq('provider', 'todoist')
+        .maybeSingle();
+      if (!integration) {
+        navigate('/settings?tab=integrations');
+        throw new Error('Antes de importar, conecte o seu token do Todoist em Configurações → Integrações.');
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token;
       if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');

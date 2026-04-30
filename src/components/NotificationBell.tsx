@@ -34,7 +34,7 @@ export function NotificationBell() {
     setOpen(false);
     if (n.type === 'chat_mention' && n.payload?.conversation_id) {
       navigate(`/conversations/${n.payload.conversation_id}`);
-    } else if (n.type === 'task_assigned' && n.payload?.task_id) {
+    } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
       navigate(`/?task=${n.payload.task_id}`);
     }
   };
@@ -122,12 +122,15 @@ export function NotificationBell() {
 function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
   const isMention = n.type === 'chat_mention';
   const isAssigned = n.type === 'task_assigned';
+  const isReminder = n.type === 'task_reminder';
   const Icon = isMention ? AtSign : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
     : isAssigned
       ? 'Você é o responsável'
+      : isReminder
+        ? 'Lembrete de tarefa'
       : 'Notificação';
 
   const body =
