@@ -320,6 +320,8 @@ export function highlightNlp(input: string, parsed: ParsedNlp): React.ReactNode[
 export function recurrenceRuleToLabel(rule: string | null | undefined): string | null {
   if (!rule) return null;
   try {
+    const bd = parseBusinessDayRule(rule);
+    if (bd) return businessDayRuleLabel(bd.n);
     const normalized = rule.toUpperCase();
     if (/FREQ=WEEKLY/.test(normalized) && /BYDAY=MO,TU,WE,TH,FR/.test(normalized)) {
       return 'Todo dia útil';
