@@ -1200,8 +1200,19 @@ function EventBlock({
         touchMoveRef.current = null;
         if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
         if (d && d.longPressFired && !d.moved) {
+          // Long-press sem movimento: trata como tap único (não abre)
+          return;
+        }
+        if (d && !d.longPressFired && !d.moved) {
+          // Tap curto: exige duplo toque para abrir no mobile
           e.stopPropagation();
-          onClick();
+          const now = Date.now();
+          if (now - lastTapRef.current < 300) {
+            lastTapRef.current = 0;
+            onClick();
+          } else {
+            lastTapRef.current = now;
+          }
         }
       }}
       onTouchCancel={() => {
