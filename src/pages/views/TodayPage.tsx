@@ -94,6 +94,11 @@ export default function TodayPage() {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <ShowCompletedToggle
+            show={showCompleted}
+            onChange={setShowCompleted}
+            count={completedToday.length}
+          />
           <ViewModeToolbar
             mode={viewPref.mode}
             groupBy={viewPref.groupBy}
