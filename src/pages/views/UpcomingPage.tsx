@@ -944,7 +944,7 @@ function EventBlock({
   return (
     <div
       className={cn(
-        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
+        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group',
         variantClasses,
         isDragging
           ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing'
