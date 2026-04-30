@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
+import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -711,14 +712,10 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="integrations" className="space-y-6 mt-0">
-              <Section title="Aplicativos conectados">
-                <IntegrationCard
-                  name="Todoist"
-                  desc="Importe sua Caixa de Entrada existente"
-                  status="connected"
-                  actionLabel="Importar inbox"
-                  onAction={() => toast.info('Use o botão na barra lateral')}
-                />
+              <Section title="Todoist">
+                <TodoistIntegration />
+              </Section>
+              <Section title="Em breve">
                 <IntegrationCard name="Slack" desc="Notificações em canal" status="soon" />
                 <IntegrationCard name="Zapier" desc="Automações com 5000+ apps" status="soon" />
               </Section>
