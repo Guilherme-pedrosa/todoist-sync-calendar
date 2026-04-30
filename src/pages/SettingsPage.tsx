@@ -23,6 +23,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
+import { InstallAppCard } from '@/components/settings/InstallAppCard';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -394,6 +395,9 @@ export default function SettingsPage() {
             <TabsContent value="account" className="space-y-6 mt-0">
               <Section title="Perfil">
                 <ProfileSettings />
+              </Section>
+              <Section title="Aplicativo">
+                <InstallAppCard />
               </Section>
               <Section title="Segurança">
                 <Button variant="outline" size="sm" onClick={() => navigate('/auth')}>
