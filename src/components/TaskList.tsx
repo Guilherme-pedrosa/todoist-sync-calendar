@@ -16,6 +16,8 @@ import { useQuickAddStore } from '@/store/quickAddStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { EmptyState } from '@/components/EmptyState';
+import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
+import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -61,6 +63,16 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
 
+  // Per-view "show completed" preference (not used in `completed` view itself)
+  const showCompletedKey =
+    view === 'project' && projectId
+      ? `project:${projectId}`
+      : view === 'label' && labelId
+        ? `label:${labelId}`
+        : view;
+  const [showCompleted, setShowCompleted] = useShowCompleted(showCompletedKey);
+  const supportsCompletedToggle = view !== 'completed' && view !== 'upcoming';
+
   // Load sections for project view
   useEffect(() => {
     setOrderOverride(null);
@@ -87,12 +99,13 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     };
   }, [view, projectId]);
 
-  const { title, icon: Icon, iconColor, filteredTasks, groupedTasks } = useMemo(() => {
+  const { title, icon: Icon, iconColor, filteredTasks, groupedTasks, completedList } = useMemo(() => {
     let title = '';
     let Icon: typeof Inbox = Inbox;
     let iconColor: string | undefined;
     let filtered: Task[] = [];
     let grouped: Record<string, Task[]> | null = null;
+    let completed: Task[] = [];
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -102,6 +115,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         title = 'Caixa de Entrada';
         Icon = Inbox;
         filtered = tasks.filter((t) => !t.completed && t.projectId === inbox?.id);
+        completed = tasks.filter((t) => t.completed && t.projectId === inbox?.id);
         break;
       }
 
@@ -116,6 +130,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
           if (b.dueTime) return 1;
           return 0;
         });
+        completed = tasks.filter((t) => t.completed && t.dueDate === today);
         break;
 
       case 'upcoming': {
@@ -152,6 +167,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         Icon = Hash;
         iconColor = project?.color;
         filtered = tasks.filter((t) => !t.completed && t.projectId === projectId);
+        completed = tasks.filter((t) => t.completed && t.projectId === projectId);
         break;
       }
 
@@ -161,12 +177,22 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         Icon = Tag;
         iconColor = label?.color;
         filtered = tasks.filter((t) => !t.completed && t.labels.includes(labelId || ''));
+        completed = tasks.filter((t) => t.completed && t.labels.includes(labelId || ''));
         break;
       }
     }
 
     const topLevel = filtered.filter((t) => !t.parentId);
-    return { title, icon: Icon, iconColor, filteredTasks: topLevel, groupedTasks: grouped };
+    const completedTopLevel = completed.filter((t) => !t.parentId);
+    completedTopLevel.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+    return {
+      title,
+      icon: Icon,
+      iconColor,
+      filteredTasks: topLevel,
+      groupedTasks: grouped,
+      completedList: completedTopLevel,
+    };
   }, [tasks, view, projectId, labelId, projects, labels]);
 
   // Group by section for project view
@@ -239,6 +265,15 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         <span className="text-sm text-muted-foreground ml-1">
           {filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''}
         </span>
+        {supportsCompletedToggle && (
+          <div className="ml-auto">
+            <ShowCompletedToggle
+              show={showCompleted}
+              onChange={setShowCompleted}
+              count={completedList.length}
+            />
+          </div>
+        )}
       </header>
 
       {/* Body */}
@@ -307,6 +342,19 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
               />
             )}
           </DndContext>
+        )}
+
+        {supportsCompletedToggle && showCompleted && completedList.length > 0 && (
+          <div className="mt-4">
+            <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Concluídas · {completedList.length}
+            </h3>
+            <div className="opacity-60">
+              {completedList.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          </div>
         )}
 
         {filteredTasks.length === 0 && view !== 'completed' && (

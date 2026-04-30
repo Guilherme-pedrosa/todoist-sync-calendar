@@ -13,6 +13,8 @@ import { ptBR } from 'date-fns/locale';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { ViewModeToolbar } from '@/components/ViewModeToolbar';
 import { useViewPref } from '@/hooks/useViewPref';
+import { useShowCompleted } from '@/hooks/useShowCompleted';
+import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
@@ -20,15 +22,22 @@ export default function TodayPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [overdueOpen, setOverdueOpen] = useState(true);
   const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
+  const [showCompleted, setShowCompleted] = useShowCompleted('today');
 
   const today = new Date().toISOString().split('T')[0];
 
-  const { overdue, todayTasks } = useMemo(() => {
+  const { overdue, todayTasks, completedToday } = useMemo(() => {
     const overdue: Task[] = [];
     const todayTasks: Task[] = [];
+    const completedToday: Task[] = [];
     for (const t of tasks) {
-      if (t.completed || t.parentId) continue;
+      if (t.parentId) continue;
       if (!t.dueDate) continue;
+      if (t.completed) {
+        // Show completed tasks in "Hoje" only if they were due today
+        if (t.dueDate === today) completedToday.push(t);
+        continue;
+      }
       if (t.dueDate < today) overdue.push(t);
       else if (t.dueDate === today) todayTasks.push(t);
     }
@@ -41,7 +50,8 @@ export default function TodayPage() {
     };
     overdue.sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
     todayTasks.sort(sortFn);
-    return { overdue, todayTasks };
+    completedToday.sort(sortFn);
+    return { overdue, todayTasks, completedToday };
   }, [tasks, today]);
 
   const rescheduleAllOverdue = async () => {
@@ -84,6 +94,11 @@ export default function TodayPage() {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
+          <ShowCompletedToggle
+            show={showCompleted}
+            onChange={setShowCompleted}
+            count={completedToday.length}
+          />
           <ViewModeToolbar
             mode={viewPref.mode}
             groupBy={viewPref.groupBy}
@@ -155,6 +170,19 @@ export default function TodayPage() {
         </div>
 
         <AddTaskForm defaultDate={today} />
+
+        {showCompleted && completedToday.length > 0 && (
+          <div className="mt-4">
+            <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Concluídas hoje · {completedToday.length}
+            </h3>
+            <div className="opacity-60">
+              {completedToday.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          </div>
+        )}
 
         {total === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
