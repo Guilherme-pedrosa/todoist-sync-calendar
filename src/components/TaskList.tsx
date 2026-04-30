@@ -344,6 +344,19 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
           </DndContext>
         )}
 
+        {supportsCompletedToggle && showCompleted && completedList.length > 0 && (
+          <div className="mt-4">
+            <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Concluídas · {completedList.length}
+            </h3>
+            <div className="opacity-60">
+              {completedList.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {filteredTasks.length === 0 && view !== 'completed' && (
           <EmptyState
             icon={<CheckCircle2 className="h-9 w-9" />}
