@@ -168,11 +168,11 @@ export default function AppLayout() {
         <button
           aria-label="Fechar menu"
           onClick={closeSidebar}
-          className="absolute inset-0 bg-black/50"
+          className="absolute inset-0 bg-black/60"
         />
         <div
           className={cn(
-            'absolute inset-y-0 left-0 w-[280px] max-w-[85vw] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out',
+            'absolute inset-y-0 left-0 w-[85vw] max-w-[320px] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out flex flex-col pt-safe pb-safe',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
@@ -180,8 +180,8 @@ export default function AppLayout() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0 pb-14 lg:pb-0">
-        
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+        <MobileTopBar />
         <Outlet />
       </div>
       <QuickAddDialog />
@@ -194,8 +194,8 @@ export default function AppLayout() {
       <AIAssistantPanel />
       <ChatLauncher />
       <MentionNotifier />
-      {/* Floating notification bell — visible on every page */}
-      <div className="fixed top-2 right-2 sm:top-3 sm:right-3 z-40">
+      {/* Floating notification bell — desktop only (mobile has it in topbar) */}
+      <div className="hidden lg:block fixed top-3 right-3 z-40">
         <NotificationBell />
       </div>
     </div>
