@@ -131,7 +131,7 @@ export default function UpcomingPage() {
         }
         setRecurringCompletions((data || []) as unknown as RecurringCompletionRow[]);
       });
-  }, [currentUserId, rangeStart, rangeEnd]);
+  }, [currentUserId, rangeStart, rangeEnd, visibleTasks]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -907,6 +907,7 @@ function EventBlock({
   const completeTask = useCompleteTask();
   const isRecurring = !!task.recurrenceRule;
   const isDone = task.completed;
+  const isHistoricalCompletion = !!task.isRecurringCompletion;
 
   // Variant styles: completed wins, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
@@ -942,7 +943,11 @@ function EventBlock({
       className={cn(
         'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
         variantClasses,
-        isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
+        isDragging
+          ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing'
+          : isHistoricalCompletion
+          ? 'hover:shadow-md cursor-default z-10'
+          : 'hover:shadow-md cursor-grab z-10'
       )}
       style={{
         top,
@@ -1000,6 +1005,7 @@ function EventBlock({
           onPointerUp={(e) => { e.stopPropagation(); }}
           onClick={(e) => {
             e.stopPropagation();
+            if (isHistoricalCompletion) return;
             completeTask(task.id);
           }}
           className={cn(
