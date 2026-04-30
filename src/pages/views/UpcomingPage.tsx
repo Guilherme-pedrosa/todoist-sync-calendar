@@ -838,6 +838,7 @@ function DayColumn({
               task={task}
               top={top}
               height={height}
+              startMin={startMin}
               durationMin={durationMin}
               col={col}
               cols={cols}
