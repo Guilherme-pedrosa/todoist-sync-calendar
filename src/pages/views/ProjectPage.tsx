@@ -287,7 +287,7 @@ function ProjectHeader({
     <header className="flex flex-wrap items-center gap-2 px-4 sm:px-6 py-3 border-b border-border/50">
       <button
         onClick={onToggleSidebar}
-        className="lg:hidden p-1.5 rounded-md hover:bg-muted"
+        className="hidden p-1.5 rounded-md hover:bg-muted"
         aria-label="Alternar barra lateral"
       >
         <Menu className="h-5 w-5" />
