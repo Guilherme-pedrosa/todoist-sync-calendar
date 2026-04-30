@@ -381,7 +381,16 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                   )}
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-60 p-1" align="end">
+              <PopoverContent className="w-64 p-1" align="end">
+                <div className="p-1">
+                  <RecurrenceTextInput
+                    onApply={(rule) => {
+                      emit({ ...current, recurrenceRule: rule });
+                      setRecurrenceMenuOpen(false);
+                    }}
+                  />
+                </div>
+                <div className="my-1 border-t border-border" />
                 {presets.map((p) => (
                   <button
                     key={p.label}
@@ -487,5 +496,59 @@ function PresetRow({
       <span className="flex-1">{label}</span>
       {shortcut && <span className="text-[10px] text-muted-foreground capitalize">{shortcut}</span>}
     </button>
+  );
+}
+
+function RecurrenceTextInput({ onApply }: { onApply: (rule: string) => void }) {
+  const [text, setText] = useState('');
+  const parsed = text.trim() ? parseNlp(text) : null;
+  const previewLabel = parsed?.recurrenceRule
+    ? recurrenceRuleToLabel(parsed.recurrenceRule)
+    : null;
+
+  const apply = () => {
+    if (parsed?.recurrenceRule) {
+      onApply(parsed.recurrenceRule);
+      setText('');
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <div className="flex gap-1">
+        <Input
+          autoFocus
+          placeholder='Ex: "a cada 3 dias"'
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              apply();
+            }
+          }}
+          className="h-7 text-xs"
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2"
+          disabled={!parsed?.recurrenceRule}
+          onClick={apply}
+          aria-label="Aplicar recorrência"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {text.trim() && (
+        <div className="text-[10px] px-1">
+          {previewLabel ? (
+            <span className="text-accent">↻ {previewLabel}</span>
+          ) : (
+            <span className="text-muted-foreground">não reconhecido</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
