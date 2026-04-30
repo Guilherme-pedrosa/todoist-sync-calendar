@@ -219,6 +219,26 @@ const mapDurationMinutes = (duration?: TodoistTask["duration"]): number | null =
   return duration.unit === "day" ? duration.amount * 24 * 60 : duration.amount;
 };
 
+// Build a deduplication key for a task. Recurring tasks ignore due_date because
+// Todoist advances it after every completion — using due_date would treat the
+// same recurring task as a new one on each import, creating duplicates.
+function buildTaskDedupKey(opts: {
+  title: string;
+  dueDate: string | null;
+  recurrenceRule: string | null;
+  projectId?: string | null;
+  parentId?: string | null;
+}): string {
+  const t = opts.title.trim().toLowerCase();
+  const proj = opts.projectId || "";
+  const parent = opts.parentId || "";
+  if (opts.recurrenceRule) {
+    // Stable across reimports: title + rule + project + parent (no due_date).
+    return `R|${t}|${opts.recurrenceRule.trim().toUpperCase()}|${proj}|${parent}`;
+  }
+  return `O|${t}|${opts.dueDate || ""}|${proj}|${parent}`;
+}
+
 // Insert tasks in topological waves so parent_id can be mapped Todoist -> app.
 // Returns map of todoist task id -> created app task id (only for newly inserted).
 async function insertTasksWithHierarchy(
