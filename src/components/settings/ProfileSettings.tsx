@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Camera, Loader2, Trash2 } from 'lucide-react';
+import { Camera, Loader2, Trash2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB
