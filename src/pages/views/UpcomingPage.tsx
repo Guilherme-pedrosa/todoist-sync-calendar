@@ -380,107 +380,127 @@ function WeekGrid({
     return null;
   }, []);
 
-  // Global pointer move/up while dragging.
-  // Listeners are attached ONLY when drag starts and detached when it ends.
-  // We read live state via refs so re-renders don't re-attach (which could miss pointerup).
+  const updateDragPreview = useCallback((clientX: number, clientY: number) => {
+    const d = dragRef.current;
+    if (!d) return;
+
+    if (d.kind === 'move') {
+      const dayKey = findDayUnderPointer(clientX, clientY);
+      if (!dayKey) return;
+      const dayEl = dayColumnsRef.current.get(dayKey);
+      if (!dayEl) return;
+      const min = pointerToMinutes(dayEl, clientY) - d.pointerOffsetMin;
+      const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - d.durationMin, snap(min)));
+      setPreview((p) => ({
+        ...p,
+        [d.taskId]: { dayKey, startMin: clamped, durationMin: d.durationMin },
+      }));
+    } else if (d.kind === 'resize') {
+      const taskPreview = previewRef.current[d.taskId];
+      const dayKey = taskPreview?.dayKey;
+      if (!dayKey) return;
+      const dayEl = dayColumnsRef.current.get(dayKey);
+      if (!dayEl) return;
+      const endMin = pointerToMinutes(dayEl, clientY);
+      const newDuration = Math.max(d.minDuration, snap(endMin - d.startTopMin));
+      setPreview((p) => ({
+        ...p,
+        [d.taskId]: { ...p[d.taskId], durationMin: newDuration },
+      }));
+    } else if (d.kind === 'create') {
+      const dayEl = dayColumnsRef.current.get(d.dayKey);
+      if (!dayEl) return;
+      const cur = pointerToMinutes(dayEl, clientY);
+      const start = Math.min(d.startMin, cur);
+      const end = Math.max(d.startMin, cur) + SNAP_MINUTES;
+      setCreateBox({ dayKey: d.dayKey, startMin: start, endMin: end });
+    }
+  }, [findDayUnderPointer, pointerToMinutes]);
+
+  const finishDrag = useCallback(async () => {
+    const currentDrag = dragRef.current;
+    setDrag(null);
+    if (!currentDrag) return;
+
+    if (currentDrag.kind === 'move' || currentDrag.kind === 'resize') {
+      const p = previewRef.current[currentDrag.taskId];
+      setPreview((prev) => {
+        const next = { ...prev };
+        delete next[currentDrag.taskId];
+        return next;
+      });
+      if (!p) return;
+      try {
+        const updates: Partial<Task> = {};
+        if (p.dayKey) updates.dueDate = p.dayKey;
+        if (p.startMin !== undefined) updates.dueTime = minutesToTime(p.startMin);
+        if (p.durationMin !== undefined) updates.durationMinutes = p.durationMin;
+        await updateWithPrompt(currentDrag.taskId, updates, {
+          occurrenceDate: currentDrag.sourceDayKey,
+          changeLabel: currentDrag.kind === 'resize' ? 'duração' : 'data e horário',
+        });
+      } catch (err) {
+        toast.error('Falha ao reagendar tarefa');
+      }
+    } else if (currentDrag.kind === 'create') {
+      const box = createBoxRef.current;
+      setCreateBox(null);
+      if (box && box.endMin - box.startMin >= MIN_TASK_MINUTES) {
+        openQuickAdd({
+          defaultDueDate: box.dayKey,
+          defaultDueTime: minutesToTime(box.startMin),
+          defaultDurationMinutes: box.endMin - box.startMin,
+        });
+      }
+    }
+  }, [openQuickAdd, updateWithPrompt]);
+
+  const cancelDrag = useCallback(() => {
+    setDrag(null);
+    setPreview({});
+    setCreateBox(null);
+  }, []);
+
+  // Global move/end while dragging. Touch uses non-passive listeners so, after a long-press,
+  // the calendar owns the gesture instead of the browser turning it into page scroll.
   useEffect(() => {
     if (!drag) return;
 
-    const onMove = (e: PointerEvent) => {
-      const d = dragRef.current;
-      if (!d) return;
-      if (d.kind === 'move') {
-        const dayKey = findDayUnderPointer(e.clientX, e.clientY);
-        if (!dayKey) return;
-        const dayEl = dayColumnsRef.current.get(dayKey)!;
-        const min = pointerToMinutes(dayEl, e.clientY) - d.pointerOffsetMin;
-        const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - d.durationMin, snap(min)));
-        setPreview((p) => ({
-          ...p,
-          [d.taskId]: { dayKey, startMin: clamped, durationMin: d.durationMin },
-        }));
-      } else if (d.kind === 'resize') {
-        const taskPreview = previewRef.current[d.taskId];
-        const dayKey = taskPreview?.dayKey;
-        if (!dayKey) return;
-        const dayEl = dayColumnsRef.current.get(dayKey)!;
-        const endMin = pointerToMinutes(dayEl, e.clientY);
-        const newDuration = Math.max(d.minDuration, snap(endMin - d.startTopMin));
-        setPreview((p) => ({
-          ...p,
-          [d.taskId]: { ...p[d.taskId], durationMin: newDuration },
-        }));
-      } else if (d.kind === 'create') {
-        const dayEl = dayColumnsRef.current.get(d.dayKey);
-        if (!dayEl) return;
-        const cur = pointerToMinutes(dayEl, e.clientY);
-        const start = Math.min(d.startMin, cur);
-        const end = Math.max(d.startMin, cur) + SNAP_MINUTES;
-        setCreateBox({ dayKey: d.dayKey, startMin: start, endMin: end });
-      }
+    const onPointerMove = (e: PointerEvent) => updateDragPreview(e.clientX, e.clientY);
+    const onPointerUp = () => { void finishDrag(); };
+    const onTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      e.preventDefault();
+      updateDragPreview(touch.clientX, touch.clientY);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      e.preventDefault();
+      void finishDrag();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') cancelDrag();
     };
 
-    const onUp = async () => {
-      const currentDrag = dragRef.current;
-      setDrag(null);
-      if (!currentDrag) return;
-
-      if (currentDrag.kind === 'move' || currentDrag.kind === 'resize') {
-        const p = previewRef.current[currentDrag.taskId];
-        setPreview((prev) => {
-          const next = { ...prev };
-          delete next[currentDrag.taskId];
-          return next;
-        });
-        if (!p) return;
-        try {
-          const updates: Partial<Task> = {};
-          if (p.dayKey) updates.dueDate = p.dayKey;
-          if (p.startMin !== undefined) updates.dueTime = minutesToTime(p.startMin);
-          if (p.durationMin !== undefined) updates.durationMinutes = p.durationMin;
-          await updateWithPrompt(currentDrag.taskId, updates, {
-            occurrenceDate: currentDrag.sourceDayKey,
-            changeLabel:
-              currentDrag.kind === 'resize' ? 'duração' : 'data e horário',
-          });
-        } catch (err) {
-          toast.error('Falha ao reagendar tarefa');
-        }
-      } else if (currentDrag.kind === 'create') {
-        const box = createBoxRef.current;
-        setCreateBox(null);
-        if (box && box.endMin - box.startMin >= MIN_TASK_MINUTES) {
-          openQuickAdd({
-            defaultDueDate: box.dayKey,
-            defaultDueTime: minutesToTime(box.startMin),
-            defaultDurationMinutes: box.endMin - box.startMin,
-          });
-        }
-      }
-    };
-
-    // Safety: cancel drag if window loses focus or document hides
-    const onCancel = () => {
-      setDrag(null);
-      setPreview({});
-      setCreateBox(null);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', onUp);
-    window.addEventListener('blur', onCancel);
-    document.addEventListener('visibilitychange', onCancel);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    window.addEventListener('blur', cancelDrag);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      window.removeEventListener('pointercancel', onUp);
-      window.removeEventListener('blur', onCancel);
-      document.removeEventListener('visibilitychange', onCancel);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
+      window.removeEventListener('blur', cancelDrag);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-    // Only re-run when a drag session starts/ends — NOT on every preview update
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!drag]);
+  }, [!!drag, cancelDrag, finishDrag, updateDragPreview]);
 
   // Now indicator
   const [now, setNow] = useState(new Date());
@@ -633,10 +653,21 @@ function WeekGrid({
                     defaultDurationMinutes: DEFAULT_DURATION,
                   });
                 }}
-                onStartMove={(taskId, pointerOffsetMin, durationMin, startMin) => {
+                onStartMove={(taskId, pointerOffsetMin, durationMin, startMin, clientX, clientY) => {
+                  const targetDayKey =
+                    clientX !== undefined && clientY !== undefined ? findDayUnderPointer(clientX, clientY) ?? k : k;
+                  const targetDayEl = dayColumnsRef.current.get(targetDayKey);
+                  const targetStart =
+                    clientY !== undefined && targetDayEl
+                      ? Math.max(
+                          DAY_START_MIN,
+                          Math.min(DAY_END_MIN - durationMin, snap(pointerToMinutes(targetDayEl, clientY) - pointerOffsetMin))
+                        )
+                      : startMin;
+
                   setPreview((p) => ({
                     ...p,
-                    [taskId]: { dayKey: k, startMin, durationMin },
+                    [taskId]: { dayKey: targetDayKey, startMin: targetStart, durationMin },
                   }));
                   setDrag({ kind: 'move', taskId, pointerOffsetMin, durationMin, sourceDayKey: k });
                 }}
@@ -690,7 +721,14 @@ function DayColumn({
   registerRef: (el: HTMLDivElement | null) => void;
   onStartCreate: (startMin: number) => void;
   onClickEmpty: (startMin: number) => void;
-  onStartMove: (taskId: string, pointerOffsetMin: number, durationMin: number, startMin: number) => void;
+  onStartMove: (
+    taskId: string,
+    pointerOffsetMin: number,
+    durationMin: number,
+    startMin: number,
+    clientX?: number,
+    clientY?: number
+  ) => void;
   onStartResize: (taskId: string, startTopMin: number, currentDuration: number) => void;
   onOpenTask: (id: string, occurrenceDate: string) => void;
 }) {
@@ -704,12 +742,19 @@ function DayColumn({
     y: number;
     moved: boolean;
     startMin: number;
-    pointerType: string;
+  } | null>(null);
+  const touchCreateRef = useRef<{
+    x: number;
+    y: number;
+    moved: boolean;
+    started: boolean;
+    startMin: number;
     longPressTimer: number | null;
     longPressFired: boolean;
   } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     // Only start a create when clicking empty space (target is the column itself)
     if (e.target !== e.currentTarget) return;
     if (e.button !== 0) return;
@@ -717,24 +762,7 @@ function DayColumn({
     const rect = el.getBoundingClientRect();
     const y = e.clientY - rect.top;
     const min = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
-    const isTouch = e.pointerType === 'touch';
-    const state = {
-      y,
-      moved: false,
-      startMin: min,
-      pointerType: e.pointerType,
-      longPressTimer: null as number | null,
-      longPressFired: false,
-    };
-    if (isTouch) {
-      state.longPressTimer = window.setTimeout(() => {
-        const current = downStateRef.current;
-        if (!current || current.moved) return;
-        current.longPressFired = true;
-        try { (navigator as any).vibrate?.(15); } catch {}
-      }, 420) as unknown as number;
-    }
-    downStateRef.current = state;
+    downStateRef.current = { y, moved: false, startMin: min };
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -743,17 +771,8 @@ function DayColumn({
     const el = localRef.current!;
     const rect = el.getBoundingClientRect();
     const dy = Math.abs(e.clientY - rect.top - s.y);
-    const isTouch = s.pointerType === 'touch';
-    if (dy > (isTouch ? 12 : 4)) {
+    if (dy > 4) {
       s.moved = true;
-      if (s.longPressTimer != null) {
-        clearTimeout(s.longPressTimer);
-        s.longPressTimer = null;
-      }
-      if (isTouch) {
-        downStateRef.current = null;
-        return;
-      }
       onStartCreate(s.startMin);
     }
   };
@@ -762,17 +781,70 @@ function DayColumn({
     const s = downStateRef.current;
     downStateRef.current = null;
     if (!s) return;
-    if (s.longPressTimer != null) clearTimeout(s.longPressTimer);
-    const isTouch = s.pointerType === 'touch';
-    if (!s.moved && e.target === e.currentTarget && (!isTouch || s.longPressFired)) {
+    if (!s.moved && e.target === e.currentTarget) {
       onClickEmpty(s.startMin);
     }
   };
 
   const onPointerCancel = () => {
-    const s = downStateRef.current;
     downStateRef.current = null;
+  };
+
+  const clearTouchCreate = () => {
+    const s = touchCreateRef.current;
     if (s?.longPressTimer != null) clearTimeout(s.longPressTimer);
+    touchCreateRef.current = null;
+  };
+
+  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length !== 1 || e.target !== e.currentTarget) return;
+    const touch = e.touches[0];
+    const el = localRef.current!;
+    const rect = el.getBoundingClientRect();
+    const y = touch.clientY - rect.top;
+    const startMin = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
+    touchCreateRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      moved: false,
+      started: false,
+      startMin,
+      longPressFired: false,
+      longPressTimer: window.setTimeout(() => {
+        const current = touchCreateRef.current;
+        if (!current || current.moved) return;
+        current.longPressFired = true;
+        try { (navigator as any).vibrate?.(15); } catch {}
+      }, 360) as unknown as number,
+    };
+  };
+
+  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    const s = touchCreateRef.current;
+    const touch = e.touches[0];
+    if (!s || !touch) return;
+    const dx = Math.abs(touch.clientX - s.x);
+    const dy = Math.abs(touch.clientY - s.y);
+
+    if (!s.longPressFired) {
+      if (dx > 12 || dy > 12) clearTouchCreate();
+      return;
+    }
+
+    e.preventDefault();
+    if (!s.started) {
+      s.started = true;
+      s.moved = true;
+      if (s.longPressTimer != null) {
+        clearTimeout(s.longPressTimer);
+        s.longPressTimer = null;
+      }
+      onStartCreate(s.startMin);
+    }
+  };
+
+  const onTouchEnd = () => {
+    clearTouchCreate();
   };
 
   return (
@@ -787,6 +859,10 @@ function DayColumn({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
     >
       {/* Hour lines com sub-divisões de 15 min */}
       {Array.from({ length: hoursLen }, (_, h) => (
@@ -890,10 +966,12 @@ function DayColumn({
               isDragging={isDragging}
               onStartMoveAt={(e) => {
                 if (task.isRecurringCompletion) return;
+                const point = 'touches' in e ? e.touches[0] : e;
+                if (!point) return;
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const offsetY = e.clientY - rect.top;
+                const offsetY = point.clientY - rect.top;
                 const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
-                onStartMove(task.id, offsetMin, durationMin, startMin);
+                onStartMove(task.id, offsetMin, durationMin, startMin, point.clientX, point.clientY);
               }}
               onPointerDownResize={() => {
                 if (task.isRecurringCompletion) return;
@@ -947,7 +1025,7 @@ function EventBlock({
   col: number;
   cols: number;
   isDragging: boolean;
-  onStartMoveAt: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onStartMoveAt: (e: React.PointerEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
   onPointerDownResize: (e: React.PointerEvent<HTMLDivElement>) => void;
   onClick: () => void;
 }) {
@@ -975,7 +1053,13 @@ function EventBlock({
     moved: boolean;
     pointerId: number;
     started: boolean;
-    pointerType: string;
+    longPressTimer: number | null;
+  } | null>(null);
+  const touchMoveRef = useRef<{
+    x: number;
+    y: number;
+    moved: boolean;
+    started: boolean;
     longPressTimer: number | null;
     longPressFired: boolean;
   } | null>(null);
@@ -1009,36 +1093,18 @@ function EventBlock({
         touchAction: 'pan-y',
       }}
       onPointerDown={(e) => {
+        if (e.pointerType === 'touch') return;
         if (e.button !== 0) return;
-        const isTouch = e.pointerType === 'touch';
-        // For mouse/pen: capture immediately and block scroll (drag is fluid).
-        // For touch: do NOT capture or stopPropagation — let the page scroll
-        // naturally. Drag activates only after a long-press.
-        if (!isTouch) {
-          e.stopPropagation();
-          const el = e.currentTarget;
-          try { el.setPointerCapture(e.pointerId); } catch {}
-        }
+        e.stopPropagation();
         const el = e.currentTarget;
+        try { el.setPointerCapture(e.pointerId); } catch {}
         downRef.current = {
           x: e.clientX,
           y: e.clientY,
           moved: false,
           pointerId: e.pointerId,
           started: false,
-          pointerType: e.pointerType,
-          longPressTimer: isTouch
-            ? (window.setTimeout(() => {
-                const d = downRef.current;
-                if (!d || d.started || d.moved) return;
-                d.longPressFired = true;
-                // Now capture so the next pointermove triggers drag
-                try { el.setPointerCapture(d.pointerId); } catch {}
-                // Subtle haptic feedback if available
-                try { (navigator as any).vibrate?.(15); } catch {}
-              }, 280) as unknown as number)
-            : null,
-          longPressFired: false,
+          longPressTimer: null,
         };
       }}
       onPointerMove={(e) => {
@@ -1046,21 +1112,10 @@ function EventBlock({
         if (!d) return;
         const dx = Math.abs(e.clientX - d.x);
         const dy = Math.abs(e.clientY - d.y);
-        const isTouch = d.pointerType === 'touch';
-        const moveThreshold = isTouch ? 12 : 4;
+        const moveThreshold = 4;
 
         if (!d.moved && (dx > moveThreshold || dy > moveThreshold)) {
           d.moved = true;
-          // On touch: if user moved before long-press fired, this is a scroll
-          // gesture — abort everything and let the page scroll.
-          if (isTouch && !d.longPressFired) {
-            if (d.longPressTimer != null) {
-              clearTimeout(d.longPressTimer);
-              d.longPressTimer = null;
-            }
-            downRef.current = null;
-            return;
-          }
         }
         if (d.moved && !d.started) {
           d.started = true;
@@ -1081,9 +1136,7 @@ function EventBlock({
           clearTimeout(d.longPressTimer);
         }
         endInteraction(e.currentTarget, e.pointerId);
-        const isTouch = d?.pointerType === 'touch';
-        if (d && !d.moved && (!isTouch || d.longPressFired)) {
-          // Mouse click opens immediately; touch opens only after long press.
+        if (d && !d.moved) {
           e.stopPropagation();
           onClick();
         }
@@ -1095,6 +1148,63 @@ function EventBlock({
           clearTimeout(d.longPressTimer);
         }
         if (d) endInteraction(e.currentTarget, d.pointerId);
+      }}
+      onTouchStart={(e) => {
+        if (isHistoricalCompletion || e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        touchMoveRef.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+          moved: false,
+          started: false,
+          longPressFired: false,
+          longPressTimer: window.setTimeout(() => {
+            const d = touchMoveRef.current;
+            if (!d || d.moved || d.started) return;
+            d.longPressFired = true;
+            try { (navigator as any).vibrate?.(15); } catch {}
+          }, 320) as unknown as number,
+        };
+      }}
+      onTouchMove={(e) => {
+        const d = touchMoveRef.current;
+        const touch = e.touches[0];
+        if (!d || !touch) return;
+        const dx = Math.abs(touch.clientX - d.x);
+        const dy = Math.abs(touch.clientY - d.y);
+
+        if (!d.longPressFired) {
+          if (dx > 12 || dy > 12) {
+            if (d.longPressTimer != null) clearTimeout(d.longPressTimer);
+            touchMoveRef.current = null;
+          }
+          return;
+        }
+
+        e.preventDefault();
+        if (!d.started) {
+          d.started = true;
+          d.moved = true;
+          if (d.longPressTimer != null) {
+            clearTimeout(d.longPressTimer);
+            d.longPressTimer = null;
+          }
+          onStartMoveAt(e);
+        }
+      }}
+      onTouchEnd={(e) => {
+        const d = touchMoveRef.current;
+        touchMoveRef.current = null;
+        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
+        if (d && d.longPressFired && !d.moved) {
+          e.stopPropagation();
+          onClick();
+        }
+      }}
+      onTouchCancel={() => {
+        const d = touchMoveRef.current;
+        touchMoveRef.current = null;
+        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
       }}
     >
       <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal flex items-start gap-1.5">
