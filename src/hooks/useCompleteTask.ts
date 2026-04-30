@@ -9,6 +9,25 @@ import { ptBR } from 'date-fns/locale';
 const normalizeTitleForDaySlot = (title: string) =>
   title.replace(/^✅\s*/, '').trim().toLocaleLowerCase();
 
+type RecurringCompletionPayload = {
+  task_id: string;
+  user_id: string;
+  occurrence_date: string;
+  occurrence_time: string | null;
+  duration_minutes: number | null;
+  title: string;
+  completed_at: string;
+};
+
+const recurringCompletions = supabase as unknown as {
+  from: (table: 'recurring_task_completions') => {
+    upsert: (
+      payload: RecurringCompletionPayload,
+      options: { onConflict: string }
+    ) => Promise<{ error: unknown }>;
+  };
+};
+
 /**
  * Centralized completion logic. If task has a recurrence_rule, advances to the
  * next occurrence and logs to activity_log instead of marking completed.
@@ -43,7 +62,7 @@ export function useCompleteTask() {
           );
           const { data: u } = await supabase.auth.getUser();
           if (u.user && task.dueDate) {
-            await supabase.from('recurring_task_completions' as never).upsert({
+            await recurringCompletions.from('recurring_task_completions').upsert({
               task_id: taskId,
               user_id: u.user.id,
               occurrence_date: task.dueDate,
