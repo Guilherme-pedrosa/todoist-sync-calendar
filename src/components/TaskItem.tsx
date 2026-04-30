@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -82,6 +82,16 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
 
   const [collapsed, setCollapsed] = useState(true);
+  const longPressTimer = useRef<number | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const suppressTouchClick = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
 
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
@@ -102,7 +112,44 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
     // Don't open detail when clicking on interactive children
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-detail]')) return;
+    if (suppressTouchClick.current) {
+      suppressTouchClick.current = false;
+      return;
+    }
     openDetail(task.id);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-no-detail]')) return;
+
+    suppressTouchClick.current = true;
+    touchStart.current = { x: e.clientX, y: e.clientY };
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      if (!touchStart.current) return;
+      navigator.vibrate?.(12);
+      openDetail(task.id);
+      touchStart.current = null;
+      clearLongPress();
+    }, 500);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch' || !touchStart.current) return;
+    const dx = Math.abs(e.clientX - touchStart.current.x);
+    const dy = Math.abs(e.clientY - touchStart.current.y);
+    if (dx > 10 || dy > 10) {
+      touchStart.current = null;
+      clearLongPress();
+    }
+  };
+
+  const handlePointerEnd = (e: React.PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    touchStart.current = null;
+    clearLongPress();
   };
 
   const dateValue: DateValue = {
@@ -172,6 +219,10 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             });
           }
         }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
         onClick={handleClick}
         className={cn(
           'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer bg-background border-l-2 border-transparent',
