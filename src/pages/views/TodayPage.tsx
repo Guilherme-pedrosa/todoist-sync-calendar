@@ -22,15 +22,22 @@ export default function TodayPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const [overdueOpen, setOverdueOpen] = useState(true);
   const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
+  const [showCompleted, setShowCompleted] = useShowCompleted('today');
 
   const today = new Date().toISOString().split('T')[0];
 
-  const { overdue, todayTasks } = useMemo(() => {
+  const { overdue, todayTasks, completedToday } = useMemo(() => {
     const overdue: Task[] = [];
     const todayTasks: Task[] = [];
+    const completedToday: Task[] = [];
     for (const t of tasks) {
-      if (t.completed || t.parentId) continue;
+      if (t.parentId) continue;
       if (!t.dueDate) continue;
+      if (t.completed) {
+        // Show completed tasks in "Hoje" only if they were due today
+        if (t.dueDate === today) completedToday.push(t);
+        continue;
+      }
       if (t.dueDate < today) overdue.push(t);
       else if (t.dueDate === today) todayTasks.push(t);
     }
@@ -43,7 +50,8 @@ export default function TodayPage() {
     };
     overdue.sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
     todayTasks.sort(sortFn);
-    return { overdue, todayTasks };
+    completedToday.sort(sortFn);
+    return { overdue, todayTasks, completedToday };
   }, [tasks, today]);
 
   const rescheduleAllOverdue = async () => {
