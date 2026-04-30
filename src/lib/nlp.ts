@@ -36,7 +36,7 @@ function parseTimeParts(hour: string, minuteA?: string, minuteB?: string) {
 
 function extractTimeRange(text: string) {
   const time = String.raw`(\d{1,2})(?:(?::([0-5]\d))|h\s*([0-5]\d)?)`;
-  const re = new RegExp(String.raw`\b(?:d[aeo]s?\s*)?${time}\s*(?:a|à|às|ate|até|\-|–)\s*${time}\b`, 'i');
+  const re = new RegExp(String.raw`\b(?:d[aeo]s?\s*)?${time}\s*(?:a|as|à|às|ate|até|\-|–)\s*${time}\b`, 'i');
   const m = re.exec(text);
   if (!m) return null;
   const start = parseTimeParts(m[1], m[2], m[3]);
