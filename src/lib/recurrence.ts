@@ -62,8 +62,16 @@ export function expandOccurrencesInRange(
     const lookupStart = anchor < start ? start : anchor;
 
     const occurrences = rule.between(lookupStart, end, true);
+    const skipHolidays = isWeekdayOnlyRule(recurrenceRule);
     const dates = new Set<string>();
-    for (const d of occurrences) dates.add(format(d, 'yyyy-MM-dd'));
+    for (const d of occurrences) {
+      const key = format(d, 'yyyy-MM-dd');
+      if (skipHolidays) {
+        const h = getHolidayForDate(key);
+        if (h?.type === 'national') continue;
+      }
+      dates.add(key);
+    }
     return Array.from(dates);
   } catch (e) {
     console.error('expandOccurrencesInRange error', e);
