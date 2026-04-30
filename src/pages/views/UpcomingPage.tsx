@@ -839,8 +839,8 @@ function EventBlock({
   return (
     <div
       className={cn(
-        'absolute rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group touch-none',
-        priorityBorder[task.priority],
+        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
+        variantClasses,
         isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
       )}
       style={{
