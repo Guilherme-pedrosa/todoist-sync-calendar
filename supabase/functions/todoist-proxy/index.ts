@@ -663,10 +663,20 @@ serve(async (req) => {
         }
       }
 
-      // 5. Sync tasks — dedup by (title + due_date + project_id)
+      // 5. Sync tasks — dedup by (title + due_date + project_id) for one-off,
+      //    or (title + recurrence_rule + project_id) for recurring tasks.
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.project_id || ""}|${t.parent_id || ""}`, t);
+        existingByKey.set(
+          buildTaskDedupKey({
+            title: t.title,
+            dueDate: t.due_date,
+            recurrenceRule: t.recurrence_rule,
+            projectId: t.project_id,
+            parentId: t.parent_id,
+          }),
+          t,
+        );
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -682,7 +692,13 @@ serve(async (req) => {
         const durationMinutes = mapDurationMinutes(tt.duration);
 
         const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProjectId;
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
+        const key = buildTaskDedupKey({
+          title: tt.content,
+          dueDate,
+          recurrenceRule,
+          projectId,
+          parentId: tt.parent_id,
+        });
         const existing = existingByKey.get(key);
         if (existing) {
           const patch = mergeImportedTask(existing, {
