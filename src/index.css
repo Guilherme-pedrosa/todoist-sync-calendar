@@ -132,4 +132,21 @@
     background: hsl(var(--muted-foreground) / 0.3);
     border-radius: 999px;
   }
+
+  /* iOS safe areas (notch, Dynamic Island, home bar) */
+  .pt-safe { padding-top: env(safe-area-inset-top); }
+  .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+  .pl-safe { padding-left: env(safe-area-inset-left); }
+  .pr-safe { padding-right: env(safe-area-inset-right); }
+  .top-safe { top: env(safe-area-inset-top); }
+  .bottom-safe { bottom: env(safe-area-inset-bottom); }
+  .h-safe-top { height: env(safe-area-inset-top); }
+  .h-safe-bottom { height: env(safe-area-inset-bottom); }
+  /* Combined helpers (paddings + safe area) */
+  .pt-safe-2 { padding-top: calc(env(safe-area-inset-top) + 0.5rem); }
+  .pb-safe-2 { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
+  .min-h-screen-safe {
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
+

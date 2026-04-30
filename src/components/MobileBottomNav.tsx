@@ -37,27 +37,29 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border h-14 flex items-stretch justify-around"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border pb-safe"
       aria-label="Navegação principal"
     >
-      <NavLink to="/today" className={({ isActive }) => itemClass(isActive)}>
-        <CalendarDays className="h-5 w-5" />
-        <span>Hoje</span>
-      </NavLink>
-      <NavLink to="/upcoming" className={({ isActive }) => itemClass(isActive)}>
-        <CalendarRange className="h-5 w-5" />
-        <span>Em breve</span>
-      </NavLink>
-      {/* Spacer for centered FAB */}
-      <div className="w-14" aria-hidden />
-      <button className={itemClass(false)} onClick={() => openPalette(true)}>
-        <Search className="h-5 w-5" />
-        <span>Buscar</span>
-      </button>
-      <button className={itemClass(false)} onClick={toggleSidebar}>
-        <Menu className="h-5 w-5" />
-        <span>Menu</span>
-      </button>
+      <div className="h-14 flex items-stretch justify-around">
+        <NavLink to="/today" className={({ isActive }) => itemClass(isActive)}>
+          <CalendarDays className="h-5 w-5" />
+          <span>Hoje</span>
+        </NavLink>
+        <NavLink to="/upcoming" className={({ isActive }) => itemClass(isActive)}>
+          <CalendarRange className="h-5 w-5" />
+          <span>Em breve</span>
+        </NavLink>
+        {/* Spacer for centered FAB */}
+        <div className="w-14" aria-hidden />
+        <button className={itemClass(false)} onClick={() => openPalette(true)}>
+          <Search className="h-5 w-5" />
+          <span>Buscar</span>
+        </button>
+        <button className={itemClass(false)} onClick={toggleSidebar}>
+          <Menu className="h-5 w-5" />
+          <span>Menu</span>
+        </button>
+      </div>
     </nav>
   );
 }
