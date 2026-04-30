@@ -289,15 +289,15 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                 type="time"
                 value={current.time ?? ''}
                 onChange={(e) => emit({ ...current, time: e.target.value || undefined })}
-                className="h-7 text-xs ml-auto w-[110px]"
+                className="h-9 text-sm ml-auto w-[130px] sm:h-7 sm:text-xs sm:w-[110px]"
               />
               {current.time && (
                 <button
                   onClick={() => emit({ ...current, time: undefined })}
-                  className="p-1 rounded hover:bg-muted"
+                  className="p-2 sm:p-1 rounded hover:bg-muted"
                   aria-label="Remover hora"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4 sm:h-3 sm:w-3" />
                 </button>
               )}
             </div>
