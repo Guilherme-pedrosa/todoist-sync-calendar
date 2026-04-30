@@ -559,8 +559,9 @@ function WeekGrid({
                   <AllDayChip
                     key={t.id}
                     task={t}
-                    onOpen={() => openTaskDetail(t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
+                    onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
+                      if (t.isRecurringCompletion) return;
                       // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
                       setPreview((p) => ({
                         ...p,
@@ -842,15 +843,17 @@ function DayColumn({
               cols={cols}
               isDragging={isDragging}
               onStartMoveAt={(e) => {
+                if (task.isRecurringCompletion) return;
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 const offsetY = e.clientY - rect.top;
                 const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
                 onStartMove(task.id, offsetMin, durationMin, startMin);
               }}
               onPointerDownResize={() => {
+                if (task.isRecurringCompletion) return;
                 onStartResize(task.id, startMin, durationMin);
               }}
-              onClick={() => onOpenTask(task.id, dayKey)}
+              onClick={() => onOpenTask(task.sourceTaskId ?? task.id, dayKey)}
             />
           );
         });
