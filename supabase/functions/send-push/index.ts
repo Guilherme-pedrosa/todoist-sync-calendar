@@ -85,13 +85,15 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
 
-    // === Caminho 1: chamada interna com service role ===
+    // === Caminho 1: chamada interna (trigger do banco ou serviço) ===
     const authHeader = req.headers.get("Authorization") || "";
-    const isServiceRole =
-      authHeader.includes(SERVICE_ROLE) ||
-      req.headers.get("x-internal-key") === SERVICE_ROLE;
+    const internalKey = req.headers.get("x-internal-key") || "";
+    const INTERNAL_SECRET = Deno.env.get("PUSH_INTERNAL_SECRET") || "";
+    const isInternal =
+      (INTERNAL_SECRET && internalKey === INTERNAL_SECRET) ||
+      authHeader.includes(SERVICE_ROLE);
 
-    if (isServiceRole && Array.isArray(body.user_ids)) {
+    if (isInternal && Array.isArray(body.user_ids)) {
       const result = await sendToUsers(body.user_ids, {
         title: body.title || "TaskFlow",
         body: body.body || "",
