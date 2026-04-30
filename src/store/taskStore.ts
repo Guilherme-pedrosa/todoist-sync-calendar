@@ -601,7 +601,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
     }
 
-    const newTask: Task = mapDbTaskToTask({ ...data, task_labels: labelIds.map((id) => ({ label_id: id })) });
+    const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
+    const newTask: Task = mapDbTaskToTask({
+      ...data,
+      task_labels: labelIds.map((id) => ({ label_id: id })),
+      task_assignees: allAssignees.map((uid) => ({ user_id: uid })),
+    });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
     if (newTask.dueDate && !newTask.completed) {
