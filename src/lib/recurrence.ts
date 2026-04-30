@@ -51,6 +51,28 @@ export function expandOccurrencesInRange(
   rangeEnd: Date
 ): string[] {
   if (!recurrenceRule || !anchorDate) return [];
+
+  // Caso especial: regra "N-ésimo dia útil do mês"
+  const bd = parseBusinessDayRule(recurrenceRule);
+  if (bd) {
+    const dates = new Set<string>();
+    const startKey = format(rangeStart, 'yyyy-MM-dd');
+    const endKey = format(rangeEnd, 'yyyy-MM-dd');
+    let y = rangeStart.getFullYear();
+    let m = rangeStart.getMonth();
+    const endY = rangeEnd.getFullYear();
+    const endM = rangeEnd.getMonth();
+    while (y < endY || (y === endY && m <= endM)) {
+      const candidate = nthBusinessDayOfMonth(y, m, bd.n);
+      if (candidate && candidate >= anchorDate && candidate >= startKey && candidate <= endKey) {
+        dates.add(candidate);
+      }
+      m += 1;
+      if (m > 11) { m = 0; y += 1; }
+    }
+    return Array.from(dates);
+  }
+
   try {
     const anchor = parseISO(`${anchorDate}T${anchorTime || '00:00'}:00`);
     const rule = parseRecurrence(recurrenceRule, anchor);
