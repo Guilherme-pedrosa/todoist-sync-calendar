@@ -417,7 +417,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                 variant="ghost"
                 className="flex-1 h-8 text-xs"
                 onClick={() => {
-                  onChange({ date: undefined, time: undefined, recurrenceRule: null });
+                  emit({ date: undefined, time: undefined, recurrenceRule: null });
                 }}
               >
                 Limpar
