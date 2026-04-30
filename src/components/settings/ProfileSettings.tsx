@@ -17,6 +17,14 @@ export function ProfileSettings() {
   const [displayName, setDisplayName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const isOAuthOnly = !!user && Array.isArray((user as any)?.identities)
+    && (user as any).identities.length > 0
+    && !(user as any).identities.some((i: any) => i.provider === 'email');
 
   useEffect(() => {
     if (!user) return;
