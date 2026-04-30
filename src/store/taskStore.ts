@@ -760,9 +760,43 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         console.error('Falha ao sincronizar atualização com Google Calendar:', error);
       }
     }
+
+    // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
+    const reminderTouched =
+      updates.dueDate !== undefined || updates.dueTime !== undefined || updates.completed !== undefined;
+    if (existing && merged && reminderTouched) {
+      try {
+        // Remove reminders ainda não disparados desta tarefa
+        await supabase.from('reminders').delete().eq('task_id', id).is('fired_at', null);
+
+        if (merged.dueDate && merged.dueTime && !merged.completed) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: settings } = await supabase
+              .from('user_settings')
+              .select('default_reminder_minutes')
+              .eq('user_id', user.id)
+              .maybeSingle();
+            const minutes = settings?.default_reminder_minutes ?? 15;
+            const triggerAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
+            triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
+            if (triggerAt.getTime() > Date.now()) {
+              await supabase.from('reminders').insert({
+                task_id: id,
+                trigger_at: triggerAt.toISOString(),
+                type: 'absolute',
+                relative_minutes: minutes,
+                channel: 'push',
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Falha ao re-sincronizar lembrete:', e);
+      }
+    }
   },
 
-  deleteTask: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
     const children = get().tasks.filter((t) => t.parentId === id);
 
