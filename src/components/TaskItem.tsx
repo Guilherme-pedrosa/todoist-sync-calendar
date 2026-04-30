@@ -212,14 +212,14 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           data-no-detail
           onClick={(e) => { e.stopPropagation(); complete(task.id); }}
           className={cn(
-            'mt-0.5 h-[18px] w-[18px] rounded-full border-2 shrink-0 transition-all flex items-center justify-center',
+            'mt-0.5 h-[22px] w-[22px] rounded-full border-2 shrink-0 transition-all flex items-center justify-center hover:scale-110',
             priorityColors[task.priority],
             task.completed && [priorityBg[task.priority], 'border-transparent']
           )}
           aria-label="Concluir"
         >
           {task.completed && (
-            <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+            <svg className="h-3 w-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
               <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}

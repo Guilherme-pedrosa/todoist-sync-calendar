@@ -279,14 +279,22 @@ function WeekGrid({
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
   const [drag, setDrag] = useState<DragState | null>(null);
+  const dragRef = useRef<DragState | null>(null);
   // Preview overrides while dragging (avoid waiting for DB roundtrip)
   const [preview, setPreview] = useState<
     Record<string, { dayKey?: string; startMin?: number; durationMin?: number }>
   >({});
+  const previewRef = useRef(preview);
   // Provisional create-rectangle (dayKey + start/end minutes)
   const [createBox, setCreateBox] = useState<{ dayKey: string; startMin: number; endMin: number } | null>(
     null
   );
+  const createBoxRef = useRef(createBox);
+
+  // Keep refs in sync so global listeners always see latest values without re-attaching
+  useEffect(() => { dragRef.current = drag; }, [drag]);
+  useEffect(() => { previewRef.current = preview; }, [preview]);
+  useEffect(() => { createBoxRef.current = createBox; }, [createBox]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -315,48 +323,53 @@ function WeekGrid({
     return null;
   }, []);
 
-  // Global pointer move/up while dragging
+  // Global pointer move/up while dragging.
+  // Listeners are attached ONLY when drag starts and detached when it ends.
+  // We read live state via refs so re-renders don't re-attach (which could miss pointerup).
   useEffect(() => {
     if (!drag) return;
 
     const onMove = (e: PointerEvent) => {
-      if (drag.kind === 'move') {
+      const d = dragRef.current;
+      if (!d) return;
+      if (d.kind === 'move') {
         const dayKey = findDayUnderPointer(e.clientX, e.clientY);
         if (!dayKey) return;
         const dayEl = dayColumnsRef.current.get(dayKey)!;
-        const min = pointerToMinutes(dayEl, e.clientY) - drag.pointerOffsetMin;
-        const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - drag.durationMin, snap(min)));
+        const min = pointerToMinutes(dayEl, e.clientY) - d.pointerOffsetMin;
+        const clamped = Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - d.durationMin, snap(min)));
         setPreview((p) => ({
           ...p,
-          [drag.taskId]: { dayKey, startMin: clamped, durationMin: drag.durationMin },
+          [d.taskId]: { dayKey, startMin: clamped, durationMin: d.durationMin },
         }));
-      } else if (drag.kind === 'resize') {
-        const taskPreview = preview[drag.taskId];
+      } else if (d.kind === 'resize') {
+        const taskPreview = previewRef.current[d.taskId];
         const dayKey = taskPreview?.dayKey;
         if (!dayKey) return;
         const dayEl = dayColumnsRef.current.get(dayKey)!;
         const endMin = pointerToMinutes(dayEl, e.clientY);
-        const newDuration = Math.max(drag.minDuration, snap(endMin - drag.startTopMin));
+        const newDuration = Math.max(d.minDuration, snap(endMin - d.startTopMin));
         setPreview((p) => ({
           ...p,
-          [drag.taskId]: { ...p[drag.taskId], durationMin: newDuration },
+          [d.taskId]: { ...p[d.taskId], durationMin: newDuration },
         }));
-      } else if (drag.kind === 'create') {
-        const dayEl = dayColumnsRef.current.get(drag.dayKey);
+      } else if (d.kind === 'create') {
+        const dayEl = dayColumnsRef.current.get(d.dayKey);
         if (!dayEl) return;
         const cur = pointerToMinutes(dayEl, e.clientY);
-        const start = Math.min(drag.startMin, cur);
-        const end = Math.max(drag.startMin, cur) + SNAP_MINUTES; // include cell
-        setCreateBox({ dayKey: drag.dayKey, startMin: start, endMin: end });
+        const start = Math.min(d.startMin, cur);
+        const end = Math.max(d.startMin, cur) + SNAP_MINUTES;
+        setCreateBox({ dayKey: d.dayKey, startMin: start, endMin: end });
       }
     };
 
     const onUp = async () => {
-      const currentDrag = drag;
+      const currentDrag = dragRef.current;
       setDrag(null);
+      if (!currentDrag) return;
 
       if (currentDrag.kind === 'move' || currentDrag.kind === 'resize') {
-        const p = preview[currentDrag.taskId];
+        const p = previewRef.current[currentDrag.taskId];
         setPreview((prev) => {
           const next = { ...prev };
           delete next[currentDrag.taskId];
@@ -377,7 +390,7 @@ function WeekGrid({
           toast.error('Falha ao reagendar tarefa');
         }
       } else if (currentDrag.kind === 'create') {
-        const box = createBox;
+        const box = createBoxRef.current;
         setCreateBox(null);
         if (box && box.endMin - box.startMin >= MIN_TASK_MINUTES) {
           openQuickAdd({
@@ -389,13 +402,28 @@ function WeekGrid({
       }
     };
 
+    // Safety: cancel drag if window loses focus or document hides
+    const onCancel = () => {
+      setDrag(null);
+      setPreview({});
+      setCreateBox(null);
+    };
+
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('blur', onCancel);
+    document.addEventListener('visibilitychange', onCancel);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('blur', onCancel);
+      document.removeEventListener('visibilitychange', onCancel);
     };
-  }, [drag, preview, createBox, findDayUnderPointer, pointerToMinutes, updateTask, updateWithPrompt, openQuickAdd]);
+    // Only re-run when a drag session starts/ends — NOT on every preview update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!drag]);
 
   // Now indicator
   const [now, setNow] = useState(new Date());
@@ -918,15 +946,15 @@ function EventBlock({
             completeTask(task.id);
           }}
           className={cn(
-            'mt-[1px] h-3.5 w-3.5 shrink-0 rounded-full border flex items-center justify-center transition-colors',
+            'mt-[1px] h-[18px] w-[18px] shrink-0 rounded-full border-2 flex items-center justify-center transition-colors hover:scale-110',
             isDone
               ? 'bg-success border-success text-success-foreground'
               : isRecurring
               ? 'border-recurring hover:bg-recurring/20'
-              : 'border-muted-foreground/40 hover:bg-muted'
+              : 'border-muted-foreground/60 hover:bg-muted'
           )}
         >
-          {isDone && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+          {isDone && <Check className="h-3 w-3" strokeWidth={3} />}
         </button>
         <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
           {task.dueTime && (
