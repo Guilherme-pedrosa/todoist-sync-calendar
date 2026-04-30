@@ -255,6 +255,16 @@ export function parseNlp(input: string): ParsedNlp {
     // ignore
   }
 
+  // 5b) Se a recorrência for "N-ésimo dia útil do mês" e nenhuma data foi
+  // explicitamente informada, ancora no próximo N-ésimo dia útil ≥ hoje.
+  if (!dueDate && recurrenceRule) {
+    const bd = parseBusinessDayRule(recurrenceRule);
+    if (bd) {
+      const next = nextNthBusinessDay(bd.n, new Date());
+      if (next) dueDate = next;
+    }
+  }
+
   // build cleaned title: remove all matched ranges
   const sorted = [...matchedRanges].sort((a, b) => a.start - b.start);
   let cleaned = '';
