@@ -310,6 +310,17 @@ export default function MembersPage() {
                 <Badge variant="outline" className="capitalize">{m.role}</Badge>
               )}
 
+              {isAdmin && !ws?.isPersonal && !isWsOwner && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openEdit(m)}
+                  title="Editar membro"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+
               {isAdmin && !ws?.isPersonal && !isMe && !isWsOwner && (
                 <Button variant="ghost" size="icon" onClick={() => handleRemove(m.userId)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -319,6 +330,53 @@ export default function MembersPage() {
           );
         })}
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar membro</DialogTitle>
+            <DialogDescription>
+              Atualize nome, e-mail ou redefina a senha. Deixe em branco o que não quiser mudar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input
+                value={editForm.display_name}
+                onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Novo e-mail (opcional)</Label>
+              <Input
+                type="email"
+                placeholder="Deixe em branco para manter"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Nova senha (opcional, mín. 8)</Label>
+              <Input
+                type="text"
+                placeholder="Deixe em branco para manter"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEdit} disabled={editSubmitting}>
+              {editSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
