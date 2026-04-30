@@ -35,8 +35,19 @@ import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
+type RecurringCompletionRow = {
+  id: string;
+  task_id: string;
+  user_id: string;
+  occurrence_date: string;
+  occurrence_time: string | null;
+  duration_minutes: number | null;
+  title: string;
+  completed_at: string;
+};
 
 const DAY_START_HOUR = 6; // grid começa às 06:00
 const DAY_END_HOUR = 24; // até meia-noite
@@ -99,6 +110,28 @@ export default function UpcomingPage() {
     [weekDays, weekStart]
   );
   const rangeStart = useMemo(() => weekDays[0] ?? weekStart, [weekDays, weekStart]);
+  const [recurringCompletions, setRecurringCompletions] = useState<RecurringCompletionRow[]>([]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
+    const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
+
+    supabase
+      .from('recurring_task_completions' as any)
+      .select('id, task_id, user_id, occurrence_date, occurrence_time, duration_minutes, title, completed_at')
+      .eq('user_id', currentUserId)
+      .gte('occurrence_date', rangeStartIso)
+      .lte('occurrence_date', rangeEndIso)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Erro ao carregar ocorrências concluídas', error);
+          setRecurringCompletions([]);
+          return;
+        }
+        setRecurringCompletions((data || []) as unknown as RecurringCompletionRow[]);
+      });
+  }, [currentUserId, rangeStart, rangeEnd, visibleTasks]);
 
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -129,8 +162,29 @@ export default function UpcomingPage() {
         map.get(k)!.push(t);
       }
     }
+
+    for (const completion of recurringCompletions) {
+      const source = visibleTasks.find((t) => t.id === completion.task_id);
+      const k = completion.occurrence_date;
+      if (!source || k < rangeStartIso || k > rangeEndIso) continue;
+      const completedOccurrence: Task = {
+        ...source,
+        id: `recurring-completion:${completion.id}`,
+        sourceTaskId: source.id,
+        recurringCompletionId: completion.id,
+        isRecurringCompletion: true,
+        title: completion.title || source.title,
+        dueDate: k,
+        dueTime: completion.occurrence_time?.slice(0, 5) || source.dueTime,
+        durationMinutes: completion.duration_minutes ?? source.durationMinutes ?? null,
+        completed: true,
+        completedAt: completion.completed_at,
+      };
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(completedOccurrence);
+    }
     return map;
-  }, [visibleTasks, rangeStart, rangeEnd]);
+  }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -505,8 +559,9 @@ function WeekGrid({
                   <AllDayChip
                     key={t.id}
                     task={t}
-                    onOpen={() => openTaskDetail(t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
+                    onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
+                      if (t.isRecurringCompletion) return;
                       // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
                       setPreview((p) => ({
                         ...p,
@@ -788,15 +843,17 @@ function DayColumn({
               cols={cols}
               isDragging={isDragging}
               onStartMoveAt={(e) => {
+                if (task.isRecurringCompletion) return;
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                 const offsetY = e.clientY - rect.top;
                 const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
                 onStartMove(task.id, offsetMin, durationMin, startMin);
               }}
               onPointerDownResize={() => {
+                if (task.isRecurringCompletion) return;
                 onStartResize(task.id, startMin, durationMin);
               }}
-              onClick={() => onOpenTask(task.id, dayKey)}
+              onClick={() => onOpenTask(task.sourceTaskId ?? task.id, dayKey)}
             />
           );
         });
@@ -850,6 +907,7 @@ function EventBlock({
   const completeTask = useCompleteTask();
   const isRecurring = !!task.recurrenceRule;
   const isDone = task.completed;
+  const isHistoricalCompletion = !!task.isRecurringCompletion;
 
   // Variant styles: completed wins, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
@@ -885,7 +943,11 @@ function EventBlock({
       className={cn(
         'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
         variantClasses,
-        isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
+        isDragging
+          ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing'
+          : isHistoricalCompletion
+          ? 'hover:shadow-md cursor-default z-10'
+          : 'hover:shadow-md cursor-grab z-10'
       )}
       style={{
         top,
@@ -943,6 +1005,7 @@ function EventBlock({
           onPointerUp={(e) => { e.stopPropagation(); }}
           onClick={(e) => {
             e.stopPropagation();
+            if (isHistoricalCompletion) return;
             completeTask(task.id);
           }}
           className={cn(

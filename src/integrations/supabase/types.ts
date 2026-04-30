@@ -756,6 +756,42 @@ export type Database = {
         }
         Relationships: []
       }
+      recurring_task_completions: {
+        Row: {
+          completed_at: string
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          occurrence_date: string
+          occurrence_time: string | null
+          task_id: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          occurrence_date: string
+          occurrence_time?: string | null
+          task_id: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          occurrence_date?: string
+          occurrence_time?: string | null
+          task_id?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       reminders: {
         Row: {
           channel: string
