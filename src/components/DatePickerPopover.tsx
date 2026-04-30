@@ -203,11 +203,16 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
           )}
         </PopoverTrigger>
         <PopoverContent
-          className="w-[320px] p-0 flex flex-col overflow-hidden"
+          className="w-[320px] max-w-[calc(100vw-16px)] p-0 flex flex-col overflow-hidden"
           style={{ maxHeight: 'min(85vh, 600px)' }}
           align={align}
           collisionPadding={16}
           avoidCollisions
+          onOpenAutoFocus={(e) => {
+            // Evita que o input de NLP receba foco automático no mobile,
+            // o que abria o teclado virtual e cobria o calendário.
+            e.preventDefault();
+          }}
         >
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
           {/* Free-text NLP input */}
