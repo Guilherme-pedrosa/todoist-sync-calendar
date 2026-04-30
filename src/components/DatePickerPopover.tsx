@@ -235,7 +235,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                   handleTextSubmit();
                 }
               }}
-              className="h-8 text-xs"
+              className="h-9 text-sm sm:h-8 sm:text-xs"
             />
           </div>
 
