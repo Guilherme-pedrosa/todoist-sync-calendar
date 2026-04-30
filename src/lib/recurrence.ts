@@ -1,6 +1,7 @@
 import { RRule, rrulestr } from 'rrule';
 import { addDays, format, parseISO } from 'date-fns';
 import { getHolidayForDate } from '@/lib/holidays';
+import { parseBusinessDayRule, nextNthBusinessDay, nthBusinessDayOfMonth } from '@/lib/businessDay';
 
 /**
  * Detects "every weekday" rules (FREQ=WEEKLY with BYDAY=MO,TU,WE,TH,FR).
@@ -50,6 +51,28 @@ export function expandOccurrencesInRange(
   rangeEnd: Date
 ): string[] {
   if (!recurrenceRule || !anchorDate) return [];
+
+  // Caso especial: regra "N-ésimo dia útil do mês"
+  const bd = parseBusinessDayRule(recurrenceRule);
+  if (bd) {
+    const dates = new Set<string>();
+    const startKey = format(rangeStart, 'yyyy-MM-dd');
+    const endKey = format(rangeEnd, 'yyyy-MM-dd');
+    let y = rangeStart.getFullYear();
+    let m = rangeStart.getMonth();
+    const endY = rangeEnd.getFullYear();
+    const endM = rangeEnd.getMonth();
+    while (y < endY || (y === endY && m <= endM)) {
+      const candidate = nthBusinessDayOfMonth(y, m, bd.n);
+      if (candidate && candidate >= anchorDate && candidate >= startKey && candidate <= endKey) {
+        dates.add(candidate);
+      }
+      m += 1;
+      if (m > 11) { m = 0; y += 1; }
+    }
+    return Array.from(dates);
+  }
+
   try {
     const anchor = parseISO(`${anchorDate}T${anchorTime || '00:00'}:00`);
     const rule = parseRecurrence(recurrenceRule, anchor);
@@ -237,6 +260,19 @@ export function nextOccurrence(
   currentTime?: string
 ): { dueDate: string; dueTime?: string } | null {
   if (!recurrenceRule) return null;
+
+  // Caso especial: regra "N-ésimo dia útil do mês"
+  const bd = parseBusinessDayRule(recurrenceRule);
+  if (bd) {
+    const baseKey = currentDate || format(new Date(), 'yyyy-MM-dd');
+    // Próximo a partir do dia seguinte ao atual
+    const base = parseISO(`${baseKey}T12:00:00`);
+    base.setDate(base.getDate() + 1);
+    const next = nextNthBusinessDay(bd.n, base);
+    if (!next) return null;
+    return { dueDate: next, dueTime: currentTime || undefined };
+  }
+
   try {
     let anchor: Date;
     if (currentDate) {
