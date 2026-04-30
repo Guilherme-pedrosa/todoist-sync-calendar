@@ -30,13 +30,25 @@ export function useCompleteTask() {
       if (task.recurrenceRule && !options?.endRecurring) {
         const next = nextOccurrence(task.recurrenceRule, task.dueDate, task.dueTime);
         if (next) {
+          const { data: u } = await supabase.auth.getUser();
+          if (u.user && task.dueDate) {
+            await (supabase as any).from('recurring_task_completions').upsert({
+              task_id: taskId,
+              user_id: u.user.id,
+              occurrence_date: task.dueDate,
+              occurrence_time: task.dueTime || null,
+              duration_minutes: task.durationMinutes ?? null,
+              title: task.title,
+              completed_at: new Date().toISOString(),
+            }, { onConflict: 'task_id,user_id,occurrence_date' });
+          }
+
           await updateTask(taskId, {
             dueDate: next.dueDate,
             dueTime: next.dueTime,
           });
           // Log occurrence completion
           try {
-            const { data: u } = await supabase.auth.getUser();
             if (u.user) {
               await supabase.from('activity_log').insert({
                 user_id: u.user.id,
