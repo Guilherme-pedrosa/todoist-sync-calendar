@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
+import { useCompleteTask } from '@/hooks/useCompleteTask';
+import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
@@ -88,7 +90,7 @@ export default function UpcomingPage() {
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
     for (const t of tasks) {
-      if (t.completed || t.parentId || !t.dueDate) continue;
+      if (t.parentId || !t.dueDate) continue;
 
       let dayKeys: string[] = [];
       if (t.recurrenceRule) {
@@ -801,12 +803,22 @@ function EventBlock({
   onClick: () => void;
 }) {
   const project = useTaskStore((s) => s.projects.find((p) => p.id === task.projectId));
+  const completeTask = useCompleteTask();
+  const isRecurring = !!task.recurrenceRule;
+  const isDone = task.completed;
+
+  // Variant styles: completed wins, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
     1: 'border-l-priority-1',
     2: 'border-l-priority-2',
     3: 'border-l-priority-3',
     4: 'border-l-muted-foreground/40',
   };
+  const variantClasses = isDone
+    ? 'bg-success/15 border-l-success border-success/40'
+    : isRecurring
+    ? 'bg-recurring/10 border-l-recurring border-recurring/30'
+    : `bg-card ${priorityBorder[task.priority]}`;
   const downRef = useRef<{
     x: number;
     y: number;
@@ -827,8 +839,8 @@ function EventBlock({
   return (
     <div
       className={cn(
-        'absolute rounded-md border-l-[3px] bg-card shadow-sm overflow-hidden group touch-none',
-        priorityBorder[task.priority],
+        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
+        variantClasses,
         isDragging ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing' : 'hover:shadow-md cursor-grab z-10'
       )}
       style={{
@@ -879,13 +891,35 @@ function EventBlock({
         if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal">
-        {task.dueTime && (
-          <span className="text-muted-foreground mr-1">
-            {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
-          </span>
-        )}
-        {task.title}
+      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal flex items-start gap-1.5">
+        <button
+          type="button"
+          aria-label={isDone ? 'Marcar como pendente' : 'Marcar como concluída'}
+          onPointerDown={(e) => { e.stopPropagation(); }}
+          onPointerUp={(e) => { e.stopPropagation(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            completeTask(task.id);
+          }}
+          className={cn(
+            'mt-[1px] h-3.5 w-3.5 shrink-0 rounded-full border flex items-center justify-center transition-colors',
+            isDone
+              ? 'bg-success border-success text-success-foreground'
+              : isRecurring
+              ? 'border-recurring hover:bg-recurring/20'
+              : 'border-muted-foreground/40 hover:bg-muted'
+          )}
+        >
+          {isDone && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+        </button>
+        <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
+          {task.dueTime && (
+            <span className="text-muted-foreground mr-1">
+              {`${task.dueTime}–${addMinutesToTime(task.dueTime, durationMin)}`}
+            </span>
+          )}
+          {task.title}
+        </span>
       </div>
       {project && !project.isInbox && height > 32 && (
         <div className="px-1.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
