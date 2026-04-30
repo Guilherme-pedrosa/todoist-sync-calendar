@@ -425,6 +425,7 @@ function MessageBubble({
   getSignedUrl,
 }: BubbleProps) {
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     let active = true;
