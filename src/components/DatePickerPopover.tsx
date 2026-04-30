@@ -203,9 +203,17 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
           )}
         </PopoverTrigger>
         <PopoverContent
-          className="w-[320px] max-w-[calc(100vw-16px)] p-0 flex flex-col overflow-hidden"
-          style={{ maxHeight: 'min(85vh, 600px)' }}
+          className={cn(
+            "p-0 flex flex-col overflow-hidden",
+            // Mobile: bottom-sheet ocupando largura total e até 92vh de altura
+            "max-sm:fixed max-sm:left-2 max-sm:right-2 max-sm:bottom-2 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-xl max-sm:shadow-2xl",
+            // Desktop: comportamento original
+            "sm:w-[320px]"
+          )}
+          style={{ maxHeight: 'min(92vh, 720px)' }}
           align={align}
+          side="bottom"
+          sideOffset={8}
           collisionPadding={16}
           avoidCollisions
           onOpenAutoFocus={(e) => {
