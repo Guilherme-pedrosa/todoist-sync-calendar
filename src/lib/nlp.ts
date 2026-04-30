@@ -22,7 +22,7 @@ export interface ParsedNlp {
 function expandDateRange(text: string, start: number, end: number) {
   let expandedStart = start;
   const prefix = text.slice(0, start);
-  const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao)\s*$/i);
+  const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao|em|no|na|para|pro|pra|dia)\s*$/i);
   if (preposition) expandedStart = start - preposition[0].length;
   return { start: expandedStart, end };
 }
