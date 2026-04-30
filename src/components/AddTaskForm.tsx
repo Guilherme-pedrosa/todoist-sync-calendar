@@ -49,6 +49,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
       ...d,
       date: parsed.dueDate || (nlpSet.date ? undefined : d.date),
       time: parsed.dueTime || (nlpSet.time ? undefined : d.time),
+      durationMinutes: parsed.durationMinutes ?? (nlpSet.time ? null : d.durationMinutes),
       recurrenceRule: parsed.recurrenceRule || (nlpSet.rec ? null : d.recurrenceRule),
     }));
     if (parsed.priority) setPriority(parsed.priority);
@@ -86,6 +87,7 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
         priority,
         dueDate: date.date,
         dueTime: date.time,
+        durationMinutes: date.durationMinutes ?? null,
         recurrenceRule: date.recurrenceRule || null,
         projectId,
         parentId: defaultParentId,
