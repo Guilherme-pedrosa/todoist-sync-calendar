@@ -41,6 +41,11 @@ export default function MembersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
 
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<{ userId: string; displayName: string } | null>(null);
+  const [editForm, setEditForm] = useState({ display_name: '', email: '', password: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
   // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
     if (currentWorkspaceId && membersWorkspaceId !== currentWorkspaceId) {
