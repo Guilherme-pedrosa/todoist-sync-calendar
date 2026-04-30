@@ -93,7 +93,7 @@ const DEFAULT_SETTINGS = {
   color_mode: 'system',
   show_sidebar_counts: true,
   show_calendar_status: true,
-  default_reminder_minutes: 30,
+  default_reminder_minutes: 15,
   reminder_channels: ['push', 'email'],
   daily_goal: 5,
   weekly_goal: 30,
