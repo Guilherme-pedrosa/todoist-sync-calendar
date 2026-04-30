@@ -203,9 +203,17 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
           )}
         </PopoverTrigger>
         <PopoverContent
-          className="w-[320px] max-w-[calc(100vw-16px)] p-0 flex flex-col overflow-hidden"
-          style={{ maxHeight: 'min(85vh, 600px)' }}
+          className={cn(
+            "p-0 flex flex-col overflow-hidden",
+            // Mobile: bottom-sheet ocupando largura total e até 92vh de altura
+            "max-sm:fixed max-sm:left-2 max-sm:right-2 max-sm:bottom-2 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-xl max-sm:shadow-2xl",
+            // Desktop: comportamento original
+            "sm:w-[320px]"
+          )}
+          style={{ maxHeight: 'min(92vh, 720px)' }}
           align={align}
+          side="bottom"
+          sideOffset={8}
           collisionPadding={16}
           avoidCollisions
           onOpenAutoFocus={(e) => {
@@ -227,7 +235,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                   handleTextSubmit();
                 }
               }}
-              className="h-8 text-xs"
+              className="h-9 text-sm sm:h-8 sm:text-xs"
             />
           </div>
 
@@ -281,15 +289,15 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                 type="time"
                 value={current.time ?? ''}
                 onChange={(e) => emit({ ...current, time: e.target.value || undefined })}
-                className="h-7 text-xs ml-auto w-[110px]"
+                className="h-9 text-sm ml-auto w-[130px] sm:h-7 sm:text-xs sm:w-[110px]"
               />
               {current.time && (
                 <button
                   onClick={() => emit({ ...current, time: undefined })}
-                  className="p-1 rounded hover:bg-muted"
+                  className="p-2 sm:p-1 rounded hover:bg-muted"
                   aria-label="Remover hora"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4 sm:h-3 sm:w-3" />
                 </button>
               )}
             </div>
