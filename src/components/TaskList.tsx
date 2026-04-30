@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
+import { useAuth } from '@/contexts/AuthContext';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { EmptyState } from '@/components/EmptyState';
