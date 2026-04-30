@@ -488,10 +488,10 @@ export function TaskDetailPanel() {
           </DropdownMenu>
           <button
             onClick={close}
-            className="p-1.5 hover:bg-muted rounded text-muted-foreground ml-1"
+            className="p-2 hover:bg-muted active:bg-muted rounded text-foreground ml-1 h-9 w-9 flex items-center justify-center"
             aria-label="Fechar (Esc)"
           >
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </button>
         </div>
       </div>
