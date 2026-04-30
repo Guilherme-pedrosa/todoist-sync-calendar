@@ -141,13 +141,20 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
 
   const hasValue = !!(value.date || value.recurrenceRule);
 
-  const handleTextSubmit = () => {
-    if (!textInput.trim()) return;
+  const parseTextInputValue = (base: DateValue): DateValue | null => {
+    if (!textInput.trim()) return null;
     const parsed = parseNlp(textInput);
-    const next: DateValue = { ...current };
+    const next: DateValue = { ...base };
     if (parsed.dueDate) next.date = parsed.dueDate;
     if (parsed.dueTime) next.time = parsed.dueTime;
+    if (parsed.durationMinutes !== undefined) next.durationMinutes = parsed.durationMinutes;
     if (parsed.recurrenceRule) next.recurrenceRule = parsed.recurrenceRule;
+    return next;
+  };
+
+  const handleTextSubmit = () => {
+    const next = parseTextInputValue(current);
+    if (!next) return;
     emit(next);
     setTextInput('');
   };
@@ -423,7 +430,20 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                 Limpar
               </Button>
             )}
-            <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => handleOpenChange(false)}>
+            <Button
+              size="sm"
+              className="flex-1 h-8 text-xs"
+              onClick={() => {
+                const parsed = parseTextInputValue(current);
+                if (parsed) {
+                  onChange(parsed);
+                  setTextInput('');
+                  setOpen(false);
+                  return;
+                }
+                handleOpenChange(false);
+              }}
+            >
               <Check className="h-3 w-3 mr-1" /> OK
             </Button>
           </div>

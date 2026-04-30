@@ -9,6 +9,7 @@ export interface ParsedNlp {
   cleanedTitle: string;
   dueDate?: string; // yyyy-MM-dd
   dueTime?: string; // HH:mm
+  durationMinutes?: number; // parsed from ranges like "08:30 a 12:30"
   hasTime: boolean;
   recurrenceRule?: string; // RFC5545
   recurrenceLabel?: string;
@@ -21,9 +22,28 @@ export interface ParsedNlp {
 function expandDateRange(text: string, start: number, end: number) {
   let expandedStart = start;
   const prefix = text.slice(0, start);
-  const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao)\s*$/i);
+  const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao|em|no|na|para|pro|pra|dia)\s*$/i);
   if (preposition) expandedStart = start - preposition[0].length;
   return { start: expandedStart, end };
+}
+
+function parseTimeParts(hour: string, minuteA?: string, minuteB?: string) {
+  const h = Number(hour);
+  const m = Number(minuteA ?? minuteB ?? '0');
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return null;
+  return { h, m, total: h * 60 + m, value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+}
+
+function extractTimeRange(text: string) {
+  const time = String.raw`(\d{1,2})(?:(?::([0-5]\d))|h\s*([0-5]\d)?)`;
+  const re = new RegExp(String.raw`\b(?:d[aeo]s?\s*)?${time}\s*(?:a|as|à|às|ate|até|\-|–)\s*${time}\b`, 'i');
+  const m = re.exec(text);
+  if (!m) return null;
+  const start = parseTimeParts(m[1], m[2], m[3]);
+  const end = parseTimeParts(m[4], m[5], m[6]);
+  if (!start || !end) return null;
+  const duration = end.total > start.total ? end.total - start.total : end.total + 24 * 60 - start.total;
+  return { start: m.index, end: m.index + m[0].length, dueTime: start.value, durationMinutes: duration };
 }
 
 const RECURRENCE_PATTERNS: Array<{
@@ -237,7 +257,9 @@ export function parseNlp(input: string): ParsedNlp {
   // 5) date/time via chrono
   let dueDate: string | undefined;
   let dueTime: string | undefined;
+  let durationMinutes: number | undefined;
   let hasTime = false;
+  const timeRange = extractTimeRange(working);
   try {
     const results = ptParser.parse(working, new Date(), { forwardDate: true });
     if (results.length > 0) {
@@ -249,10 +271,24 @@ export function parseNlp(input: string): ParsedNlp {
         dueTime = format(d, 'HH:mm');
       }
       const range = expandDateRange(working, r.index, r.index + r.text.length);
-      matchedRanges.push({ ...range, type: 'date' });
+      if (timeRange) {
+        dueTime = timeRange.dueTime;
+        durationMinutes = timeRange.durationMinutes;
+        hasTime = true;
+        matchedRanges.push({ start: Math.min(range.start, timeRange.start), end: Math.max(range.end, timeRange.end), type: 'date' });
+      } else {
+        matchedRanges.push({ ...range, type: 'date' });
+      }
     }
   } catch {
     // ignore
+  }
+
+  if (!dueDate && timeRange) {
+    dueTime = timeRange.dueTime;
+    durationMinutes = timeRange.durationMinutes;
+    hasTime = true;
+    matchedRanges.push({ start: timeRange.start, end: timeRange.end, type: 'date' });
   }
 
   // 5b) Se a recorrência for "N-ésimo dia útil do mês" e nenhuma data foi
@@ -280,6 +316,7 @@ export function parseNlp(input: string): ParsedNlp {
     cleanedTitle: cleaned || input.trim(),
     dueDate,
     dueTime,
+    durationMinutes,
     hasTime,
     recurrenceRule,
     recurrenceLabel,

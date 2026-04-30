@@ -97,7 +97,7 @@ export function QuickAddDialog() {
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
-  const nlpSetRef = useRef<{ date?: boolean; time?: boolean; rec?: boolean; prio?: boolean }>({});
+  const nlpSetRef = useRef<{ date?: boolean; time?: boolean; duration?: boolean; rec?: boolean; prio?: boolean }>({});
 
   const handleAiSuggest = async () => {
     const t = (parsed?.cleanedTitle || title).trim();
@@ -184,11 +184,17 @@ export function QuickAddDialog() {
 
     // Hora
     if (parsed.dueTime) {
-      setDate((d) => ({ ...d, time: parsed.dueTime }));
+      setDate((d) => ({
+        ...d,
+        time: parsed.dueTime,
+        durationMinutes: parsed.durationMinutes ?? (nlpSetRef.current.duration ? undefined : d.durationMinutes),
+      }));
       nlpSetRef.current.time = true;
+      nlpSetRef.current.duration = parsed.durationMinutes !== undefined;
     } else if (nlpSetRef.current.time) {
-      setDate((d) => ({ ...d, time: undefined }));
+      setDate((d) => ({ ...d, time: undefined, durationMinutes: undefined }));
       nlpSetRef.current.time = false;
+      nlpSetRef.current.duration = false;
     }
 
     // Recorrência
