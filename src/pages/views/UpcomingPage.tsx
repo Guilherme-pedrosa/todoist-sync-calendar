@@ -1083,10 +1083,13 @@ function EventBlock({
         </span>
       </div>
       {isDragging && (
-        <div
-          className="pointer-events-none absolute -left-1 -top-3 z-40 rounded-md bg-primary px-2 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-lg"
-        >
-          {`${minutesToTime(startMin)} – ${minutesToTime(startMin + durationMin)}`}
+        <div className="pointer-events-none absolute right-full top-0 mr-2 z-40 flex flex-col items-end gap-1">
+          <div className="rounded-md bg-foreground px-2 py-1 text-[12px] font-bold text-background shadow-xl whitespace-nowrap">
+            {minutesToTime(startMin)}
+          </div>
+          <div className="rounded-md bg-foreground/80 px-2 py-0.5 text-[11px] font-semibold text-background shadow-lg whitespace-nowrap">
+            {minutesToTime(startMin + durationMin)}
+          </div>
         </div>
       )}
       {project && !project.isInbox && height > 32 && (
