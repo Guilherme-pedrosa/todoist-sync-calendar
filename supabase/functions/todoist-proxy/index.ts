@@ -565,8 +565,8 @@ serve(async (req) => {
 
       for (const tp of tdProjects) {
         const isInbox = tp.inbox_project || tp.is_inbox_project;
-        if (isInbox && inboxProject) {
-          projectIdMap.set(tp.id, inboxProject.id);
+        if (isInbox) {
+          projectIdMap.set(tp.id, inboxProjectId);
           continue;
         }
         const existing = projectsByName.get(tp.name.toLowerCase());
