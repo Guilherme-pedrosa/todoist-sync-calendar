@@ -381,7 +381,16 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
                   )}
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-60 p-1" align="end">
+              <PopoverContent className="w-64 p-1" align="end">
+                <div className="p-1">
+                  <RecurrenceTextInput
+                    onApply={(rule) => {
+                      emit({ ...current, recurrenceRule: rule });
+                      setRecurrenceMenuOpen(false);
+                    }}
+                  />
+                </div>
+                <div className="my-1 border-t border-border" />
                 {presets.map((p) => (
                   <button
                     key={p.label}
