@@ -147,6 +147,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
     const next: DateValue = { ...current };
     if (parsed.dueDate) next.date = parsed.dueDate;
     if (parsed.dueTime) next.time = parsed.dueTime;
+    if (parsed.durationMinutes !== undefined) next.durationMinutes = parsed.durationMinutes;
     if (parsed.recurrenceRule) next.recurrenceRule = parsed.recurrenceRule;
     emit(next);
     setTextInput('');
