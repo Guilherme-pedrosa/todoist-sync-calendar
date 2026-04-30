@@ -24,7 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Loader2, Pencil } from 'lucide-react';
 
 export default function MembersPage() {
   const { user } = useAuth();
@@ -40,6 +40,11 @@ export default function MembersPage() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<{ userId: string; displayName: string } | null>(null);
+  const [editForm, setEditForm] = useState({ display_name: '', email: '', password: '' });
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
@@ -114,6 +119,48 @@ export default function MembersPage() {
       fetchMembers(currentWorkspaceId);
     } catch (e: any) {
       toast.error(e.message);
+    }
+  };
+
+  const openEdit = (m: { userId: string; displayName: string | null }) => {
+    setEditing({ userId: m.userId, displayName: m.displayName || '' });
+    setEditForm({ display_name: m.displayName || '', email: '', password: '' });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!currentWorkspaceId || !editing) return;
+    const payload: Record<string, any> = {
+      action: 'update_member',
+      workspace_id: currentWorkspaceId,
+      user_id: editing.userId,
+    };
+    if (editForm.display_name.trim() && editForm.display_name.trim() !== editing.displayName) {
+      payload.display_name = editForm.display_name.trim();
+    }
+    if (editForm.email.trim()) payload.email = editForm.email.trim();
+    if (editForm.password) {
+      if (editForm.password.length < 8) {
+        toast.error('Senha precisa ter pelo menos 8 caracteres');
+        return;
+      }
+      payload.password = editForm.password;
+    }
+    if (!payload.display_name && !payload.email && !payload.password) {
+      toast.error('Nada para alterar');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      await callAdminFn(payload);
+      toast.success('Membro atualizado');
+      setEditOpen(false);
+      setEditing(null);
+      fetchMembers(currentWorkspaceId);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -263,6 +310,17 @@ export default function MembersPage() {
                 <Badge variant="outline" className="capitalize">{m.role}</Badge>
               )}
 
+              {isAdmin && !ws?.isPersonal && !isWsOwner && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openEdit(m)}
+                  title="Editar membro"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+
               {isAdmin && !ws?.isPersonal && !isMe && !isWsOwner && (
                 <Button variant="ghost" size="icon" onClick={() => handleRemove(m.userId)}>
                   <Trash2 className="h-4 w-4 text-destructive" />
@@ -272,6 +330,53 @@ export default function MembersPage() {
           );
         })}
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar membro</DialogTitle>
+            <DialogDescription>
+              Atualize nome, e-mail ou redefina a senha. Deixe em branco o que não quiser mudar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nome</Label>
+              <Input
+                value={editForm.display_name}
+                onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Novo e-mail (opcional)</Label>
+              <Input
+                type="email"
+                placeholder="Deixe em branco para manter"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Nova senha (opcional, mín. 8)</Label>
+              <Input
+                type="text"
+                placeholder="Deixe em branco para manter"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEdit} disabled={editSubmitting}>
+              {editSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

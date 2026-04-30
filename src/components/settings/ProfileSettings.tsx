@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Camera, Loader2, Trash2 } from 'lucide-react';
+import { Camera, Loader2, Trash2, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5MB
@@ -17,6 +17,14 @@ export function ProfileSettings() {
   const [displayName, setDisplayName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+
+  const isOAuthOnly = !!user && Array.isArray((user as any)?.identities)
+    && (user as any).identities.length > 0
+    && !(user as any).identities.some((i: any) => i.provider === 'email');
 
   useEffect(() => {
     if (!user) return;
@@ -113,6 +121,33 @@ export function ProfileSettings() {
     }
   };
 
+  const handleSavePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error('A senha precisa ter no mínimo 8 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success(
+        isOAuthOnly
+          ? 'Senha criada! Agora você pode entrar com e-mail e senha.'
+          : 'Senha atualizada com sucesso'
+      );
+    } catch (e: any) {
+      toast.error(e.message ?? 'Falha ao atualizar senha');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
@@ -183,6 +218,66 @@ export function ProfileSettings() {
       <div className="space-y-2">
         <label className="text-sm font-medium">E-mail</label>
         <Input value={user?.email ?? ''} disabled className="bg-muted/40" />
+      </div>
+
+      <div className="border-t border-border pt-5 space-y-3">
+        <div className="flex items-start gap-2">
+          <KeyRound className="h-4 w-4 text-primary mt-0.5" />
+          <div className="flex-1">
+            <h3 className="text-sm font-medium">
+              {isOAuthOnly ? 'Criar senha de acesso' : 'Trocar senha'}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {isOAuthOnly
+                ? 'Você entrou com Google. Defina uma senha para também poder entrar com e-mail/senha — funciona melhor no app instalado no iPhone.'
+                : 'Defina uma nova senha. Você sairá das outras sessões.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">Nova senha (mín. 8 caracteres)</label>
+          <div className="relative">
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••"
+              minLength={8}
+              autoComplete="new-password"
+              className="pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+              aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-muted-foreground">Confirmar senha</label>
+          <Input
+            type={showPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <Button
+          onClick={handleSavePassword}
+          disabled={savingPassword || !newPassword || !confirmPassword}
+          className="w-full sm:w-auto"
+        >
+          {savingPassword && <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />}
+          {isOAuthOnly ? 'Criar senha' : 'Salvar nova senha'}
+        </Button>
       </div>
     </div>
   );
