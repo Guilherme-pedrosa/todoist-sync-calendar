@@ -265,6 +265,15 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         <span className="text-sm text-muted-foreground ml-1">
           {filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''}
         </span>
+        {supportsCompletedToggle && (
+          <div className="ml-auto">
+            <ShowCompletedToggle
+              show={showCompleted}
+              onChange={setShowCompleted}
+              count={completedList.length}
+            />
+          </div>
+        )}
       </header>
 
       {/* Body */}
