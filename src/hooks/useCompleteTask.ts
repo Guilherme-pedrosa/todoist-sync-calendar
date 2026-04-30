@@ -43,7 +43,7 @@ export function useCompleteTask() {
           );
           const { data: u } = await supabase.auth.getUser();
           if (u.user && task.dueDate) {
-            await (supabase as any).from('recurring_task_completions').upsert({
+            await supabase.from('recurring_task_completions' as never).upsert({
               task_id: taskId,
               user_id: u.user.id,
               occurrence_date: task.dueDate,
