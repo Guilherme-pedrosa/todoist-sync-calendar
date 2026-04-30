@@ -6,6 +6,7 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
   MoreHorizontal,
   Hash,
   Inbox,
