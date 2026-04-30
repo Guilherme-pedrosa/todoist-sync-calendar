@@ -249,9 +249,9 @@ export default function UpcomingPage() {
               <LayoutGrid className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Kanban</span>
             </button>
           </div>
-          {mode !== 'day' && mode !== 'kanban' && (
+          {mode !== 'kanban' && (
             <div className="flex items-center gap-1">
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w - 1)} aria-label={mode === 'day' ? 'Dia anterior' : 'Semana anterior'}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
@@ -262,7 +262,7 @@ export default function UpcomingPage() {
               >
                 Hoje
               </Button>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)}>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setWeekOffset((w) => w + 1)} aria-label={mode === 'day' ? 'Próximo dia' : 'Próxima semana'}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
