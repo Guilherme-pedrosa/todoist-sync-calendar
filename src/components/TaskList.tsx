@@ -16,6 +16,8 @@ import { useQuickAddStore } from '@/store/quickAddStore';
 import { TaskItem } from '@/components/TaskItem';
 import { AddTaskForm } from '@/components/AddTaskForm';
 import { EmptyState } from '@/components/EmptyState';
+import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
+import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { Task, ViewFilter } from '@/types/task';
 import { isToday, parseISO, addDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
