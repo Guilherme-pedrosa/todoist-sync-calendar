@@ -885,6 +885,7 @@ function EventBlock({
   task,
   top,
   height,
+  startMin,
   durationMin,
   col,
   cols,
@@ -896,6 +897,7 @@ function EventBlock({
   task: Task;
   top: number;
   height: number;
+  startMin: number;
   durationMin: number;
   col: number;
   cols: number;
