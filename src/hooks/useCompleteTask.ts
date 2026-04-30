@@ -6,6 +6,28 @@ import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+const normalizeTitleForDaySlot = (title: string) =>
+  title.replace(/^✅\s*/, '').trim().toLocaleLowerCase();
+
+type RecurringCompletionPayload = {
+  task_id: string;
+  user_id: string;
+  occurrence_date: string;
+  occurrence_time: string | null;
+  duration_minutes: number | null;
+  title: string;
+  completed_at: string;
+};
+
+const recurringCompletions = supabase as unknown as {
+  from: (table: 'recurring_task_completions') => {
+    upsert: (
+      payload: RecurringCompletionPayload,
+      options: { onConflict: string }
+    ) => Promise<{ error: unknown }>;
+  };
+};
+
 /**
  * Centralized completion logic. If task has a recurrence_rule, advances to the
  * next occurrence and logs to activity_log instead of marking completed.
@@ -30,9 +52,17 @@ export function useCompleteTask() {
       if (task.recurrenceRule && !options?.endRecurring) {
         const next = nextOccurrence(task.recurrenceRule, task.dueDate, task.dueTime);
         if (next) {
+          const nextSlotAlreadyExists = tasks.some(
+            (candidate) =>
+              candidate.id !== taskId &&
+              !candidate.completed &&
+              candidate.dueDate === next.dueDate &&
+              normalizeTitleForDaySlot(candidate.title) === normalizeTitleForDaySlot(task.title) &&
+              (candidate.dueTime || null) === (next.dueTime || null)
+          );
           const { data: u } = await supabase.auth.getUser();
           if (u.user && task.dueDate) {
-            await (supabase as any).from('recurring_task_completions').upsert({
+            await recurringCompletions.from('recurring_task_completions').upsert({
               task_id: taskId,
               user_id: u.user.id,
               occurrence_date: task.dueDate,
@@ -41,6 +71,15 @@ export function useCompleteTask() {
               title: task.title,
               completed_at: new Date().toISOString(),
             }, { onConflict: 'task_id,user_id,occurrence_date' });
+          }
+
+          if (nextSlotAlreadyExists) {
+            await updateTask(taskId, { recurrenceRule: null });
+            await toggleTask(taskId);
+            toast.success('Concluída', {
+              description: 'A próxima ocorrência já existia e foi mantida em Em breve.',
+            });
+            return;
           }
 
           await updateTask(taskId, {
