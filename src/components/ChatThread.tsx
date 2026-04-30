@@ -425,6 +425,7 @@ function MessageBubble({
   getSignedUrl,
 }: BubbleProps) {
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -505,9 +506,14 @@ function MessageBubble({
                   const isImg = att.mimeType.startsWith('image/');
                   if (isImg && url) {
                     return (
-                      <a key={att.path} href={url} target="_blank" rel="noreferrer" className="block">
-                        <img src={url} alt={att.name} className="rounded-lg max-h-56 object-cover" />
-                      </a>
+                      <button
+                        key={att.path}
+                        type="button"
+                        onClick={() => setLightbox({ url, name: att.name })}
+                        className="block focus:outline-none focus:ring-2 focus:ring-primary rounded-lg"
+                      >
+                        <img src={url} alt={att.name} className="rounded-lg max-h-56 object-cover cursor-zoom-in" />
+                      </button>
                     );
                   }
                   return (
@@ -540,6 +546,28 @@ function MessageBubble({
           </button>
         )}
       </div>
+
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setLightbox(null); }}
+            className="absolute top-4 right-4 h-9 w-9 rounded-full bg-background/20 hover:bg-background/30 text-white flex items-center justify-center"
+            aria-label="Fechar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={lightbox.url}
+            alt={lightbox.name}
+            className="max-h-[90vh] max-w-[95vw] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
