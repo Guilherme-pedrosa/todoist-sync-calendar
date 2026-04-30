@@ -473,6 +473,11 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(userToken);
     if (userError || !user) return json({ error: "Usuário inválido" }, 401);
 
+    const TODOIST_API_KEY = await getUserTodoistToken(supabase, user.id);
+    if (!TODOIST_API_KEY) {
+      return json({ error: "Token do Todoist não configurado. Vá em Configurações → Integrações." }, 400);
+    }
+
     try {
       // 1. Fetch from Todoist (paginated)
       const [tdProjects, tdLabels, tdTasks] = await Promise.all([
