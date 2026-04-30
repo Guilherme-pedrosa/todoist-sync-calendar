@@ -142,7 +142,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
   const hasValue = !!(value.date || value.recurrenceRule);
 
   const parseTextInputValue = (base: DateValue): DateValue | null => {
-    if (!textInput.trim()) return;
+    if (!textInput.trim()) return null;
     const parsed = parseNlp(textInput);
     const next: DateValue = { ...base };
     if (parsed.dueDate) next.date = parsed.dueDate;
@@ -436,8 +436,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
               onClick={() => {
                 const parsed = parseTextInputValue(current);
                 if (parsed) {
-                  if (commitOnClose) onChange(parsed);
-                  else onChange(parsed);
+                  onChange(parsed);
                   setTextInput('');
                   setOpen(false);
                   return;
