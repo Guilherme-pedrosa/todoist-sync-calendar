@@ -9,6 +9,7 @@ export interface ParsedNlp {
   cleanedTitle: string;
   dueDate?: string; // yyyy-MM-dd
   dueTime?: string; // HH:mm
+  durationMinutes?: number; // parsed from ranges like "08:30 a 12:30"
   hasTime: boolean;
   recurrenceRule?: string; // RFC5545
   recurrenceLabel?: string;
@@ -24,6 +25,25 @@ function expandDateRange(text: string, start: number, end: number) {
   const preposition = prefix.match(/(?:^|\s)(?:[àa]s?|ao)\s*$/i);
   if (preposition) expandedStart = start - preposition[0].length;
   return { start: expandedStart, end };
+}
+
+function parseTimeParts(hour: string, minuteA?: string, minuteB?: string) {
+  const h = Number(hour);
+  const m = Number(minuteA ?? minuteB ?? '0');
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) return null;
+  return { h, m, total: h * 60 + m, value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}` };
+}
+
+function extractTimeRange(text: string) {
+  const time = String.raw`(\d{1,2})(?:(?::([0-5]\d))|h\s*([0-5]\d)?)`;
+  const re = new RegExp(String.raw`\b(?:d[aeo]s?\s*)?${time}\s*(?:a|à|às|ate|até|\-|–)\s*${time}\b`, 'i');
+  const m = re.exec(text);
+  if (!m) return null;
+  const start = parseTimeParts(m[1], m[2], m[3]);
+  const end = parseTimeParts(m[4], m[5], m[6]);
+  if (!start || !end) return null;
+  const duration = end.total > start.total ? end.total - start.total : end.total + 24 * 60 - start.total;
+  return { start: m.index, end: m.index + m[0].length, dueTime: start.value, durationMinutes: duration };
 }
 
 const RECURRENCE_PATTERNS: Array<{
