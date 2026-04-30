@@ -323,10 +323,6 @@ function WeekGrid({
     return null;
   }, []);
 
-  // Global pointer move/up while dragging
-  useEffect(() => {
-    if (!drag) return;
-
   // Global pointer move/up while dragging.
   // Listeners are attached ONLY when drag starts and detached when it ends.
   // We read live state via refs so re-renders don't re-attach (which could miss pointerup).
