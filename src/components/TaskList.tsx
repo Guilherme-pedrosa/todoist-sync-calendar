@@ -99,12 +99,13 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     };
   }, [view, projectId]);
 
-  const { title, icon: Icon, iconColor, filteredTasks, groupedTasks } = useMemo(() => {
+  const { title, icon: Icon, iconColor, filteredTasks, groupedTasks, completedList } = useMemo(() => {
     let title = '';
     let Icon: typeof Inbox = Inbox;
     let iconColor: string | undefined;
     let filtered: Task[] = [];
     let grouped: Record<string, Task[]> | null = null;
+    let completed: Task[] = [];
 
     const today = new Date().toISOString().split('T')[0];
 
@@ -114,6 +115,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         title = 'Caixa de Entrada';
         Icon = Inbox;
         filtered = tasks.filter((t) => !t.completed && t.projectId === inbox?.id);
+        completed = tasks.filter((t) => t.completed && t.projectId === inbox?.id);
         break;
       }
 
@@ -128,6 +130,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
           if (b.dueTime) return 1;
           return 0;
         });
+        completed = tasks.filter((t) => t.completed && t.dueDate === today);
         break;
 
       case 'upcoming': {
@@ -164,6 +167,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         Icon = Hash;
         iconColor = project?.color;
         filtered = tasks.filter((t) => !t.completed && t.projectId === projectId);
+        completed = tasks.filter((t) => t.completed && t.projectId === projectId);
         break;
       }
 
@@ -173,12 +177,22 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         Icon = Tag;
         iconColor = label?.color;
         filtered = tasks.filter((t) => !t.completed && t.labels.includes(labelId || ''));
+        completed = tasks.filter((t) => t.completed && t.labels.includes(labelId || ''));
         break;
       }
     }
 
     const topLevel = filtered.filter((t) => !t.parentId);
-    return { title, icon: Icon, iconColor, filteredTasks: topLevel, groupedTasks: grouped };
+    const completedTopLevel = completed.filter((t) => !t.parentId);
+    completedTopLevel.sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''));
+    return {
+      title,
+      icon: Icon,
+      iconColor,
+      filteredTasks: topLevel,
+      groupedTasks: grouped,
+      completedList: completedTopLevel,
+    };
   }, [tasks, view, projectId, labelId, projects, labels]);
 
   // Group by section for project view
