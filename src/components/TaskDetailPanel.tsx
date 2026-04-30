@@ -675,6 +675,7 @@ export function TaskDetailPanel() {
           <aside className="w-full lg:w-[260px] lg:border-l border-border bg-muted/20 px-4 py-4 space-y-4 lg:shrink-0">
             <DetailRow icon={CalendarIcon} label="Data">
               <DatePickerPopover
+                commitOnClose
                 value={dateValue}
                 onChange={(v) =>
                   updateWithPrompt(
