@@ -29,6 +29,9 @@ export interface Task {
   googleCalendarEventId?: string;
   taskNumber?: number | null;
   assigneeIds?: string[];
+  sourceTaskId?: string;
+  recurringCompletionId?: string;
+  isRecurringCompletion?: boolean;
 }
 
 export interface Project {
