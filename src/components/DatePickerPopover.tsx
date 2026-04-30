@@ -64,6 +64,8 @@ interface Props {
   onChange: (v: DateValue) => void;
   trigger?: React.ReactNode;
   align?: 'start' | 'center' | 'end';
+  /** When true, edits are buffered locally and only committed on OK / popover close. */
+  commitOnClose?: boolean;
 }
 
 function buildPresets(anchor?: string): Array<{ label: string; build: () => string }> {
