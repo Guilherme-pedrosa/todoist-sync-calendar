@@ -88,7 +88,7 @@ export default function UpcomingPage() {
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
     for (const t of tasks) {
-      if (t.completed || t.parentId || !t.dueDate) continue;
+      if (t.parentId || !t.dueDate) continue;
 
       let dayKeys: string[] = [];
       if (t.recurrenceRule) {
