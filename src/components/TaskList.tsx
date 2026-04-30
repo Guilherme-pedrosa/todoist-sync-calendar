@@ -54,11 +54,26 @@ interface SectionRow {
 }
 
 export function TaskList({ view, projectId, labelId }: TaskListProps) {
-  const tasks = useTaskStore((s) => s.tasks);
+  const allTasks = useTaskStore((s) => s.tasks);
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
   const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+  const { user } = useAuth();
+  const currentUserId = user?.id;
+
+  // Mostra somente tarefas em que o usuário é responsável.
+  // Se a tarefa não tem responsáveis cadastrados (legado), mantemos visível.
+  const tasks = useMemo(
+    () =>
+      allTasks.filter((t) => {
+        if (!currentUserId) return true;
+        const ids = t.assigneeIds;
+        if (!ids || ids.length === 0) return true;
+        return ids.includes(currentUserId);
+      }),
+    [allTasks, currentUserId]
+  );
 
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
