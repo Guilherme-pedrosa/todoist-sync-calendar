@@ -927,6 +927,9 @@ function EventBlock({
     moved: boolean;
     pointerId: number;
     started: boolean;
+    pointerType: string;
+    longPressTimer: number | null;
+    longPressFired: boolean;
   } | null>(null);
 
   const endInteraction = (el: HTMLDivElement, pointerId: number) => {
@@ -941,7 +944,7 @@ function EventBlock({
   return (
     <div
       className={cn(
-        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group touch-none',
+        'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group',
         variantClasses,
         isDragging
           ? 'opacity-90 ring-2 ring-primary z-30 cursor-grabbing'
@@ -954,28 +957,69 @@ function EventBlock({
         height,
         left: `calc(${leftPct}% + 2px)`,
         width: `calc(${widthPct}% - 4px)`,
+        // Allow vertical scrolling on touch; drag is gated by long-press
+        touchAction: 'pan-y',
       }}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        e.stopPropagation();
+        const isTouch = e.pointerType === 'touch';
+        // For mouse/pen: capture immediately and block scroll (drag is fluid).
+        // For touch: do NOT capture or stopPropagation — let the page scroll
+        // naturally. Drag activates only after a long-press.
+        if (!isTouch) {
+          e.stopPropagation();
+          const el = e.currentTarget;
+          try { el.setPointerCapture(e.pointerId); } catch {}
+        }
         const el = e.currentTarget;
-        try { el.setPointerCapture(e.pointerId); } catch {}
         downRef.current = {
           x: e.clientX,
           y: e.clientY,
           moved: false,
           pointerId: e.pointerId,
           started: false,
+          pointerType: e.pointerType,
+          longPressTimer: isTouch
+            ? (window.setTimeout(() => {
+                const d = downRef.current;
+                if (!d || d.started || d.moved) return;
+                d.longPressFired = true;
+                // Now capture so the next pointermove triggers drag
+                try { el.setPointerCapture(d.pointerId); } catch {}
+                // Subtle haptic feedback if available
+                try { (navigator as any).vibrate?.(15); } catch {}
+              }, 280) as unknown as number)
+            : null,
+          longPressFired: false,
         };
       }}
       onPointerMove={(e) => {
         const d = downRef.current;
         if (!d) return;
-        if (!d.moved && (Math.abs(e.clientX - d.x) > 4 || Math.abs(e.clientY - d.y) > 4)) {
+        const dx = Math.abs(e.clientX - d.x);
+        const dy = Math.abs(e.clientY - d.y);
+        const isTouch = d.pointerType === 'touch';
+        const moveThreshold = isTouch ? 12 : 4;
+
+        if (!d.moved && (dx > moveThreshold || dy > moveThreshold)) {
           d.moved = true;
+          // On touch: if user moved before long-press fired, this is a scroll
+          // gesture — abort everything and let the page scroll.
+          if (isTouch && !d.longPressFired) {
+            if (d.longPressTimer != null) {
+              clearTimeout(d.longPressTimer);
+              d.longPressTimer = null;
+            }
+            downRef.current = null;
+            return;
+          }
         }
         if (d.moved && !d.started) {
           d.started = true;
+          if (d.longPressTimer != null) {
+            clearTimeout(d.longPressTimer);
+            d.longPressTimer = null;
+          }
           // Release capture so the global window listeners (in WeekGrid) take over
           // and pointer events can hit other day columns.
           endInteraction(e.currentTarget, d.pointerId);
@@ -985,8 +1029,12 @@ function EventBlock({
       onPointerUp={(e) => {
         const d = downRef.current;
         downRef.current = null;
+        if (d?.longPressTimer != null) {
+          clearTimeout(d.longPressTimer);
+        }
         endInteraction(e.currentTarget, e.pointerId);
-        if (d && !d.moved) {
+        if (d && !d.moved && !d.longPressFired) {
+          // Clean tap → open task
           e.stopPropagation();
           onClick();
         }
@@ -994,6 +1042,9 @@ function EventBlock({
       onPointerCancel={(e) => {
         const d = downRef.current;
         downRef.current = null;
+        if (d?.longPressTimer != null) {
+          clearTimeout(d.longPressTimer);
+        }
         if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
     >
