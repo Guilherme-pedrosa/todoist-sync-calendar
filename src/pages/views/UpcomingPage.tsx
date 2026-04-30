@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
+import { useCompleteTask } from '@/hooks/useCompleteTask';
+import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
