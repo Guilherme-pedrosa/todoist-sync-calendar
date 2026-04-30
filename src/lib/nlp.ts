@@ -30,6 +30,25 @@ const RECURRENCE_PATTERNS: Array<{
   re: RegExp;
   build: (m: RegExpExecArray) => { rule: string; label: string };
 }> = [
+  // N-ésimo dia útil do mês: "primeiro dia útil do mês", "5º dia útil",
+  // "ultimo dia util do mes", "segundo dia útil"
+  {
+    re: /\b(primeiro|segundo|terceiro|quarto|quinto|sexto|s[ée]timo|oitavo|nono|d[ée]cimo|[úu]ltimo|(\d{1,2})\s*(?:º|o|°)?)\s+dia\s+[úu]til(?:\s+(?:do|de)\s+(?:cada\s+)?m[êe]s)?\b/i,
+    build: (m) => {
+      const ordWord = (m[1] || '').toLowerCase();
+      const ordMap: Record<string, number> = {
+        primeiro: 1, segundo: 2, terceiro: 3, quarto: 4, quinto: 5,
+        sexto: 6, setimo: 7, sétimo: 7, oitavo: 8, nono: 9, decimo: 10, décimo: 10,
+        ultimo: -1, último: -1,
+      };
+      let n = ordMap[ordWord];
+      if (n === undefined) {
+        const num = parseInt(m[2] || ordWord, 10);
+        n = Number.isFinite(num) && num > 0 ? num : 1;
+      }
+      return { rule: buildBusinessDayRule(n), label: businessDayRuleLabel(n) };
+    },
+  },
   // dia útil / dias úteis / todo dia útil / work days / seg a sexta — MUST come before "todo dia"
   {
     re: /\b(?:todo[s]?\s+(?:os\s+)?dias?\s+(?:[úu]til|[úu]te[ií]s)|dias?\s+(?:[úu]til|[úu]te[ií]s)|every\s+(?:weekday|work\s*day|business\s*day)s?|(?:weekday|work\s*day|business\s*day)s?|seg(?:unda)?\s*(?:a|à|ate|até|-)\s*sex(?:ta)?|segunda(?:-feira)?\s*(?:a|à|ate|até|-)\s*sexta(?:-feira)?|mon(?:day)?\s*(?:to|-)\s*fri(?:day)?)\b/i,
