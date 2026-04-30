@@ -142,15 +142,27 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
   const handleTextSubmit = () => {
     if (!textInput.trim()) return;
     const parsed = parseNlp(textInput);
-    const next: DateValue = { ...value };
+    const next: DateValue = { ...current };
     if (parsed.dueDate) next.date = parsed.dueDate;
     if (parsed.dueTime) next.time = parsed.dueTime;
     if (parsed.recurrenceRule) next.recurrenceRule = parsed.recurrenceRule;
-    onChange(next);
+    emit(next);
     setTextInput('');
   };
 
-  const presets = buildPresets(value.date);
+  const presets = buildPresets(current.date);
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && commitOnClose) {
+      const changed =
+        draft.date !== value.date ||
+        draft.time !== value.time ||
+        draft.durationMinutes !== value.durationMinutes ||
+        draft.recurrenceRule !== value.recurrenceRule;
+      if (changed) onChange(draft);
+    }
+    setOpen(next);
+  };
 
   return (
     <>
