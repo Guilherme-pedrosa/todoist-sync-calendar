@@ -433,9 +433,9 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
       <RecurrenceCustomDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
-        initialRule={value.recurrenceRule}
-        startDate={value.date}
-        onSave={(rule) => onChange({ ...value, recurrenceRule: rule })}
+        initialRule={current.recurrenceRule}
+        startDate={current.date}
+        onSave={(rule) => emit({ ...current, recurrenceRule: rule })}
       />
     </>
   );
