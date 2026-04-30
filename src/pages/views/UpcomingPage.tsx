@@ -817,7 +817,7 @@ function EventBlock({
   const variantClasses = isDone
     ? 'bg-success/15 border-l-success border-success/40'
     : isRecurring
-    ? 'bg-info/10 border-l-info border-info/30'
+    ? 'bg-recurring/10 border-l-recurring border-recurring/30'
     : `bg-card ${priorityBorder[task.priority]}`;
   const downRef = useRef<{
     x: number;
