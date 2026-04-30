@@ -184,10 +184,10 @@ export function QuickAddDialog() {
 
     // Hora
     if (parsed.dueTime) {
-      setDate((d) => ({ ...d, time: parsed.dueTime }));
+      setDate((d) => ({ ...d, time: parsed.dueTime, durationMinutes: parsed.durationMinutes ?? d.durationMinutes }));
       nlpSetRef.current.time = true;
     } else if (nlpSetRef.current.time) {
-      setDate((d) => ({ ...d, time: undefined }));
+      setDate((d) => ({ ...d, time: undefined, durationMinutes: undefined }));
       nlpSetRef.current.time = false;
     }
 
