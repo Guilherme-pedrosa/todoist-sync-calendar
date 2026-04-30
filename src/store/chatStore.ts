@@ -259,7 +259,48 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
       return conv.id;
     }
-    return null;
+
+    // Não existe — cria sob demanda
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData?.user?.id;
+    if (!uid) return null;
+
+    const { data: taskRow } = await supabase
+      .from('tasks')
+      .select('id, title, project_id, projects:project_id(workspace_id)')
+      .eq('id', taskId)
+      .maybeSingle();
+
+    const workspaceId = (taskRow as any)?.projects?.workspace_id as string | undefined;
+    if (!workspaceId) return null;
+
+    const { data: created, error } = await supabase
+      .from('conversations')
+      .insert({
+        workspace_id: workspaceId,
+        type: 'task',
+        task_id: taskId,
+        title: (taskRow as any)?.title ?? null,
+        created_by: uid,
+      })
+      .select()
+      .single();
+
+    if (error || !created) {
+      console.error('ensureTaskConversation create failed', error);
+      return null;
+    }
+
+    const conv = mapConv(created);
+    set((state) => ({
+      conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
+    }));
+
+    await supabase
+      .from('conversation_participants')
+      .insert({ conversation_id: conv.id, user_id: uid });
+
+    return conv.id;
   },
 
   ensureContextConversation: async (contextId, title) => {
