@@ -28,6 +28,7 @@ export interface Task {
   completedAt?: string;
   googleCalendarEventId?: string;
   taskNumber?: number | null;
+  assigneeIds?: string[];
 }
 
 export interface Project {
