@@ -927,6 +927,9 @@ function EventBlock({
     moved: boolean;
     pointerId: number;
     started: boolean;
+    pointerType: string;
+    longPressTimer: number | null;
+    longPressFired: boolean;
   } | null>(null);
 
   const endInteraction = (el: HTMLDivElement, pointerId: number) => {
