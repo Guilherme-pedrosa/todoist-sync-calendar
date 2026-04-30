@@ -260,6 +260,19 @@ export function nextOccurrence(
   currentTime?: string
 ): { dueDate: string; dueTime?: string } | null {
   if (!recurrenceRule) return null;
+
+  // Caso especial: regra "N-ésimo dia útil do mês"
+  const bd = parseBusinessDayRule(recurrenceRule);
+  if (bd) {
+    const baseKey = currentDate || format(new Date(), 'yyyy-MM-dd');
+    // Próximo a partir do dia seguinte ao atual
+    const base = parseISO(`${baseKey}T12:00:00`);
+    base.setDate(base.getDate() + 1);
+    const next = nextNthBusinessDay(bd.n, base);
+    if (!next) return null;
+    return { dueDate: next, dueTime: currentTime || undefined };
+  }
+
   try {
     let anchor: Date;
     if (currentDate) {
