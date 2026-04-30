@@ -35,7 +35,7 @@ import { getHolidayForDate } from '@/lib/holidays';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 
-const DAY_START_HOUR = 7; // grid começa às 07:00
+const DAY_START_HOUR = 6; // grid começa às 06:00
 const DAY_END_HOUR = 24; // até meia-noite
 const HOUR_HEIGHT = 96; // px por hora — 4 blocos de 15 min × 24px
 const MIN_TASK_MINUTES = 15;
