@@ -24,7 +24,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, Loader2, Pencil } from 'lucide-react';
 
 export default function MembersPage() {
   const { user } = useAuth();
