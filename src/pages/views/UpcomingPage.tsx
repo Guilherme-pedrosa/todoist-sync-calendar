@@ -918,15 +918,15 @@ function EventBlock({
             completeTask(task.id);
           }}
           className={cn(
-            'mt-[1px] h-3.5 w-3.5 shrink-0 rounded-full border flex items-center justify-center transition-colors',
+            'mt-[1px] h-[18px] w-[18px] shrink-0 rounded-full border-2 flex items-center justify-center transition-colors hover:scale-110',
             isDone
               ? 'bg-success border-success text-success-foreground'
               : isRecurring
               ? 'border-recurring hover:bg-recurring/20'
-              : 'border-muted-foreground/40 hover:bg-muted'
+              : 'border-muted-foreground/60 hover:bg-muted'
           )}
         >
-          {isDone && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+          {isDone && <Check className="h-3 w-3" strokeWidth={3} />}
         </button>
         <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
           {task.dueTime && (
