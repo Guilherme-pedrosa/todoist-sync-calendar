@@ -121,6 +121,33 @@ export function ProfileSettings() {
     }
   };
 
+  const handleSavePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error('A senha precisa ter no mínimo 8 caracteres');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem');
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword('');
+      setConfirmPassword('');
+      toast.success(
+        isOAuthOnly
+          ? 'Senha criada! Agora você pode entrar com e-mail e senha.'
+          : 'Senha atualizada com sucesso'
+      );
+    } catch (e: any) {
+      toast.error(e.message ?? 'Falha ao atualizar senha');
+    } finally {
+      setSavingPassword(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
