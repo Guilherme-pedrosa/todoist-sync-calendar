@@ -43,7 +43,7 @@ export default function LabelsIndexPage() {
       <header className="flex items-center gap-3 px-6 py-5 border-b border-border/50">
         <button
           onClick={toggleSidebar}
-          className="lg:hidden p-1.5 rounded-md hover:bg-muted transition-colors"
+          className="hidden p-1.5 rounded-md hover:bg-muted transition-colors"
           aria-label="Alternar barra lateral"
         >
           <Menu className="h-5 w-5" />
