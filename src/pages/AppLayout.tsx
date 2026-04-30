@@ -21,6 +21,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/realtimeTasks';
 
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
@@ -125,6 +126,13 @@ export default function AppLayout() {
       void useWorkspaceStore.getState().fetchWorkspaces();
     }
   }, [user, calendarConnected, fetchData]);
+
+  // Realtime: refetch tarefas/projetos quando colaboradores fazem mudanças
+  useEffect(() => {
+    if (!user) return;
+    subscribeToTaskRealtime(user.id);
+    return () => unsubscribeFromTaskRealtime();
+  }, [user]);
 
   if (loading || processingCalendarOauth) {
     return (
