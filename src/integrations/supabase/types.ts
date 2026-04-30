@@ -1467,6 +1467,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_integrations: {
+        Row: {
+          access_token: string
+          created_at: string
+          id: string
+          metadata: Json
+          provider: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          provider: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          provider?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           auto_dark_mode: boolean
