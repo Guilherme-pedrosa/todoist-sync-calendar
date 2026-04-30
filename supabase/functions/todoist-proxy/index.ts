@@ -543,7 +543,7 @@ serve(async (req) => {
       // 2. Existing app data
       const [{ data: existingProjects }, { data: existingLabels }, { data: existingTasks }] =
         await Promise.all([
-          supabase.from("projects").select("id, name, is_inbox").eq("user_id", user.id),
+          supabase.from("projects").select("id, name, is_inbox, workspace_id").eq("user_id", user.id),
           supabase.from("labels").select("id, name").eq("user_id", user.id),
           supabase.from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, project_id, parent_id").eq("user_id", user.id),
         ]);
@@ -555,6 +555,9 @@ serve(async (req) => {
         projectsByName.set(p.name.toLowerCase(), { id: p.id, isInbox: p.is_inbox });
       }
       const inboxProject = (existingProjects || []).find((p) => p.is_inbox);
+      const { workspaceId: personalWorkspaceId, inboxProjectId } = inboxProject
+        ? { workspaceId: inboxProject.workspace_id, inboxProjectId: inboxProject.id }
+        : await ensurePersonalWorkspaceAndInbox(supabase, user.id);
 
       let createdProjects = 0;
       const projectsToInsert: any[] = [];
@@ -573,9 +576,12 @@ serve(async (req) => {
         }
         projectsToInsert.push({
           user_id: user.id,
+          workspace_id: personalWorkspaceId,
+          owner_id: user.id,
           name: tp.name,
           color: colorFromTodoist(tp.color),
           is_inbox: false,
+          visibility: "private",
         });
         todoistProjectByTempKey.set(tp.name.toLowerCase(), tp);
       }
@@ -633,7 +639,7 @@ serve(async (req) => {
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
 
-        const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProject?.id || null;
+        const projectId = (tt.project_id && projectIdMap.get(tt.project_id)) || inboxProjectId;
         const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${projectId || ""}|${tt.parent_id || ""}`;
         const existing = existingByKey.get(key);
         if (existing) {
@@ -666,6 +672,8 @@ serve(async (req) => {
             recurrence_rule: recurrenceRule,
             deadline: deadline,
             project_id: projectId,
+            workspace_id: personalWorkspaceId,
+            created_by: user.id,
           },
         });
       }
