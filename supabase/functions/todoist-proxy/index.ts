@@ -456,7 +456,15 @@ serve(async (req) => {
         .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", inboxProjectId);
       const existingByKey = new Map<string, any>();
       for (const t of existingTasks || []) {
-        existingByKey.set(`${t.title.toLowerCase()}|${t.due_date || ""}|${t.parent_id || ""}`, t);
+        existingByKey.set(
+          buildTaskDedupKey({
+            title: t.title,
+            dueDate: t.due_date,
+            recurrenceRule: t.recurrence_rule,
+            parentId: t.parent_id,
+          }),
+          t,
+        );
       }
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
@@ -468,7 +476,12 @@ serve(async (req) => {
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
-        const key = `${tt.content.toLowerCase()}|${dueDate || ""}|${tt.parent_id || ""}`;
+        const key = buildTaskDedupKey({
+          title: tt.content,
+          dueDate,
+          recurrenceRule,
+          parentId: tt.parent_id,
+        });
         const existing = existingByKey.get(key);
         if (existing) {
           const patch = mergeImportedTask(existing, {
