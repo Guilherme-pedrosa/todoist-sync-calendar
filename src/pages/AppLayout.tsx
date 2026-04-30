@@ -10,6 +10,7 @@ import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
+import { MobileTopBar } from '@/components/MobileTopBar';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
 import { ChatLauncher } from '@/components/ChatLauncher';
 import { MentionNotifier } from '@/components/MentionNotifier';
