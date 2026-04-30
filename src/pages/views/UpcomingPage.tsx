@@ -419,6 +419,7 @@ function WeekGrid({
 
   const finishDrag = useCallback(async () => {
     const currentDrag = dragRef.current;
+    dragRef.current = null;
     setDrag(null);
     if (!currentDrag) return;
 
@@ -456,6 +457,7 @@ function WeekGrid({
   }, [openQuickAdd, updateWithPrompt]);
 
   const cancelDrag = useCallback(() => {
+    dragRef.current = null;
     setDrag(null);
     setPreview({});
     setCreateBox(null);
