@@ -650,6 +650,23 @@ serve(async (req) => {
   }
 
   // === Legacy passthrough: /todoist-proxy?endpoint=projects ===
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !supabaseKey) {
+    return json({ error: "Configuração do servidor inválida" }, 500);
+  }
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return json({ error: "Não autorizado" }, 401);
+  const userToken = authHeader.replace("Bearer ", "");
+  const { data: { user }, error: userError } = await supabase.auth.getUser(userToken);
+  if (userError || !user) return json({ error: "Usuário inválido" }, 401);
+
+  const TODOIST_API_KEY = await getUserTodoistToken(supabase, user.id);
+  if (!TODOIST_API_KEY) {
+    return json({ error: "Token do Todoist não configurado. Vá em Configurações → Integrações." }, 400);
+  }
+
   const endpoint = url.searchParams.get("endpoint") || "projects";
   try {
     const res = await fetch(`${TODOIST_BASE}/${endpoint}`, {
