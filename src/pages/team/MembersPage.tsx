@@ -122,6 +122,48 @@ export default function MembersPage() {
     }
   };
 
+  const openEdit = (m: { userId: string; displayName: string | null }) => {
+    setEditing({ userId: m.userId, displayName: m.displayName || '' });
+    setEditForm({ display_name: m.displayName || '', email: '', password: '' });
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!currentWorkspaceId || !editing) return;
+    const payload: Record<string, any> = {
+      action: 'update_member',
+      workspace_id: currentWorkspaceId,
+      user_id: editing.userId,
+    };
+    if (editForm.display_name.trim() && editForm.display_name.trim() !== editing.displayName) {
+      payload.display_name = editForm.display_name.trim();
+    }
+    if (editForm.email.trim()) payload.email = editForm.email.trim();
+    if (editForm.password) {
+      if (editForm.password.length < 8) {
+        toast.error('Senha precisa ter pelo menos 8 caracteres');
+        return;
+      }
+      payload.password = editForm.password;
+    }
+    if (!payload.display_name && !payload.email && !payload.password) {
+      toast.error('Nada para alterar');
+      return;
+    }
+    setEditSubmitting(true);
+    try {
+      await callAdminFn(payload);
+      toast.success('Membro atualizado');
+      setEditOpen(false);
+      setEditing(null);
+      fetchMembers(currentWorkspaceId);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-auto p-6 max-w-5xl mx-auto w-full">
       <div className="flex items-center justify-between mb-6">
