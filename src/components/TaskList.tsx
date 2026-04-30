@@ -63,6 +63,16 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
 
+  // Per-view "show completed" preference (not used in `completed` view itself)
+  const showCompletedKey =
+    view === 'project' && projectId
+      ? `project:${projectId}`
+      : view === 'label' && labelId
+        ? `label:${labelId}`
+        : view;
+  const [showCompleted, setShowCompleted] = useShowCompleted(showCompletedKey);
+  const supportsCompletedToggle = view !== 'completed' && view !== 'upcoming';
+
   // Load sections for project view
   useEffect(() => {
     setOrderOverride(null);
