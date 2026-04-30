@@ -797,6 +797,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
   },
 
+  deleteTask: async (id) => {
     const task = get().tasks.find((t) => t.id === id);
     const children = get().tasks.filter((t) => t.parentId === id);
 
