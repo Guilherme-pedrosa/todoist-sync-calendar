@@ -536,11 +536,21 @@ function WeekGrid({
     };
   }, [!!drag, cancelDrag, finishDrag, updateDragPreview]);
 
-  // Now indicator
+  // Now indicator — atualiza a cada 30s e sempre que a aba volta a ficar visível/focada
   const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(t);
+    const tick = () => setNow(new Date());
+    const t = setInterval(tick, 30_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    window.addEventListener('focus', tick);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
   const nowMin = now.getHours() * 60 + now.getMinutes();
 
