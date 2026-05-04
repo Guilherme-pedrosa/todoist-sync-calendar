@@ -293,7 +293,7 @@ export function ScheduleMeetingDialog({
         console.warn('[meeting] GCal opcional falhou', e);
       }
 
-      toast.success('Reunião agendada!', {
+      toast.success(convertTaskId ? 'Tarefa convertida em reunião!' : 'Reunião agendada!', {
         description: `${invitees.length} convite(s) enviado(s)`,
       });
       onOpenChange(false);
