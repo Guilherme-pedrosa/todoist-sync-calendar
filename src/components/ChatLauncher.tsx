@@ -85,7 +85,7 @@ export function ChatLauncher() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -380, opacity: 0 }}
             transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="fixed bottom-20 left-4 z-40 w-[380px] h-[560px] bg-popover border rounded-xl shadow-2xl flex flex-col overflow-hidden"
+            className="fixed bottom-20 right-4 z-40 w-[380px] h-[560px] bg-popover border rounded-xl shadow-2xl flex flex-col overflow-hidden"
           >
             <header className="flex items-center justify-between px-3 py-2 border-b">
               <h3 className="font-semibold text-sm">Conversas</h3>
