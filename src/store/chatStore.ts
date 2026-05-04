@@ -439,6 +439,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     [msg.conversationId]: (ss.unreadByConversation[msg.conversationId] || 0) + 1,
                   },
                 }));
+                emitIncomingChat({
+                  message: {
+                    id: msg.id,
+                    conversationId: msg.conversationId,
+                    userId: msg.userId,
+                    body: msg.body,
+                  },
+                  conversationTitle: conv.title,
+                  conversationType: conv.type,
+                  taskId: conv.taskId,
+                });
               }
             });
             return { messagesByConversation: newMessages };
