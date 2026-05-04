@@ -36,8 +36,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status';
+export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee';
 
 export interface KanbanSection {
   id: string;
@@ -119,7 +123,14 @@ function writeManualKanban(storageKey: string, board: ManualKanbanState) {
   window.localStorage.setItem(storageKey, JSON.stringify({ columns: board.columns, taskColumns: board.taskColumns }));
 }
 
-export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, projectId }: KanbanBoardProps) {
+  if (groupBy === 'assignee') {
+    return <AssigneeKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
+  }
+  return <ManualKanban tasks={tasks} boardKey={boardKey} newTaskDefaults={newTaskDefaults} />;
+}
+
+function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
@@ -283,6 +294,182 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
         )}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+// ---------------- Assignee Kanban (auto by responsible person) ----------------
+
+const UNASSIGNED_COLUMN_ID = 'assignee-none';
+
+function AssigneeKanban({ tasks, projectId, newTaskDefaults }: { tasks: Task[]; projectId?: string; newTaskDefaults?: KanbanBoardProps['newTaskDefaults'] }) {
+  const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const members = useWorkspaceStore((s) => s.members);
+  const { user } = useAuth();
+  const tasksFromStore = useTaskStore((s) => s.tasks);
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+  const columns = useMemo(() => {
+    const cols = members.map((m) => ({
+      id: `assignee:${m.userId}`,
+      userId: m.userId,
+      title: (m.displayName || m.email || 'Membro').toString(),
+    }));
+    cols.push({ id: UNASSIGNED_COLUMN_ID, userId: '', title: 'Sem responsável' });
+    return cols;
+  }, [members]);
+
+  const tasksByColumn = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const c of columns) map.set(c.id, []);
+    for (const t of tasks) {
+      const ids = (t.assigneeIds || []).filter(Boolean);
+      if (ids.length === 0) {
+        map.get(UNASSIGNED_COLUMN_ID)!.push(t);
+        continue;
+      }
+      let placed = false;
+      for (const uid of ids) {
+        const col = map.get(`assignee:${uid}`);
+        if (col) {
+          col.push(t);
+          placed = true;
+        }
+      }
+      if (!placed) map.get(UNASSIGNED_COLUMN_ID)!.push(t);
+    }
+    return map;
+  }, [tasks, columns]);
+
+  const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
+
+  const reassignTask = async (taskId: string, targetUserId: string | null) => {
+    const task = tasksFromStore.find((t) => t.id === taskId);
+    if (!task) return;
+    const prev = task.assigneeIds || [];
+    const next = targetUserId ? [targetUserId] : [];
+    if (prev.length === next.length && prev.every((id, i) => id === next[i])) return;
+
+    useTaskStore.setState((state: any) => ({
+      tasks: state.tasks.map((t: Task) => (t.id === taskId ? { ...t, assigneeIds: next } : t)),
+    }));
+
+    try {
+      await supabase.from('task_assignees').delete().eq('task_id', taskId);
+      if (next.length > 0 && user) {
+        await supabase
+          .from('task_assignees')
+          .insert(next.map((uid) => ({ task_id: taskId, user_id: uid, assigned_by: user.id })));
+      }
+    } catch (err) {
+      console.error('Failed to reassign task', err);
+      toast.error('Não foi possível reatribuir a tarefa');
+      useTaskStore.setState((state: any) => ({
+        tasks: state.tasks.map((t: Task) => (t.id === taskId ? { ...t, assigneeIds: prev } : t)),
+      }));
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const taskId = String(active.id);
+    const overId = String(over.id);
+    const col = columns.find((c) => c.id === overId);
+    if (!col) return;
+    const targetUserId = col.id === UNASSIGNED_COLUMN_ID ? null : col.userId;
+    void reassignTask(taskId, targetUserId);
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+      onDragCancel={() => setActiveId(null)}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin">
+        <div className="flex gap-3 px-3 sm:px-6 py-4 h-full min-w-max">
+          {columns.map((col) => (
+            <AssigneeColumn
+              key={col.id}
+              id={col.id}
+              title={col.title}
+              tasks={tasksByColumn.get(col.id) || []}
+              onAddTask={() => {
+                openQuickAdd({
+                  ...(newTaskDefaults || {}),
+                  ...(projectId ? { projectId } : {}),
+                  ...(col.userId ? { assigneeIds: [col.userId] } : {}),
+                } as any);
+              }}
+              onOpenTask={(id) => openTaskDetail(id)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <DragOverlay>
+        {activeTask && (
+          <div className="rounded-md border border-border bg-card shadow-lg px-3 py-2 text-sm w-[260px]">
+            {activeTask.title}
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function AssigneeColumn({
+  id,
+  title,
+  tasks,
+  onAddTask,
+  onOpenTask,
+}: {
+  id: string;
+  title: string;
+  tasks: Task[];
+  onAddTask: () => void;
+  onOpenTask: (id: string) => void;
+}) {
+  const { isOver, setNodeRef } = useDroppable({ id });
+  return (
+    <div className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <h3 className="text-xs font-semibold uppercase tracking-wider truncate" title={title}>
+            {title}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">{tasks.length}</span>
+        </div>
+        <button
+          onClick={onAddTask}
+          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+          aria-label="Adicionar tarefa"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={cn(
+          'flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1.5 min-h-[120px]',
+          isOver && 'bg-primary/5 ring-2 ring-primary/30 rounded-b-lg'
+        )}
+      >
+        {tasks.map((task) => (
+          <KanbanCard key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
+        ))}
+        {tasks.length === 0 && (
+          <div className="text-[11px] text-muted-foreground/60 text-center py-4">Vazio</div>
+        )}
+      </div>
+    </div>
   );
 }
 

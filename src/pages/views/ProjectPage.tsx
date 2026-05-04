@@ -71,6 +71,15 @@ export default function ProjectPage() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const boardGroupKey = `taskflow.kanban.group.${projectId}`;
+  const [boardGroup, setBoardGroupState] = useState<'manual' | 'assignee'>(() => {
+    if (typeof window === 'undefined') return 'manual';
+    return (window.localStorage.getItem(boardGroupKey) as any) || 'manual';
+  });
+  const setBoardGroup = (v: 'manual' | 'assignee') => {
+    setBoardGroupState(v);
+    if (typeof window !== 'undefined') window.localStorage.setItem(boardGroupKey, v);
+  };
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
@@ -199,10 +208,13 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
+      <BoardGroupToolbar projectId={projectId!} value={boardGroup} onChange={setBoardGroup} />
+
       <KanbanBoard
         tasks={projectTasks}
-        boardKey={`project:${projectId}`}
+        boardKey={`project:${projectId}:${boardGroup}`}
         projectId={projectId}
+        groupBy={boardGroup === 'assignee' ? 'assignee' : undefined}
         sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
         newTaskDefaults={{ projectId }}
       />
@@ -410,5 +422,43 @@ function DeleteDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+function BoardGroupToolbar({
+  projectId: _projectId,
+  value,
+  onChange,
+}: {
+  projectId: string;
+  value: 'manual' | 'assignee';
+  onChange: (v: 'manual' | 'assignee') => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-3 sm:px-6 pt-3">
+      <span className="text-xs text-muted-foreground">Agrupar por:</span>
+      <div className="inline-flex rounded-md border border-border overflow-hidden">
+        <button
+          type="button"
+          onClick={() => onChange('manual')}
+          className={cn(
+            'px-2.5 py-1 text-xs',
+            value === 'manual' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+          )}
+        >
+          Manual
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange('assignee')}
+          className={cn(
+            'px-2.5 py-1 text-xs border-l border-border',
+            value === 'assignee' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+          )}
+        >
+          Responsável
+        </button>
+      </div>
+    </div>
   );
 }
