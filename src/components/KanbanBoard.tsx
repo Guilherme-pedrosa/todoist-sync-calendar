@@ -482,6 +482,15 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
                 <CalendarIcon className="h-3 w-3" />
                 {dueLabel}
                 {task.dueTime && ` ${task.dueTime}`}
+                {(task.recurrenceRule || task.recurrence) && (
+                  <Repeat className="h-3 w-3 text-sky-500" aria-label="Tarefa recorrente" />
+                )}
+              </span>
+            )}
+            {!dueLabel && (task.recurrenceRule || task.recurrence) && (
+              <span className="inline-flex items-center gap-1 text-sky-500">
+                <Repeat className="h-3 w-3" />
+                Recorrente
               </span>
             )}
             {project && !project.isInbox && (
