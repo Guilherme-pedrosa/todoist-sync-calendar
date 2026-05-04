@@ -561,7 +561,7 @@ Deno.serve(async (req) => {
                   time: { type: "string", description: "HH:mm 24h; opcional" },
                   durationMinutes: { type: "number" },
                   priority: { type: "number", description: "1=baixa, 4=urgente" },
-                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS); opcional" },
+                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS). OBRIGATÓRIO quando assigneeUserIds estiver preenchido (delegação). NUNCA use o projeto marcado como CAIXA DE ENTRADA para delegar — ele é privado." },
                   recurrenceRule: { type: "string", description: "RRULE iCal; opcional. Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR" },
                   assigneeUserIds: {
                     type: "array",
