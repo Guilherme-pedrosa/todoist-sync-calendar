@@ -90,6 +90,15 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // GET público para o frontend pegar a VAPID public key
+  const url = new URL(req.url);
+  if (req.method === "GET" || url.searchParams.get("action") === "vapid-key") {
+    return new Response(
+      JSON.stringify({ vapid_public_key: VAPID_PUBLIC }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
 
