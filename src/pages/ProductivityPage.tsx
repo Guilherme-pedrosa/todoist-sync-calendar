@@ -353,15 +353,33 @@ export default function ProductivityPage() {
 
   const memberById = (id: string) => members.find((m) => m.user_id === id);
 
-  if (!isOwner) {
+  if (accessChecking) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <div className="flex-1 overflow-auto p-6">
         <Card className="p-8 text-center max-w-xl mx-auto">
-          <Trophy className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <Shield className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <h2 className="font-display text-xl font-semibold mb-2">Painel restrito</h2>
-          <p className="text-muted-foreground text-sm">
-            Apenas o dono do workspace <strong>{currentWs?.name}</strong> pode ver as métricas de produtividade.
+          <p className="text-muted-foreground text-sm mb-4">
+            O painel de Produtividade é privado. Somente administradores autorizados podem acessar.
           </p>
+          {noAdminsYet && (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Nenhum Super Admin configurado ainda. Reivindique o acesso agora:
+              </p>
+              <Button onClick={claimSuperAdmin}>
+                <Crown className="h-4 w-4 mr-2" /> Tornar-me Super Admin
+              </Button>
+            </>
+          )}
         </Card>
       </div>
     );
