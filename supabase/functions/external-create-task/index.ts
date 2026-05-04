@@ -99,19 +99,13 @@ Deno.serve(async (req) => {
 
   const description = body.description ? String(body.description) : null;
 
-  let priority = 1;
-  if (body.priority != null) {
-    const p = String(body.priority).toLowerCase();
-    priority = PRIORITY_MAP[p] ?? (Number(body.priority) || 1);
-    if (priority < 1 || priority > 4) priority = 1;
-  }
+  const priority = parsePriority(body.priority, 1);
 
   let dueAt: string | null = null;
-  if (body.due_at || body.dueAt || body.date) {
-    const raw = body.due_at || body.dueAt || body.date;
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return json({ error: 'Invalid date format' }, 400);
-    dueAt = d.toISOString();
+  try {
+    dueAt = parseDueAt(body.due_at || body.dueAt || body.date);
+  } catch {
+    return json({ error: 'Invalid date format' }, 400);
   }
 
   const projectId = body.project_id || keyRow.default_project_id;
@@ -134,13 +128,7 @@ Deno.serve(async (req) => {
   const assignee = body.assignee ? String(body.assignee) : null;
 
   // Decompose dueAt -> due_date / due_time (campos legados usados pelo app)
-  let due_date: string | null = null;
-  let due_time: string | null = null;
-  if (dueAt) {
-    const d = new Date(dueAt);
-    due_date = d.toISOString().slice(0, 10);
-    due_time = d.toISOString().slice(11, 19);
-  }
+  const { due_date, due_time } = splitDueAt(dueAt);
 
   const taskPayload: Record<string, unknown> = {
     user_id: keyRow.created_by,
