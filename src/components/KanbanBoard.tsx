@@ -32,8 +32,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { User as UserIcon, UserMinus } from 'lucide-react';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useWorkspaceStore } from '@/store/workspaceStore';
