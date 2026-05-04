@@ -558,6 +558,27 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     }
   };
 
+  const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('Sessão expirada');
+    const qs = query ? `&${query}` : '';
+    const r = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=${action}${qs}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+    if (!r.ok) throw new Error(`Calendar ${action} falhou`);
+    return r.json();
+  };
+
   const applyActions = async (msgIndex: number) => {
     const msg = messages[msgIndex];
     if (!msg?.actions?.length) return;
@@ -592,6 +613,50 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           await toggleTask(action.args.taskId);
         } else if (action.type === 'delete_task') {
           await deleteTask(action.args.taskId);
+        } else if (action.type === 'assign_task') {
+          const { data: userData } = await supabase.auth.getUser();
+          const me = userData.user?.id;
+          const { error } = await supabase.from('task_assignees').insert({
+            task_id: action.args.taskId,
+            user_id: action.args.userId,
+            assigned_by: me,
+          });
+          if (error && !error.message?.toLowerCase().includes('duplicate')) throw error;
+        } else if (action.type === 'unassign_task') {
+          const { error } = await supabase
+            .from('task_assignees')
+            .delete()
+            .eq('task_id', action.args.taskId)
+            .eq('user_id', action.args.userId);
+          if (error) throw error;
+        } else if (action.type === 'bulk_reschedule') {
+          for (const item of action.args.items) {
+            const updates: Record<string, any> = {};
+            if (item.clearDate) updates.dueDate = null;
+            else if (item.newDate !== undefined) updates.dueDate = item.newDate;
+            if (item.clearTime) updates.dueTime = null;
+            else if (item.newTime !== undefined) updates.dueTime = item.newTime;
+            await updateTask(item.taskId, updates);
+          }
+        } else if (action.type === 'create_calendar_event') {
+          await callCalendar('create-event', {
+            title: action.args.title,
+            description: action.args.description ?? '',
+            date: action.args.date,
+            time: action.args.time,
+            allDay: action.args.allDay ?? !action.args.time,
+            durationMinutes: action.args.durationMinutes ?? 60,
+          });
+        } else if (action.type === 'delete_calendar_event') {
+          await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(action.args.eventId)}`);
+          setCalendarEvents((prev) => prev.filter((e) => e.id !== action.args.eventId));
+        } else if (action.type === 'clear_calendar_day') {
+          const day = action.args.date;
+          const targets = calendarEvents.filter((e) => e.date === day);
+          for (const ev of targets) {
+            await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(ev.id)}`);
+          }
+          setCalendarEvents((prev) => prev.filter((e) => e.date !== day));
         }
         ok++;
       } catch (err) {
