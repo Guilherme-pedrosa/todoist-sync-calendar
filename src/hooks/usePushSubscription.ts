@@ -77,7 +77,7 @@ export function usePushSubscription() {
       if (!sub) {
         sub = await registration.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapid),
+          applicationServerKey: urlBase64ToUint8Array(vapid).buffer as ArrayBuffer,
         });
       }
 
