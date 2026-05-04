@@ -90,15 +90,21 @@ function readCompleted(source: any): { completed: boolean; completed_at: string 
       source?.is_completed ??
       source?.isCompleted ??
       source?.done ??
+      source?.closed ??
+      source?.resolved ??
       source?.finished ??
       source?.finalizada ??
       source?.finalizado ??
       source?.concluida ??
       source?.concluido ??
+      source?.completion_status ??
+      source?.completionStatus ??
+      source?.state ??
+      source?.situacao ??
       source?.status,
   );
 
-  const completedAtRaw = source?.completed_at ?? source?.completedAt ?? source?.finished_at ?? source?.finishedAt ?? source?.closed_at ?? source?.closedAt;
+  const completedAtRaw = source?.completed_at ?? source?.completedAt ?? source?.finished_at ?? source?.finishedAt ?? source?.closed_at ?? source?.closedAt ?? source?.resolved_at ?? source?.resolvedAt;
   const completedAt = completedAtRaw ? parseDueAt(completedAtRaw) : null;
 
   if (completed === null && !completedAt) return null;
