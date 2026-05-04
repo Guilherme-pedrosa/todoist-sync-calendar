@@ -471,7 +471,7 @@ export function ScheduleMeetingDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={submitting} className={cn('gap-2')}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Agendar e enviar convites
+            {convertTaskId ? 'Converter e enviar convites' : 'Agendar e enviar convites'}
           </Button>
         </DialogFooter>
       </DialogContent>
