@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>TaskFlow Tracker</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --card: #161a22;
+        --border: #262b36;
+        --text: #f4f4f5;
+        --muted: #9aa0ac;
+        --primary: #ff6b1a;
+        --primary-fg: #ffffff;
+        --success: #22c55e;
+        --danger: #ef4444;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        width: 320px;
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", Segoe UI, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header .dot {
+        width: 8px; height: 8px; border-radius: 999px;
+        background: var(--muted);
+      }
+      header .dot.on { background: var(--success); box-shadow: 0 0 8px var(--success); }
+      header .dot.idle { background: #facc15; }
+      h1 {
+        font-size: 14px; margin: 0; font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      main { padding: 14px 16px; }
+      p.help {
+        font-size: 12px; color: var(--muted); margin: 0 0 10px;
+        line-height: 1.5;
+      }
+      textarea {
+        width: 100%;
+        min-height: 110px;
+        padding: 10px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-family: ui-monospace, SF Mono, monospace;
+        font-size: 11px;
+        resize: vertical;
+      }
+      button {
+        width: 100%;
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: none;
+        background: var(--primary);
+        color: var(--primary-fg);
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid var(--border);
+      }
+      button.danger { background: transparent; color: var(--danger); border: 1px solid var(--border); }
+      .row { display: flex; gap: 8px; }
+      .row > button { margin-top: 0; }
+      .stat {
+        display: flex; justify-content: space-between;
+        font-size: 12px; padding: 6px 0;
+        border-bottom: 1px dashed var(--border);
+      }
+      .stat:last-child { border-bottom: 0; }
+      .stat span:first-child { color: var(--muted); }
+      a { color: var(--primary); text-decoration: none; }
+      .err { color: var(--danger); font-size: 11px; margin-top: 8px; }
+      .ok { color: var(--success); font-size: 11px; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="dot" id="dot"></div>
+      <h1>TaskFlow Tracker</h1>
+    </header>
+    <main>
+      <div id="paired" style="display:none">
+        <div class="stat"><span>Status</span><span id="statusVal">—</span></div>
+        <div class="stat"><span>Workspace</span><span id="wsVal">—</span></div>
+        <div class="stat"><span>Sessão</span><span id="sessVal">—</span></div>
+        <div class="row" style="margin-top:12px">
+          <button class="ghost" id="pingBtn">Enviar ping agora</button>
+        </div>
+        <button class="danger" id="unpairBtn">Desconectar</button>
+      </div>
+
+      <div id="unpaired">
+        <p class="help">
+          Cole abaixo o <strong>código de pareamento</strong> gerado em
+          <em>Configurações → Extensão</em> no app TaskFlow.
+        </p>
+        <textarea id="token" placeholder="Cole o código aqui..." spellcheck="false"></textarea>
+        <button id="pairBtn">Conectar</button>
+        <p id="msg"></p>
+      </div>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

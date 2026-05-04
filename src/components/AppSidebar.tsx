@@ -33,6 +33,7 @@ import {
   BarChart3,
   FileText,
   Activity,
+  Chrome,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -524,6 +525,10 @@ export function AppSidebar() {
         <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
           <Activity className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Produtividade</span>
+        </NavLink>
+        <NavLink to="/extensao" className={({ isActive }) => navLinkClass(isActive)}>
+          <Chrome className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Extensão Chrome</span>
         </NavLink>
 
         {/* Favorites */}

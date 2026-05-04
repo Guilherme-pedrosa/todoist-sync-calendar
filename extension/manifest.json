@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "TaskFlow Tracker",
+  "version": "1.0.0",
+  "description": "Captura tempo ativo, idle e aba/janela em foco para o painel de Produtividade do TaskFlow.",
+  "permissions": ["storage", "idle", "tabs", "alarms", "activeTab"],
+  "host_permissions": [
+    "https://scgcbifmcvazmalqqpju.supabase.co/*",
+    "https://taskflowedo.lovable.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": { "service_worker": "background.js" },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
