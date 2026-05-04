@@ -11,6 +11,14 @@ import {
   closestCorners,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { Task, Priority } from '@/types/task';
 import { useTaskStore } from '@/store/taskStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
@@ -73,22 +81,36 @@ interface ManualKanbanState {
 }
 
 const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+const RECURRING_COLUMN_ID = 'manual-recurring';
+const RECURRING_COLUMN: Pick<Column, 'id' | 'title'> = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
+
+function isRecurringTask(t: Task): boolean {
+  return Boolean((t as any).recurrenceRule || (t as any).recurrence);
+}
+
+function ensureRecurringColumn(cols: Pick<Column, 'id' | 'title'>[]): Pick<Column, 'id' | 'title'>[] {
+  if (cols.some((c) => c.id === RECURRING_COLUMN_ID)) return cols;
+  return [...cols, RECURRING_COLUMN];
+}
 
 function getKanbanStorageKey(boardKey?: string) {
   return `taskflow.kanban.manual.${boardKey || 'default'}`;
 }
 
 function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageKey'> {
-  if (typeof window === 'undefined') return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  if (typeof window === 'undefined') return { columns: ensureRecurringColumn([DEFAULT_COLUMN]), taskColumns: {} };
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
-    const columns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    const rawColumns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    const columns = ensureRecurringColumn(
+      rawColumns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') }))
+    );
     return {
-      columns: columns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') })),
+      columns,
       taskColumns: parsed.taskColumns && typeof parsed.taskColumns === 'object' ? parsed.taskColumns : {},
     };
   } catch {
-    return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+    return { columns: ensureRecurringColumn([DEFAULT_COLUMN]), taskColumns: {} };
   }
 }
 
@@ -126,11 +148,20 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const c of columns) map.set(c.id, []);
-    const firstCol = columns[0];
+    const firstNonRecurring = columns.find((c) => c.id !== RECURRING_COLUMN_ID) || columns[0];
     const validIds = new Set(columns.map((c) => c.id));
     for (const t of tasks) {
+      // Recurring tasks always go to the recurring column
+      if (isRecurringTask(t) && map.has(RECURRING_COLUMN_ID)) {
+        map.get(RECURRING_COLUMN_ID)!.push(t);
+        continue;
+      }
       const colId = board.taskColumns[t.id];
-      const targetId = colId && validIds.has(colId) ? colId : firstCol?.id;
+      let targetId = colId && validIds.has(colId) ? colId : firstNonRecurring?.id;
+      // Don't allow non-recurring tasks pinned to recurring column
+      if (targetId === RECURRING_COLUMN_ID && !isRecurringTask(t)) {
+        targetId = firstNonRecurring?.id;
+      }
       if (targetId) map.get(targetId)!.push(t);
     }
     return map;
@@ -142,12 +173,33 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
-    const taskId = String(active.id);
-    const colId = String(over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    // Column reorder: ids prefixed with "col:"
+    if (activeId.startsWith('col:') && overId.startsWith('col:')) {
+      const fromId = activeId.slice(4);
+      const toId = overId.slice(4);
+      setBoard((current) => {
+        const oldIndex = current.columns.findIndex((c) => c.id === fromId);
+        const newIndex = current.columns.findIndex((c) => c.id === toId);
+        if (oldIndex < 0 || newIndex < 0) return current;
+        return { ...current, columns: arrayMove(current.columns, oldIndex, newIndex) };
+      });
+      return;
+    }
+
+    // Task move
+    const taskId = activeId;
+    const colId = overId;
     const col = columns.find((c) => c.id === colId);
     if (!col) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
+    // Block dropping non-recurring tasks into the recurring column (and vice versa)
+    if (colId === RECURRING_COLUMN_ID && !isRecurringTask(task)) return;
+    if (colId !== RECURRING_COLUMN_ID && isRecurringTask(task)) return;
     if (board.taskColumns[taskId] === colId) return;
     setBoard((current) => ({
       ...current,
@@ -174,10 +226,11 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
   };
 
   const deleteColumn = (colId: string) => {
+    if (colId === RECURRING_COLUMN_ID) return; // recurring column is permanent
     setBoard((current) => {
       if (current.columns.length <= 1) return current;
       const remaining = current.columns.filter((c) => c.id !== colId);
-      const fallbackId = remaining[0].id;
+      const fallbackId = remaining.find((c) => c.id !== RECURRING_COLUMN_ID)?.id || remaining[0].id;
       const newTaskColumns: Record<string, string> = { ...current.taskColumns };
       for (const [tid, cid] of Object.entries(newTaskColumns)) {
         if (cid === colId) newTaskColumns[tid] = fallbackId;
@@ -185,6 +238,8 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
       return { ...current, columns: remaining, taskColumns: newTaskColumns };
     });
   };
+
+  const sortableColumnIds = useMemo(() => columns.map((c) => `col:${c.id}`), [columns]);
 
   return (
     <DndContext
@@ -196,23 +251,26 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
     >
       <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin">
         <div className="flex gap-3 px-3 sm:px-6 py-4 h-full min-w-max">
-          {columns.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn.get(col.id) || []}
-              canDelete={columns.length > 1}
-              onAddTask={() => {
-                openQuickAdd({
-                  ...(newTaskDefaults || {}),
-                  ...(col.newTaskDefaults || {}),
-                } as any);
-              }}
-              onOpenTask={(id) => openTaskDetail(id)}
-              onRename={(title) => renameColumn(col.id, title)}
-              onDelete={() => deleteColumn(col.id)}
-            />
-          ))}
+          <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
+            {columns.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                tasks={tasksByColumn.get(col.id) || []}
+                canDelete={col.id !== RECURRING_COLUMN_ID && columns.length > 1}
+                isRecurringColumn={col.id === RECURRING_COLUMN_ID}
+                onAddTask={() => {
+                  openQuickAdd({
+                    ...(newTaskDefaults || {}),
+                    ...(col.newTaskDefaults || {}),
+                  } as any);
+                }}
+                onOpenTask={(id) => openTaskDetail(id)}
+                onRename={(title) => renameColumn(col.id, title)}
+                onDelete={() => deleteColumn(col.id)}
+              />
+            ))}
+          </SortableContext>
           <AddKanbanColumn onAdd={addColumn} />
         </div>
       </div>
@@ -238,6 +296,7 @@ function KanbanColumn({
   onRename,
   onDelete,
   canDelete,
+  isRecurringColumn,
 }: {
   column: Column;
   tasks: Task[];
@@ -246,8 +305,17 @@ function KanbanColumn({
   onRename?: (title: string) => void;
   onDelete?: () => void;
   canDelete?: boolean;
+  isRecurringColumn?: boolean;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: column.id });
+  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: column.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `col:${column.id}` });
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(column.title);
 
@@ -262,10 +330,29 @@ function KanbanColumn({
     setIsRenaming(false);
   };
 
+  const sortStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  } as React.CSSProperties;
+
   return (
-    <div className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full">
+    <div
+      ref={setSortRef}
+      style={sortStyle}
+      className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full"
+    >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-0.5 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+            aria-label="Arrastar coluna"
+            title="Arrastar para reordenar"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
           {column.color && (
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: column.color }} />
           )}
@@ -339,7 +426,7 @@ function KanbanColumn({
         </div>
       </div>
       <div
-        ref={setNodeRef}
+        ref={setDropRef}
         className={cn(
           'flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1.5 min-h-[120px]',
           isOver && 'bg-primary/5 ring-2 ring-primary/30 rounded-b-lg'
