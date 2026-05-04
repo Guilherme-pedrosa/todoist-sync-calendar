@@ -197,15 +197,48 @@ export type AssistantAction =
       };
     }
   | { type: 'complete_task'; args: { taskId: string } }
-  | { type: 'delete_task'; args: { taskId: string } };
+  | { type: 'delete_task'; args: { taskId: string } }
+  | { type: 'assign_task'; args: { taskId: string; userId: string } }
+  | { type: 'unassign_task'; args: { taskId: string; userId: string } }
+  | {
+      type: 'bulk_reschedule';
+      args: {
+        items: {
+          taskId: string;
+          newDate?: string;
+          newTime?: string;
+          clearDate?: boolean;
+          clearTime?: boolean;
+        }[];
+        reason?: string;
+      };
+    }
+  | {
+      type: 'create_calendar_event';
+      args: {
+        title: string;
+        description?: string;
+        date: string;
+        time?: string;
+        durationMinutes?: number;
+        allDay?: boolean;
+      };
+    }
+  | { type: 'delete_calendar_event'; args: { eventId: string } }
+  | { type: 'clear_calendar_day'; args: { date: string } };
+
+export type ChatContextExtras = {
+  members?: { userId: string; name: string; email?: string | null }[];
+  calendarEvents?: { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[];
+};
 
 export async function chatWithAssistant(opts: {
   messages: { role: 'user' | 'assistant'; content: string }[];
   tasks: Task[];
   projects: Project[];
+  extras?: ChatContextExtras;
 }) {
   const ctx = buildContext(opts.tasks, opts.projects);
-  // Catálogo de tarefas e projetos para a IA referenciar por id real
   const taskCatalog = opts.tasks
     .filter((t) => !t.parentId)
     .slice(0, 200)
@@ -217,14 +250,19 @@ export async function chatWithAssistant(opts: {
       priority: t.priority,
       project: opts.projects.find((p) => p.id === t.projectId)?.name ?? null,
       completed: t.completed,
+      assignees: t.assigneeIds ?? [],
     }));
   const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name }));
+  const memberCatalog = opts.extras?.members ?? [];
+  const calendarEvents = opts.extras?.calendarEvents ?? [];
 
   return invoke<{ text: string; actions?: AssistantAction[] }>({
     action: 'chat',
     messages: opts.messages,
     taskCatalog,
     projectCatalog,
+    memberCatalog,
+    calendarEvents,
     ...ctx,
   });
 }
