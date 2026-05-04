@@ -42,9 +42,10 @@ export default function MembersPage() {
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
 
   const [editOpen, setEditOpen] = useState(false);
-  const [editing, setEditing] = useState<{ userId: string; displayName: string } | null>(null);
+  const [editing, setEditing] = useState<{ userId: string; displayName: string; email: string } | null>(null);
   const [editForm, setEditForm] = useState({ display_name: '', email: '', password: '' });
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
 
   // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
@@ -122,10 +123,32 @@ export default function MembersPage() {
     }
   };
 
-  const openEdit = (m: { userId: string; displayName: string | null }) => {
-    setEditing({ userId: m.userId, displayName: m.displayName || '' });
+  const openEdit = async (m: { userId: string; displayName: string | null }) => {
+    setEditing({ userId: m.userId, displayName: m.displayName || '', email: '' });
     setEditForm({ display_name: m.displayName || '', email: '', password: '' });
     setEditOpen(true);
+    setEditLoading(true);
+    try {
+      const data = await callAdminFn({
+        action: 'get_member',
+        workspace_id: currentWorkspaceId,
+        user_id: m.userId,
+      });
+      setEditing({
+        userId: m.userId,
+        displayName: data.display_name || m.displayName || '',
+        email: data.email || '',
+      });
+      setEditForm({
+        display_name: data.display_name || m.displayName || '',
+        email: data.email || '',
+        password: '',
+      });
+    } catch (e: any) {
+      toast.error('Não foi possível carregar dados do membro');
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleEdit = async () => {
@@ -138,7 +161,9 @@ export default function MembersPage() {
     if (editForm.display_name.trim() && editForm.display_name.trim() !== editing.displayName) {
       payload.display_name = editForm.display_name.trim();
     }
-    if (editForm.email.trim()) payload.email = editForm.email.trim();
+    if (editForm.email.trim() && editForm.email.trim() !== editing.email) {
+      payload.email = editForm.email.trim();
+    }
     if (editForm.password) {
       if (editForm.password.length < 8) {
         toast.error('Senha precisa ter pelo menos 8 caracteres');
@@ -336,7 +361,7 @@ export default function MembersPage() {
           <DialogHeader>
             <DialogTitle>Editar membro</DialogTitle>
             <DialogDescription>
-              Atualize nome, e-mail ou redefina a senha. Deixe em branco o que não quiser mudar.
+              Os campos abaixo já mostram os dados atuais. Edite o que precisar e deixe a senha em branco para mantê-la.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -344,23 +369,31 @@ export default function MembersPage() {
               <Label>Nome</Label>
               <Input
                 value={editForm.display_name}
+                disabled={editLoading}
+                placeholder={editLoading ? 'Carregando...' : ''}
                 onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })}
               />
             </div>
             <div>
-              <Label>Novo e-mail (opcional)</Label>
+              <Label>E-mail</Label>
               <Input
                 type="email"
-                placeholder="Deixe em branco para manter"
                 value={editForm.email}
+                disabled={editLoading}
+                placeholder={editLoading ? 'Carregando...' : 'email@exemplo.com'}
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               />
+              {editing?.email && !editLoading && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Atual: {editing.email}
+                </p>
+              )}
             </div>
             <div>
               <Label>Nova senha (opcional, mín. 8)</Label>
               <Input
                 type="text"
-                placeholder="Deixe em branco para manter"
+                placeholder="Deixe em branco para manter a atual"
                 value={editForm.password}
                 onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
               />

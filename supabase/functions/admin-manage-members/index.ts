@@ -201,6 +201,29 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    if (action === 'get_member') {
+      const { user_id } = body;
+      if (!user_id) return json({ error: 'user_id required' }, 400);
+      await assertWorkspaceMember(user_id);
+      const { data: u, error: uErr } = await admin.auth.admin.getUserById(user_id);
+      if (uErr) return json({ error: uErr.message }, 400);
+      const { data: prof } = await admin
+        .from('profiles')
+        .select('display_name, avatar_url')
+        .eq('user_id', user_id)
+        .maybeSingle();
+      return json({
+        user_id,
+        email: u?.user?.email ?? null,
+        display_name:
+          prof?.display_name ??
+          (u?.user?.user_metadata as any)?.full_name ??
+          (u?.user?.user_metadata as any)?.name ??
+          null,
+        avatar_url: prof?.avatar_url ?? null,
+      });
+    }
+
     if (action === 'update_member') {
       const { user_id, display_name, email, password } = body;
       if (!user_id) return json({ error: 'user_id required' }, 400);
