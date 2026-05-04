@@ -98,6 +98,7 @@ const DEFAULT_SETTINGS = {
   reminder_offsets_minutes: [15],
   reminder_channels: ['push', 'email'],
   notify_overdue: true,
+  daily_goal: 5,
   weekly_goal: 30,
   vacation_mode: false,
   days_off: ['6', '0'],
