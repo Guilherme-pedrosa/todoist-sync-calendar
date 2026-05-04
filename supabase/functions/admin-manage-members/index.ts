@@ -124,6 +124,66 @@ Deno.serve(async (req) => {
   // ─── Actions ───────────────────────────────────────────────
   try {
     // ===== WORKSPACE MEMBERS =====
+    // Look up an existing auth user by email — used to decide whether to
+    // create a brand-new account or just link an existing one.
+    if (action === 'lookup_email') {
+      const { email } = body;
+      if (!email) return json({ error: 'email required' }, 400);
+      const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const found = list?.users?.find(
+        (u: any) => u.email?.toLowerCase() === email.toLowerCase(),
+      );
+      if (!found) return json({ exists: false });
+      const { data: prof } = await admin
+        .from('profiles')
+        .select('display_name, avatar_url')
+        .eq('user_id', found.id)
+        .maybeSingle();
+      const { data: existingMember } = await admin
+        .from('workspace_members')
+        .select('role')
+        .eq('workspace_id', workspace_id)
+        .eq('user_id', found.id)
+        .maybeSingle();
+      return json({
+        exists: true,
+        user_id: found.id,
+        email: found.email,
+        display_name:
+          prof?.display_name ??
+          (found.user_metadata as any)?.full_name ??
+          (found.user_metadata as any)?.name ??
+          null,
+        avatar_url: prof?.avatar_url ?? null,
+        already_member: !!existingMember,
+        current_role: existingMember?.role ?? null,
+      });
+    }
+
+    // Link an existing user (by id) to this workspace without creating a new auth account.
+    if (action === 'add_existing') {
+      const { user_id, role } = body;
+      if (!user_id) return json({ error: 'user_id required' }, 400);
+      const memberRole = ['admin', 'member', 'guest'].includes(role) ? role : 'member';
+
+      const { data: u, error: uErr } = await admin.auth.admin.getUserById(user_id);
+      if (uErr || !u?.user) return json({ error: 'User not found' }, 404);
+
+      const { error: insErr } = await admin
+        .from('workspace_members')
+        .upsert(
+          { workspace_id, user_id, role: memberRole },
+          { onConflict: 'workspace_id,user_id' },
+        );
+      if (insErr) return json({ error: insErr.message }, 400);
+
+      await audit('workspace_member', user_id, 'add_existing', null, {
+        role: memberRole,
+        email: u.user.email,
+      });
+      return json({ ok: true, user_id });
+    }
+
     if (action === 'create') {
       const { email, password, display_name, role } = body;
       if (!email || !password) return json({ error: 'email and password required' }, 400);

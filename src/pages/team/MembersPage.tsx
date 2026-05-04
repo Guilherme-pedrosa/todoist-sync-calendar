@@ -40,6 +40,12 @@ export default function MembersPage() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
+  const [lookup, setLookup] = useState<{
+    state: 'idle' | 'searching' | 'new' | 'existing' | 'already_member';
+    user_id?: string;
+    display_name?: string | null;
+    current_role?: string | null;
+  }>({ state: 'idle' });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<{ userId: string; displayName: string; email: string } | null>(null);
@@ -47,7 +53,6 @@ export default function MembersPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
-  // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
     if (currentWorkspaceId && membersWorkspaceId !== currentWorkspaceId) {
       fetchMembers(currentWorkspaceId);
@@ -80,18 +85,74 @@ export default function MembersPage() {
     return json;
   };
 
+  // Debounced email lookup: detecta se já existe usuário com esse e-mail.
+  useEffect(() => {
+    if (!open || !currentWorkspaceId) return;
+    const email = form.email.trim();
+    if (!email || !/.+@.+\..+/.test(email)) {
+      setLookup({ state: 'idle' });
+      return;
+    }
+    setLookup({ state: 'searching' });
+    const t = setTimeout(async () => {
+      try {
+        const data = await callAdminFn({ action: 'lookup_email', workspace_id: currentWorkspaceId, email });
+        if (!data.exists) {
+          setLookup({ state: 'new' });
+        } else if (data.already_member) {
+          setLookup({
+            state: 'already_member',
+            user_id: data.user_id,
+            display_name: data.display_name,
+            current_role: data.current_role,
+          });
+        } else {
+          setLookup({
+            state: 'existing',
+            user_id: data.user_id,
+            display_name: data.display_name,
+          });
+          if (data.display_name) {
+            setForm((f) => (f.display_name ? f : { ...f, display_name: data.display_name }));
+          }
+        }
+      } catch {
+        setLookup({ state: 'idle' });
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.email, open, currentWorkspaceId]);
+
   const handleCreate = async () => {
     if (!currentWorkspaceId) return;
-    if (!form.email || !form.password) {
-      toast.error('Preencha email e senha');
+    if (!form.email) {
+      toast.error('Informe o e-mail');
       return;
     }
     setSubmitting(true);
     try {
-      await callAdminFn({ action: 'create', workspace_id: currentWorkspaceId, ...form });
-      toast.success('Membro adicionado');
+      if (lookup.state === 'existing' && lookup.user_id) {
+        await callAdminFn({
+          action: 'add_existing',
+          workspace_id: currentWorkspaceId,
+          user_id: lookup.user_id,
+          role: form.role,
+        });
+        toast.success('Pessoa vinculada ao workspace');
+      } else if (lookup.state === 'already_member') {
+        toast.error('Essa pessoa já é membro do workspace');
+        return;
+      } else {
+        if (!form.password) {
+          toast.error('Defina uma senha inicial');
+          return;
+        }
+        await callAdminFn({ action: 'create', workspace_id: currentWorkspaceId, ...form });
+        toast.success('Membro adicionado');
+      }
       setOpen(false);
       setForm({ email: '', password: '', display_name: '', role: 'member' });
+      setLookup({ state: 'idle' });
       fetchMembers(currentWorkspaceId);
     } catch (e: any) {
       toast.error(e.message);
@@ -223,9 +284,9 @@ export default function MembersPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Novo membro</DialogTitle>
+                  <DialogTitle>Adicionar pessoa</DialogTitle>
                   <DialogDescription>
-                    Cria a conta diretamente. A pessoa receberá email e senha por outro canal (você).
+                    Digite o e-mail. Se a pessoa já tiver conta, ela será apenas vinculada ao workspace.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
@@ -236,22 +297,46 @@ export default function MembersPage() {
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                     />
+                    {lookup.state === 'searching' && (
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Procurando…
+                      </p>
+                    )}
+                    {lookup.state === 'existing' && (
+                      <p className="text-xs text-primary mt-1">
+                        Conta encontrada{lookup.display_name ? ` — ${lookup.display_name}` : ''}. Será apenas vinculada (sem nova senha).
+                      </p>
+                    )}
+                    {lookup.state === 'already_member' && (
+                      <p className="text-xs text-destructive mt-1">
+                        Esta pessoa já é membro deste workspace ({lookup.current_role}).
+                      </p>
+                    )}
+                    {lookup.state === 'new' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Nenhuma conta encontrada. Vamos criar uma nova.
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <Label>Nome</Label>
-                    <Input
-                      value={form.display_name}
-                      onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Senha inicial (mín. 8 caracteres)</Label>
-                    <Input
-                      type="text"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    />
-                  </div>
+                  {lookup.state !== 'existing' && lookup.state !== 'already_member' && (
+                    <>
+                      <div>
+                        <Label>Nome</Label>
+                        <Input
+                          value={form.display_name}
+                          onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Senha inicial (mín. 8 caracteres)</Label>
+                        <Input
+                          type="text"
+                          value={form.password}
+                          onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label>Papel</Label>
                     <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
@@ -270,9 +355,12 @@ export default function MembersPage() {
                   <Button variant="ghost" onClick={() => setOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleCreate} disabled={submitting}>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={submitting || lookup.state === 'searching' || lookup.state === 'already_member'}
+                  >
                     {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Criar
+                    {lookup.state === 'existing' ? 'Vincular' : 'Criar'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
