@@ -72,11 +72,13 @@ export default function ProjectPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const boardGroupKey = `taskflow.kanban.group.${projectId}`;
-  const [boardGroup, setBoardGroupState] = useState<'manual' | 'assignee'>(() => {
+  const isFleetProject = (project?.name || '').toUpperCase().includes('FROTA');
+  type BoardGroup = 'manual' | 'assignee' | 'vehicle';
+  const [boardGroup, setBoardGroupState] = useState<BoardGroup>(() => {
     if (typeof window === 'undefined') return 'manual';
-    return (window.localStorage.getItem(boardGroupKey) as any) || 'manual';
+    return (window.localStorage.getItem(boardGroupKey) as BoardGroup) || 'manual';
   });
-  const setBoardGroup = (v: 'manual' | 'assignee') => {
+  const setBoardGroup = (v: BoardGroup) => {
     setBoardGroupState(v);
     if (typeof window !== 'undefined') window.localStorage.setItem(boardGroupKey, v);
   };
@@ -208,13 +210,24 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
-      <BoardGroupToolbar projectId={projectId!} value={boardGroup} onChange={setBoardGroup} />
+      <BoardGroupToolbar
+        projectId={projectId!}
+        value={boardGroup}
+        onChange={setBoardGroup}
+        showVehicle={isFleetProject}
+      />
 
       <KanbanBoard
         tasks={projectTasks}
         boardKey={`project:${projectId}:${boardGroup}`}
         projectId={projectId}
-        groupBy={boardGroup === 'assignee' ? 'assignee' : undefined}
+        groupBy={
+          boardGroup === 'assignee'
+            ? 'assignee'
+            : boardGroup === 'vehicle'
+              ? 'vehicle'
+              : undefined
+        }
         sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
         newTaskDefaults={{ projectId }}
       />
@@ -429,35 +442,37 @@ function BoardGroupToolbar({
   projectId: _projectId,
   value,
   onChange,
+  showVehicle,
 }: {
   projectId: string;
-  value: 'manual' | 'assignee';
-  onChange: (v: 'manual' | 'assignee') => void;
+  value: 'manual' | 'assignee' | 'vehicle';
+  onChange: (v: 'manual' | 'assignee' | 'vehicle') => void;
+  showVehicle?: boolean;
 }) {
+  const options: { id: 'manual' | 'assignee' | 'vehicle'; label: string }[] = [
+    { id: 'manual', label: 'Manual' },
+    { id: 'assignee', label: 'Responsável' },
+  ];
+  if (showVehicle) options.push({ id: 'vehicle', label: 'Veículo' });
+
   return (
     <div className="flex items-center gap-2 px-3 sm:px-6 pt-3">
       <span className="text-xs text-muted-foreground">Agrupar por:</span>
       <div className="inline-flex rounded-md border border-border overflow-hidden">
-        <button
-          type="button"
-          onClick={() => onChange('manual')}
-          className={cn(
-            'px-2.5 py-1 text-xs',
-            value === 'manual' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-          )}
-        >
-          Manual
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange('assignee')}
-          className={cn(
-            'px-2.5 py-1 text-xs border-l border-border',
-            value === 'assignee' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-          )}
-        >
-          Responsável
-        </button>
+        {options.map((opt, i) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            className={cn(
+              'px-2.5 py-1 text-xs',
+              i > 0 && 'border-l border-border',
+              value === opt.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );

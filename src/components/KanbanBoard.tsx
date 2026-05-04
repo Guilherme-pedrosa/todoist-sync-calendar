@@ -44,7 +44,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee';
+export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee' | 'vehicle';
+
+/** Extrai placa/modelo do veículo a partir da descrição da task.
+ *  Aceita formatos como "Veículo: ABC1234 (Onix)" ou "Veiculo: ABC-1234". */
+export function extractVehicle(task: Task): { plate: string; label: string } | null {
+  const text = `${task.description || ''}\n${task.title || ''}`;
+  const m = text.match(/Ve[ií]culo:\s*([A-Z0-9-]{4,10})(?:\s*\(([^)]+)\))?/i);
+  if (!m) return null;
+  const plate = m[1].toUpperCase().replace(/\s+/g, '');
+  const model = m[2]?.trim();
+  return { plate, label: model ? `${plate} · ${model}` : plate };
+}
 
 export interface KanbanSection {
   id: string;
@@ -143,6 +154,9 @@ function writeManualKanban(storageKey: string, board: ManualKanbanState) {
 export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, projectId }: KanbanBoardProps) {
   if (groupBy === 'assignee') {
     return <AssigneeKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
+  }
+  if (groupBy === 'vehicle') {
+    return <VehicleKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
   }
   return <ManualKanban tasks={tasks} boardKey={boardKey} newTaskDefaults={newTaskDefaults} />;
 }
@@ -918,3 +932,77 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
   );
 }
 
+
+// ============================================================
+// Vehicle Kanban — uma coluna por veículo (placa + modelo)
+// Detecta veículo a partir do padrão "Veículo: PLACA (Modelo)" na descrição.
+// ============================================================
+const VEHICLE_UNKNOWN_ID = 'vehicle-none';
+
+function VehicleKanban({
+  tasks,
+  projectId,
+  newTaskDefaults,
+}: {
+  tasks: Task[];
+  projectId?: string;
+  newTaskDefaults?: KanbanBoardProps['newTaskDefaults'];
+}) {
+  const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+
+  const { columns, tasksByColumn } = useMemo(() => {
+    const map = new Map<string, { id: string; title: string; plate: string | null; tasks: Task[] }>();
+    for (const t of tasks) {
+      const v = extractVehicle(t);
+      const id = v ? `vehicle:${v.plate}` : VEHICLE_UNKNOWN_ID;
+      const title = v ? v.label : 'Sem veículo';
+      const plate = v ? v.plate : null;
+      if (!map.has(id)) map.set(id, { id, title, plate, tasks: [] });
+      map.get(id)!.tasks.push(t);
+    }
+
+    const cols = Array.from(map.values()).sort((a, b) => {
+      if (a.id === VEHICLE_UNKNOWN_ID) return 1;
+      if (b.id === VEHICLE_UNKNOWN_ID) return -1;
+      return a.title.localeCompare(b.title);
+    });
+
+    const byCol = new Map<string, Task[]>();
+    for (const c of cols) byCol.set(c.id, c.tasks);
+    return { columns: cols, tasksByColumn: byCol };
+  }, [tasks]);
+
+  if (columns.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
+        Nenhuma tarefa em aberto. Adicione descrição no formato "Veículo: PLACA (Modelo)" para agrupar.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin">
+      <div className="flex gap-3 px-3 sm:px-6 py-4 h-full min-w-max">
+        {columns.map((col) => (
+          <AssigneeColumn
+            key={col.id}
+            id={col.id}
+            title={col.title}
+            tasks={tasksByColumn.get(col.id) || []}
+            onAddTask={() => {
+              openQuickAdd({
+                ...(newTaskDefaults || {}),
+                ...(projectId ? { projectId } : {}),
+                ...(col.plate
+                  ? { description: `Veículo: ${col.plate}\n` }
+                  : {}),
+              } as any);
+            }}
+            onOpenTask={(id) => openTaskDetail(id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
