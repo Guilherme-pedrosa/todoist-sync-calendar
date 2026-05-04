@@ -564,6 +564,8 @@ function KanbanColumn({
   onDelete,
   canDelete,
   isRecurringColumn,
+  members,
+  onSetAssignee,
 }: {
   column: Column;
   tasks: Task[];
@@ -573,6 +575,8 @@ function KanbanColumn({
   onDelete?: () => void;
   canDelete?: boolean;
   isRecurringColumn?: boolean;
+  members?: { userId: string; displayName: string | null; email: string | null }[];
+  onSetAssignee?: (userId: string | null) => void;
 }) {
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: column.id });
   const {
