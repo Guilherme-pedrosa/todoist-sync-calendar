@@ -147,6 +147,8 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, project
 function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const members = useWorkspaceStore((s) => s.members);
+  const { user } = useAuth();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
