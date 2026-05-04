@@ -89,7 +89,7 @@ export default function ProductivityPage() {
       .gte("day", sinceStr)
       .order("day", { ascending: false });
 
-    setStats((rows as DailyStat[] | null) || []);
+    setStats(((rows as unknown) as DailyStat[]) || []);
 
     // members of workspace
     const { data: wm } = await supabase
