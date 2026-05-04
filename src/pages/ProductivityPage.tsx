@@ -68,19 +68,117 @@ export default function ProductivityPage() {
   const [members, setMembers] = useState<MemberLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>("all");
 
-  // owner check
-  useEffect(() => {
-    if (!currentWorkspaceId || !user) return;
-    supabase
-      .from("workspaces")
-      .select("owner_id")
-      .eq("id", currentWorkspaceId)
-      .maybeSingle()
-      .then(({ data }) => setIsOwner(data?.owner_id === user.id));
-  }, [currentWorkspaceId, user]);
+  // Acesso ao painel via productivity_admins
+  const [accessChecking, setAccessChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuper, setIsSuper] = useState(false);
+  const [noAdminsYet, setNoAdminsYet] = useState(false);
+  const [admins, setAdmins] = useState<Array<{ user_id: string; is_super: boolean; display_name: string | null; avatar_url: string | null }>>([]);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const refreshAccess = async () => {
+    if (!user) return;
+    setAccessChecking(true);
+    const { data: me } = await supabase
+      .from("productivity_admins")
+      .select("user_id,is_super")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (me) {
+      setIsAdmin(true);
+      setIsSuper(!!me.is_super);
+      setNoAdminsYet(false);
+    } else {
+      setIsAdmin(false);
+      setIsSuper(false);
+      // Se não há nenhum admin, qualquer usuário pode se cadastrar como super
+      const { count } = await supabase
+        .from("productivity_admins")
+        .select("user_id", { count: "exact", head: true });
+      setNoAdminsYet((count ?? 0) === 0);
+    }
+    setAccessChecking(false);
+  };
+
+  useEffect(() => { void refreshAccess(); /* eslint-disable-next-line */ }, [user]);
+
+  const claimSuperAdmin = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("productivity_admins")
+      .insert({ user_id: user.id, is_super: true });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Você agora é o Super Admin do painel de Produtividade");
+    await refreshAccess();
+  };
+
+  const loadAdmins = async () => {
+    const { data } = await supabase
+      .from("productivity_admins")
+      .select("user_id,is_super");
+    const list = data || [];
+    if (list.length === 0) { setAdmins([]); return; }
+    const ids = list.map((a: any) => a.user_id);
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("user_id,display_name,avatar_url")
+      .in("user_id", ids);
+    const profMap = new Map((profs || []).map((p: any) => [p.user_id, p]));
+    setAdmins(list.map((a: any) => ({
+      user_id: a.user_id,
+      is_super: a.is_super,
+      display_name: profMap.get(a.user_id)?.display_name ?? null,
+      avatar_url: profMap.get(a.user_id)?.avatar_url ?? null,
+    })));
+  };
+
+  useEffect(() => { if (manageOpen) void loadAdmins(); }, [manageOpen]);
+
+  const addAdminByEmail = async () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!email) return;
+    setAdding(true);
+    try {
+      // Busca user_id pelo email via edge function admin (auth.users não é acessível via RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/lookup-user-by-email`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok || !j.user_id) throw new Error(j.error || "Usuário não encontrado");
+      const { error } = await supabase
+        .from("productivity_admins")
+        .insert({ user_id: j.user_id, is_super: false, added_by: user!.id });
+      if (error) throw error;
+      toast.success(`${email} agora tem acesso ao painel`);
+      setNewEmail("");
+      await loadAdmins();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeAdmin = async (uid: string) => {
+    const { error } = await supabase.from("productivity_admins").delete().eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Acesso removido");
+    await loadAdmins();
+  };
 
   const load = async () => {
     if (!currentWorkspaceId) return;
