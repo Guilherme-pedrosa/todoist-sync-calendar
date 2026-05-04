@@ -155,6 +155,54 @@ export type Database = {
         }
         Relationships: []
       }
+      activity_url_visits: {
+        Row: {
+          created_at: string
+          domain: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          path: string | null
+          session_id: string | null
+          started_at: string
+          title: string | null
+          user_id: string
+          was_focused: boolean
+          was_idle: boolean
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          path?: string | null
+          session_id?: string | null
+          started_at?: string
+          title?: string | null
+          user_id: string
+          was_focused?: boolean
+          was_idle?: boolean
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          path?: string | null
+          session_id?: string | null
+          started_at?: string
+          title?: string | null
+          user_id?: string
+          was_focused?: boolean
+          was_idle?: boolean
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       automations: {
         Row: {
           actions: Json
@@ -353,16 +401,20 @@ export type Database = {
           by_project: Json
           computed_at: string
           day: string
+          distracting_seconds: number
           first_seen_at: string | null
           hourly_buckets: Json
           id: string
           idle_seconds: number
           last_seen_at: string | null
+          neutral_seconds: number
           online_seconds: number
+          productive_seconds: number
           sessions_count: number
           tasks_completed: number
           tasks_completed_inbox: number
           tasks_completed_with_project: number
+          top_domains: Json
           user_id: string
           workspace_id: string
         }
@@ -372,16 +424,20 @@ export type Database = {
           by_project?: Json
           computed_at?: string
           day: string
+          distracting_seconds?: number
           first_seen_at?: string | null
           hourly_buckets?: Json
           id?: string
           idle_seconds?: number
           last_seen_at?: string | null
+          neutral_seconds?: number
           online_seconds?: number
+          productive_seconds?: number
           sessions_count?: number
           tasks_completed?: number
           tasks_completed_inbox?: number
           tasks_completed_with_project?: number
+          top_domains?: Json
           user_id: string
           workspace_id: string
         }
@@ -391,17 +447,51 @@ export type Database = {
           by_project?: Json
           computed_at?: string
           day?: string
+          distracting_seconds?: number
           first_seen_at?: string | null
           hourly_buckets?: Json
           id?: string
           idle_seconds?: number
           last_seen_at?: string | null
+          neutral_seconds?: number
           online_seconds?: number
+          productive_seconds?: number
           sessions_count?: number
           tasks_completed?: number
           tasks_completed_inbox?: number
           tasks_completed_with_project?: number
+          top_domains?: Json
           user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      domain_categories: {
+        Row: {
+          category: string
+          color: string | null
+          created_at: string
+          created_by: string | null
+          domain: string
+          id: string
+          workspace_id: string
+        }
+        Insert: {
+          category: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          domain: string
+          id?: string
+          workspace_id: string
+        }
+        Update: {
+          category?: string
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          domain?: string
+          id?: string
           workspace_id?: string
         }
         Relationships: []

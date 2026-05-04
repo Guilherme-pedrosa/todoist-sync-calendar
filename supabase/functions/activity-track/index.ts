@@ -131,10 +131,84 @@ serve(async (req) => {
       return json({ ok: true, duration_seconds: dur });
     }
 
+    // ---- url_visit_start: open a new URL visit (closes any previous open one for this user)
+    if (action === "url_visit_start") {
+      const sessionId = body.session_id ? String(body.session_id) : null;
+      const domain = String(body.domain || "").slice(0, 200).toLowerCase();
+      const path = body.path ? String(body.path).slice(0, 500) : null;
+      const title = body.title ? String(body.title).slice(0, 300) : null;
+      const wasFocused = body.was_focused !== false;
+      if (!domain) return json({ error: "domain required" }, 400);
+
+      // close previous open visit (if any)
+      const nowIso = new Date().toISOString();
+      const { data: open } = await supabase
+        .from("activity_url_visits")
+        .select("id, started_at")
+        .eq("user_id", user.id)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (open) {
+        const dur = Math.max(1, Math.floor((Date.now() - new Date(open.started_at).getTime()) / 1000));
+        // ignore tiny visits (<2s) to reduce noise
+        if (dur < 2) {
+          await supabase.from("activity_url_visits").delete().eq("id", open.id);
+        } else {
+          await supabase
+            .from("activity_url_visits")
+            .update({ ended_at: nowIso, duration_seconds: dur })
+            .eq("id", open.id);
+        }
+      }
+
+      const { data, error } = await supabase
+        .from("activity_url_visits")
+        .insert({
+          user_id: user.id,
+          workspace_id: workspaceId,
+          session_id: sessionId,
+          domain,
+          path,
+          title,
+          was_focused: wasFocused,
+        })
+        .select("id")
+        .single();
+      if (error) return json({ error: error.message }, 400);
+      return json({ visit_id: data.id });
+    }
+
+    // ---- url_visit_end: close current open visit
+    if (action === "url_visit_end") {
+      const { data: open } = await supabase
+        .from("activity_url_visits")
+        .select("id, started_at")
+        .eq("user_id", user.id)
+        .is("ended_at", null)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!open) return json({ ok: true });
+      const dur = Math.max(1, Math.floor((Date.now() - new Date(open.started_at).getTime()) / 1000));
+      await supabase
+        .from("activity_url_visits")
+        .update({ ended_at: new Date().toISOString(), duration_seconds: dur })
+        .eq("id", open.id);
+      return json({ ok: true, duration_seconds: dur });
+    }
+
     // ---- end: close session
     if (action === "end") {
       const sessionId = String(body.session_id || "");
       if (!sessionId) return json({ error: "session_id required" }, 400);
+      // close any open visit too
+      await supabase
+        .from("activity_url_visits")
+        .update({ ended_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .is("ended_at", null);
       await supabase
         .from("activity_sessions")
         .update({ ended_at: new Date().toISOString(), last_seen_at: new Date().toISOString() })

@@ -167,32 +167,84 @@ serve(async (req) => {
         ta.by_project[pid].tasks += 1;
       }
 
+      // 3.5) URL visits per user/workspace
+      const { data: visits } = await supabase
+        .from("activity_url_visits")
+        .select("user_id, workspace_id, domain, started_at, ended_at, duration_seconds")
+        .gte("started_at", dayStart)
+        .lte("started_at", dayEnd);
+
+      // load all domain categories per workspace seen
+      const wsSeen = new Set<string>();
+      for (const v of (visits as any[] | null) || []) wsSeen.add(v.workspace_id);
+      const catMap = new Map<string, string>(); // `${ws}|${domain}` -> category
+      if (wsSeen.size) {
+        const { data: cats } = await supabase
+          .from("domain_categories")
+          .select("workspace_id, domain, category")
+          .in("workspace_id", [...wsSeen]);
+        for (const c of (cats as any[] | null) || []) {
+          catMap.set(`${c.workspace_id}|${c.domain}`, c.category);
+        }
+      }
+
+      const urlAgg = new Map<string, {
+        productive: number; neutral: number; distracting: number;
+        byDomain: Record<string, { seconds: number; category: string }>;
+      }>();
+
+      for (const v of (visits as any[] | null) || []) {
+        const dur = v.duration_seconds ||
+          (v.ended_at ? Math.floor((new Date(v.ended_at).getTime() - new Date(v.started_at).getTime()) / 1000) : 0);
+        if (dur < 1) continue;
+        const key = `${v.user_id}|${v.workspace_id}`;
+        let ua = urlAgg.get(key);
+        if (!ua) { ua = { productive: 0, neutral: 0, distracting: 0, byDomain: {} }; urlAgg.set(key, ua); }
+        const cat = catMap.get(`${v.workspace_id}|${v.domain}`) || "neutral";
+        if (cat === "productive") ua.productive += dur;
+        else if (cat === "distracting") ua.distracting += dur;
+        else ua.neutral += dur;
+        if (!ua.byDomain[v.domain]) ua.byDomain[v.domain] = { seconds: 0, category: cat };
+        ua.byDomain[v.domain].seconds += dur;
+      }
+
       // 4) write daily_activity_stats
-      const allKeys = new Set<string>([...buckets.keys(), ...taskAgg.keys()]);
+      const allKeys = new Set<string>([...buckets.keys(), ...taskAgg.keys(), ...urlAgg.keys()]);
       for (const key of allKeys) {
         const [user_id, workspace_id] = key.split("|");
         const agg = buckets.get(key);
         const tasks = taskAgg.get(key);
+        const urls = urlAgg.get(key);
 
         const active = agg?.active || 0;
         const idle = agg?.idle || 0;
         const online = agg?.online || 0;
         const tasksCompleted = tasks?.total || 0;
 
-        // score: 40% activity ratio + 40% productivity (capped at 10 tasks) + 20% low-idle
+        const productive = urls?.productive || 0;
+        const neutral = urls?.neutral || 0;
+        const distracting = urls?.distracting || 0;
+        const topDomains = Object.entries(urls?.byDomain || {})
+          .map(([domain, v]) => ({ domain, seconds: v.seconds, category: v.category }))
+          .sort((a, b) => b.seconds - a.seconds)
+          .slice(0, 15);
+
+        // score: 30% activity ratio + 30% productivity (10 tasks) + 20% low-idle + 20% productive sites ratio
         const activityRatio = online > 0 ? active / online : 0;
         const productivity = Math.min(1, tasksCompleted / 10);
         const lowIdle = online > 0 ? 1 - idle / online : 0;
-        const score = Math.round((0.4 * activityRatio + 0.4 * productivity + 0.2 * lowIdle) * 100);
+        const totalUrl = productive + neutral + distracting;
+        const productiveRatio = totalUrl > 0
+          ? (productive + neutral * 0.5) / totalUrl - (distracting / totalUrl) * 0.5
+          : 0;
+        const score = Math.max(0, Math.round(
+          (0.3 * activityRatio + 0.3 * productivity + 0.2 * lowIdle + 0.2 * Math.max(0, productiveRatio)) * 100
+        ));
 
         await supabase.from("daily_activity_stats").upsert(
           {
-            user_id,
-            workspace_id,
-            day,
-            active_seconds: active,
-            idle_seconds: idle,
-            online_seconds: online,
+            user_id, workspace_id, day,
+            active_seconds: active, idle_seconds: idle, online_seconds: online,
             sessions_count: agg?.sessions || 0,
             first_seen_at: agg?.first || null,
             last_seen_at: agg?.last || null,
@@ -202,6 +254,10 @@ serve(async (req) => {
             activity_score: score,
             hourly_buckets: agg?.hourly || {},
             by_project: tasks?.by_project || {},
+            productive_seconds: productive,
+            neutral_seconds: neutral,
+            distracting_seconds: distracting,
+            top_domains: topDomains,
             computed_at: new Date().toISOString(),
           },
           { onConflict: "user_id,workspace_id,day" },
