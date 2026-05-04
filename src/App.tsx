@@ -22,6 +22,7 @@ import WorkloadPage from "./pages/team/WorkloadPage";
 import ConversationsPage from "./pages/Conversations";
 import TranskriptorPage from "./pages/TranskriptorPage";
 import ProductivityPage from "./pages/ProductivityPage";
+import ExtensionPage from "./pages/ExtensionPage";
 import EmbedChat from "./pages/EmbedChat";
 import Auth from "./pages/Auth";
 import CalendarCallback from "./pages/CalendarCallback";
