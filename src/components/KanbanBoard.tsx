@@ -525,12 +525,14 @@ function AssigneeColumn({
   id,
   title,
   tasks,
+  subtasksByParent,
   onAddTask,
   onOpenTask,
 }: {
   id: string;
   title: string;
   tasks: Task[];
+  subtasksByParent?: Map<string, Task[]>;
   onAddTask: () => void;
   onOpenTask: (id: string) => void;
 }) {
@@ -560,7 +562,13 @@ function AssigneeColumn({
         )}
       >
         {tasks.map((task) => (
-          <KanbanCard key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
+          <KanbanCard
+            key={task.id}
+            task={task}
+            subtasks={subtasksByParent?.get(task.id) || []}
+            onOpen={() => onOpenTask(task.id)}
+            onOpenSubtask={onOpenTask}
+          />
         ))}
         {tasks.length === 0 && (
           <div className="text-[11px] text-muted-foreground/60 text-center py-4">Vazio</div>
