@@ -374,9 +374,11 @@ async function syncGoogleCalendarEvents(
       nextTasks.map((task) => getTaskDuplicateKey(task)).filter((key): key is string => Boolean(key))
     );
     const seenCalendarKeys = new Set<string>();
+    const seenEventIds = new Set<string>();
 
     for (const event of events) {
       if (!event.id) continue;
+      seenEventIds.add(event.id);
       const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
       const eventKey = getCalendarEventDuplicateKey(event);
       if (!eventKey || seenCalendarKeys.has(eventKey)) continue;
