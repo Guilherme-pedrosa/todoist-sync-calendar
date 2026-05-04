@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
