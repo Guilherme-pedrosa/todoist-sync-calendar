@@ -453,6 +453,27 @@ async function syncGoogleCalendarEvents(
       resultTasks = [...syncedTasks, ...nextTasks];
     }
 
+    // Remove tarefas locais cujo evento do Google Calendar foi apagado/cancelado
+    // dentro da janela sincronizada (evita "fantasmas" no Hoje).
+    const rangeStartStr = startOfRange.toISOString().split('T')[0];
+    const rangeEndStr = endOfRange.toISOString().split('T')[0];
+    const orphanIds = resultTasks
+      .filter(
+        (task) =>
+          !!task.googleCalendarEventId &&
+          !seenEventIds.has(task.googleCalendarEventId) &&
+          !!task.dueDate &&
+          task.dueDate >= rangeStartStr &&
+          task.dueDate <= rangeEndStr &&
+          !task.completed
+      )
+      .map((task) => task.id);
+
+    if (orphanIds.length > 0) {
+      await supabase.from('tasks').delete().in('id', orphanIds);
+      resultTasks = resultTasks.filter((task) => !orphanIds.includes(task.id));
+    }
+
     return resultTasks;
   } catch (error) {
     console.error('Falha na sincronização com Google Calendar:', error);
