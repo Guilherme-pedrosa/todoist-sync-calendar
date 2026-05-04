@@ -153,19 +153,18 @@ export function AppSidebar() {
     };
   }, [user]);
 
-  // Produtividade/Extensão só aparecem para donos de workspace (não-pessoal)
-  const [isAnyWorkspaceOwner, setIsAnyWorkspaceOwner] = useState(false);
+  // Produtividade/Extensão só aparecem para admins do painel de produtividade
+  const [isProductivityAdmin, setIsProductivityAdmin] = useState(false);
   useEffect(() => {
-    if (!user) { setIsAnyWorkspaceOwner(false); return; }
+    if (!user) { setIsProductivityAdmin(false); return; }
     let active = true;
     (async () => {
       const { data } = await supabase
-        .from('workspaces')
-        .select('id')
-        .eq('owner_id', user.id)
-        .eq('is_personal', false)
-        .limit(1);
-      if (active) setIsAnyWorkspaceOwner((data?.length || 0) > 0);
+        .from('productivity_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (active) setIsProductivityAdmin(!!data);
     })();
     return () => { active = false; };
   }, [user]);
@@ -539,7 +538,7 @@ export function AppSidebar() {
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Carga de trabalho</span>
         </NavLink>
-        {isAnyWorkspaceOwner && (
+        {isProductivityAdmin && (
           <>
             <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
               <Activity className="h-4 w-4 shrink-0" />

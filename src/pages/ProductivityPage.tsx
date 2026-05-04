@@ -4,10 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw } from "lucide-react";
+import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
 interface TopDomain { domain: string; seconds: number; category: string }
@@ -66,19 +68,117 @@ export default function ProductivityPage() {
   const [members, setMembers] = useState<MemberLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string>("all");
 
-  // owner check
-  useEffect(() => {
-    if (!currentWorkspaceId || !user) return;
-    supabase
-      .from("workspaces")
-      .select("owner_id")
-      .eq("id", currentWorkspaceId)
-      .maybeSingle()
-      .then(({ data }) => setIsOwner(data?.owner_id === user.id));
-  }, [currentWorkspaceId, user]);
+  // Acesso ao painel via productivity_admins
+  const [accessChecking, setAccessChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuper, setIsSuper] = useState(false);
+  const [noAdminsYet, setNoAdminsYet] = useState(false);
+  const [admins, setAdmins] = useState<Array<{ user_id: string; is_super: boolean; display_name: string | null; avatar_url: string | null }>>([]);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const refreshAccess = async () => {
+    if (!user) return;
+    setAccessChecking(true);
+    const { data: me } = await supabase
+      .from("productivity_admins")
+      .select("user_id,is_super")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (me) {
+      setIsAdmin(true);
+      setIsSuper(!!me.is_super);
+      setNoAdminsYet(false);
+    } else {
+      setIsAdmin(false);
+      setIsSuper(false);
+      // Se não há nenhum admin, qualquer usuário pode se cadastrar como super
+      const { count } = await supabase
+        .from("productivity_admins")
+        .select("user_id", { count: "exact", head: true });
+      setNoAdminsYet((count ?? 0) === 0);
+    }
+    setAccessChecking(false);
+  };
+
+  useEffect(() => { void refreshAccess(); /* eslint-disable-next-line */ }, [user]);
+
+  const claimSuperAdmin = async () => {
+    if (!user) return;
+    const { error } = await supabase
+      .from("productivity_admins")
+      .insert({ user_id: user.id, is_super: true });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Você agora é o Super Admin do painel de Produtividade");
+    await refreshAccess();
+  };
+
+  const loadAdmins = async () => {
+    const { data } = await supabase
+      .from("productivity_admins")
+      .select("user_id,is_super");
+    const list = data || [];
+    if (list.length === 0) { setAdmins([]); return; }
+    const ids = list.map((a: any) => a.user_id);
+    const { data: profs } = await supabase
+      .from("profiles")
+      .select("user_id,display_name,avatar_url")
+      .in("user_id", ids);
+    const profMap = new Map((profs || []).map((p: any) => [p.user_id, p]));
+    setAdmins(list.map((a: any) => ({
+      user_id: a.user_id,
+      is_super: a.is_super,
+      display_name: profMap.get(a.user_id)?.display_name ?? null,
+      avatar_url: profMap.get(a.user_id)?.avatar_url ?? null,
+    })));
+  };
+
+  useEffect(() => { if (manageOpen) void loadAdmins(); }, [manageOpen]);
+
+  const addAdminByEmail = async () => {
+    const email = newEmail.trim().toLowerCase();
+    if (!email) return;
+    setAdding(true);
+    try {
+      // Busca user_id pelo email via edge function admin (auth.users não é acessível via RLS)
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/lookup-user-by-email`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok || !j.user_id) throw new Error(j.error || "Usuário não encontrado");
+      const { error } = await supabase
+        .from("productivity_admins")
+        .insert({ user_id: j.user_id, is_super: false, added_by: user!.id });
+      if (error) throw error;
+      toast.success(`${email} agora tem acesso ao painel`);
+      setNewEmail("");
+      await loadAdmins();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeAdmin = async (uid: string) => {
+    const { error } = await supabase.from("productivity_admins").delete().eq("user_id", uid);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Acesso removido");
+    await loadAdmins();
+  };
 
   const load = async () => {
     if (!currentWorkspaceId) return;
@@ -253,15 +353,33 @@ export default function ProductivityPage() {
 
   const memberById = (id: string) => members.find((m) => m.user_id === id);
 
-  if (!isOwner) {
+  if (accessChecking) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
     return (
       <div className="flex-1 overflow-auto p-6">
         <Card className="p-8 text-center max-w-xl mx-auto">
-          <Trophy className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <Shield className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
           <h2 className="font-display text-xl font-semibold mb-2">Painel restrito</h2>
-          <p className="text-muted-foreground text-sm">
-            Apenas o dono do workspace <strong>{currentWs?.name}</strong> pode ver as métricas de produtividade.
+          <p className="text-muted-foreground text-sm mb-4">
+            O painel de Produtividade é privado. Somente administradores autorizados podem acessar.
           </p>
+          {noAdminsYet && (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Nenhum Super Admin configurado ainda. Reivindique o acesso agora:
+              </p>
+              <Button onClick={claimSuperAdmin}>
+                <Crown className="h-4 w-4 mr-2" /> Tornar-me Super Admin
+              </Button>
+            </>
+          )}
         </Card>
       </div>
     );
@@ -301,11 +419,75 @@ export default function ProductivityPage() {
                 <SelectItem value="30">Últimos 30 dias</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing}>
+            <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing} title="Recalcular">
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+            {isSuper && (
+              <Button variant="outline" onClick={() => setManageOpen(true)} title="Gerenciar acesso">
+                <Shield className="h-4 w-4 mr-2" /> Acesso
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Dialog: gerenciar admins */}
+        <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" /> Acesso ao painel de Produtividade
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Apenas as pessoas listadas abaixo podem ver as métricas. Adicione pelo e-mail (precisa já ter conta no TaskFlow).
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void addAdminByEmail(); }}
+                />
+                <Button onClick={addAdminByEmail} disabled={adding || !newEmail.trim()}>
+                  {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4 mr-1" /> Adicionar</>}
+                </Button>
+              </div>
+              <div className="border border-border rounded-md divide-y divide-border max-h-72 overflow-auto">
+                {admins.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">Nenhum administrador.</div>
+                ) : admins.map((a) => (
+                  <div key={a.user_id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-8 w-8">
+                        {a.avatar_url && <AvatarImage src={a.avatar_url} />}
+                        <AvatarFallback className="text-xs">{initials(a.display_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate flex items-center gap-2">
+                          {a.display_name || a.user_id.slice(0, 8)}
+                          {a.is_super && <Crown className="h-3.5 w-3.5 text-warning" />}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {a.is_super ? "Super Admin" : "Admin"}
+                        </div>
+                      </div>
+                    </div>
+                    {a.user_id !== user?.id && (
+                      <Button size="icon" variant="ghost" onClick={() => removeAdmin(a.user_id)} title="Remover">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setManageOpen(false)}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
