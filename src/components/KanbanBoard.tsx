@@ -69,6 +69,9 @@ interface Column {
   color?: string;
   /** Defaults para nova tarefa criada nesta coluna */
   newTaskDefaults?: Record<string, any>;
+  /** Membro vinculado: tarefas que caem aqui serão atribuídas a ele */
+  assigneeUserId?: string | null;
+  assigneeName?: string | null;
 }
 
 const PRIORITY_COLORS: Record<Priority, string> = {
