@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
+interface TopDomain { domain: string; seconds: number; category: string }
 interface DailyStat {
   user_id: string;
   workspace_id: string;
@@ -26,6 +27,10 @@ interface DailyStat {
   activity_score: number;
   hourly_buckets: Record<string, number>;
   by_project: Record<string, { name: string; tasks: number; seconds: number }>;
+  productive_seconds: number;
+  neutral_seconds: number;
+  distracting_seconds: number;
+  top_domains: TopDomain[];
 }
 
 interface MemberLite {
