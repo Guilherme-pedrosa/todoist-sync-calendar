@@ -66,6 +66,7 @@ export default function UpcomingPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const { user } = useAuth();
   const currentUserId = user?.id;
+  const [meetingOpen, setMeetingOpen] = useState(false);
   // Em telas pequenas (mobile), começa em modo "dia" — semana com 7 colunas é inutilizável no celular.
   const [mode, setMode] = useState<Mode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
