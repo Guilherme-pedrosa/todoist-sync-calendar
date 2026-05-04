@@ -155,6 +155,9 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, project
   if (groupBy === 'assignee') {
     return <AssigneeKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
   }
+  if (groupBy === 'vehicle') {
+    return <VehicleKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
+  }
   return <ManualKanban tasks={tasks} boardKey={boardKey} newTaskDefaults={newTaskDefaults} />;
 }
 
