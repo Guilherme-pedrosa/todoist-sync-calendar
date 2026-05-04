@@ -442,35 +442,37 @@ function BoardGroupToolbar({
   projectId: _projectId,
   value,
   onChange,
+  showVehicle,
 }: {
   projectId: string;
-  value: 'manual' | 'assignee';
-  onChange: (v: 'manual' | 'assignee') => void;
+  value: 'manual' | 'assignee' | 'vehicle';
+  onChange: (v: 'manual' | 'assignee' | 'vehicle') => void;
+  showVehicle?: boolean;
 }) {
+  const options: { id: 'manual' | 'assignee' | 'vehicle'; label: string }[] = [
+    { id: 'manual', label: 'Manual' },
+    { id: 'assignee', label: 'Responsável' },
+  ];
+  if (showVehicle) options.push({ id: 'vehicle', label: 'Veículo' });
+
   return (
     <div className="flex items-center gap-2 px-3 sm:px-6 pt-3">
       <span className="text-xs text-muted-foreground">Agrupar por:</span>
       <div className="inline-flex rounded-md border border-border overflow-hidden">
-        <button
-          type="button"
-          onClick={() => onChange('manual')}
-          className={cn(
-            'px-2.5 py-1 text-xs',
-            value === 'manual' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-          )}
-        >
-          Manual
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange('assignee')}
-          className={cn(
-            'px-2.5 py-1 text-xs border-l border-border',
-            value === 'assignee' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-          )}
-        >
-          Responsável
-        </button>
+        {options.map((opt, i) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => onChange(opt.id)}
+            className={cn(
+              'px-2.5 py-1 text-xs',
+              i > 0 && 'border-l border-border',
+              value === opt.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );
