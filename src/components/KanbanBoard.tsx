@@ -201,6 +201,7 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
               key={col.id}
               column={col}
               tasks={tasksByColumn.get(col.id) || []}
+              canDelete={columns.length > 1}
               onAddTask={() => {
                 openQuickAdd({
                   ...(newTaskDefaults || {}),
@@ -208,6 +209,8 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
                 } as any);
               }}
               onOpenTask={(id) => openTaskDetail(id)}
+              onRename={(title) => renameColumn(col.id, title)}
+              onDelete={() => deleteColumn(col.id)}
             />
           ))}
           <AddKanbanColumn onAdd={addColumn} />
