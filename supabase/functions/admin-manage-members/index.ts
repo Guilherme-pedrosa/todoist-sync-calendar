@@ -160,6 +160,47 @@ Deno.serve(async (req) => {
       });
     }
 
+    // List all auth users that are NOT yet members of this workspace.
+    if (action === 'list_non_members') {
+      const { data: list } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const allUsers = list?.users ?? [];
+      const { data: existing } = await admin
+        .from('workspace_members')
+        .select('user_id')
+        .eq('workspace_id', workspace_id);
+      const memberIds = new Set((existing ?? []).map((m: any) => m.user_id));
+      const candidates = allUsers.filter((u: any) => u.email && !memberIds.has(u.id));
+      const ids = candidates.map((u: any) => u.id);
+      let profiles: Record<string, { display_name: string | null; avatar_url: string | null }> = {};
+      if (ids.length > 0) {
+        const { data: profs } = await admin
+          .from('profiles')
+          .select('user_id, display_name, avatar_url')
+          .in('user_id', ids);
+        for (const p of profs ?? []) {
+          profiles[(p as any).user_id] = {
+            display_name: (p as any).display_name,
+            avatar_url: (p as any).avatar_url,
+          };
+        }
+      }
+      const users = candidates
+        .map((u: any) => ({
+          user_id: u.id,
+          email: u.email,
+          display_name:
+            profiles[u.id]?.display_name ??
+            (u.user_metadata as any)?.full_name ??
+            (u.user_metadata as any)?.name ??
+            null,
+          avatar_url: profiles[u.id]?.avatar_url ?? null,
+        }))
+        .sort((a, b) =>
+          (a.display_name ?? a.email ?? '').localeCompare(b.display_name ?? b.email ?? ''),
+        );
+      return json({ users });
+    }
+
     // Link an existing user (by id) to this workspace without creating a new auth account.
     if (action === 'add_existing') {
       const { user_id, role } = body;
