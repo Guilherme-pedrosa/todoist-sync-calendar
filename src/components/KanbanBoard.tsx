@@ -357,6 +357,8 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
                 onOpenTask={(id) => openTaskDetail(id)}
                 onRename={(title) => renameColumn(col.id, title)}
                 onDelete={() => deleteColumn(col.id)}
+                members={col.id === RECURRING_COLUMN_ID ? [] : members}
+                onSetAssignee={col.id === RECURRING_COLUMN_ID ? undefined : (uid) => setColumnAssignee(col.id, uid)}
               />
             ))}
           </SortableContext>
