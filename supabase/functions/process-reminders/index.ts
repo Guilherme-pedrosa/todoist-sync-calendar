@@ -193,7 +193,6 @@ Deno.serve(async (req) => {
 
         overdueReminders.push({
           task_id: t.id,
-          user_id: t.user_id,
           type: 'overdue',
           channel: 'push',
           trigger_at: nowIso,
