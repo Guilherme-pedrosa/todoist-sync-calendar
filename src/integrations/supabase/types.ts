@@ -1746,11 +1746,14 @@ export type Database = {
           karma_enabled: boolean
           language: string
           next_week_start: string
+          notify_at_due_time: boolean
           notify_on_comments: boolean
           notify_on_reminders: boolean
           notify_on_task_complete: boolean
+          notify_overdue: boolean
           quick_add_chips: Json
           reminder_channels: Json
+          reminder_offsets: Json
           show_calendar_status: boolean
           show_sidebar_counts: boolean
           show_task_description: boolean
@@ -1781,11 +1784,14 @@ export type Database = {
           karma_enabled?: boolean
           language?: string
           next_week_start?: string
+          notify_at_due_time?: boolean
           notify_on_comments?: boolean
           notify_on_reminders?: boolean
           notify_on_task_complete?: boolean
+          notify_overdue?: boolean
           quick_add_chips?: Json
           reminder_channels?: Json
+          reminder_offsets?: Json
           show_calendar_status?: boolean
           show_sidebar_counts?: boolean
           show_task_description?: boolean
@@ -1816,11 +1822,14 @@ export type Database = {
           karma_enabled?: boolean
           language?: string
           next_week_start?: string
+          notify_at_due_time?: boolean
           notify_on_comments?: boolean
           notify_on_reminders?: boolean
           notify_on_task_complete?: boolean
+          notify_overdue?: boolean
           quick_add_chips?: Json
           reminder_channels?: Json
+          reminder_offsets?: Json
           show_calendar_status?: boolean
           show_sidebar_counts?: boolean
           show_task_description?: boolean
