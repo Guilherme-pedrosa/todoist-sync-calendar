@@ -17,6 +17,7 @@ import { MentionNotifier } from '@/components/MentionNotifier';
 import { NotificationBell } from '@/components/NotificationBell';
 
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
+import { useActivityTracker } from '@/hooks/useActivityTracker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Loader2 } from 'lucide-react';
