@@ -281,27 +281,101 @@ function EditUserDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: 
 
   const save = async () => {
     setSaving(true);
+function EditUserDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: () => void; onSaved: () => void }) {
+  const [displayName, setDisplayName] = useState(user.display_name || '');
+  const [email, setEmail] = useState(user.email || '');
+  const [saving, setSaving] = useState(false);
+
+  // Workspaces state
+  const [workspaces, setWorkspaces] = useState<WorkspaceLite[]>(user.workspaces);
+  const [allWs, setAllWs] = useState<{ id: string; name: string; is_personal: boolean }[]>([]);
+  const [addWsId, setAddWsId] = useState<string>('');
+  const [addRole, setAddRole] = useState<string>('member');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.functions.invoke('admin-users', {
+        body: { action: 'list_workspaces' },
+      });
+      setAllWs(((data as any)?.workspaces || []).filter((w: any) => !w.is_personal));
+    })();
+  }, []);
+
+  const availableWs = useMemo(
+    () => allWs.filter((w) => !workspaces.some((m) => m.workspace_id === w.id)),
+    [allWs, workspaces],
+  );
+
+  const save = async () => {
+    setSaving(true);
     const patch: any = { action: 'update_profile', user_id: user.user_id };
     if (displayName !== (user.display_name || '')) patch.display_name = displayName;
     if (email && email !== (user.email || '')) patch.email = email;
-    const { error } = await supabase.functions.invoke('admin-users', { body: patch });
-    setSaving(false);
-    if (error) {
-      toast.error(error.message || 'Falha ao salvar');
-      return;
+    if (Object.keys(patch).length > 2) {
+      const { error } = await supabase.functions.invoke('admin-users', { body: patch });
+      if (error) {
+        setSaving(false);
+        toast.error(error.message || 'Falha ao salvar');
+        return;
+      }
     }
+    setSaving(false);
     toast.success('Usuário atualizado');
     onSaved();
   };
 
+  const addWorkspace = async () => {
+    if (!addWsId) return;
+    setBusy('add');
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'add_to_workspace', user_id: user.user_id, workspace_id: addWsId, role: addRole },
+    });
+    setBusy(null);
+    if (error) return toast.error(error.message);
+    const ws = allWs.find((w) => w.id === addWsId);
+    if (ws) {
+      setWorkspaces((prev) => [
+        ...prev,
+        { workspace_id: ws.id, name: ws.name, is_personal: ws.is_personal, role: addRole },
+      ]);
+    }
+    setAddWsId('');
+    setAddRole('member');
+    toast.success('Adicionado ao workspace');
+  };
+
+  const removeWorkspace = async (workspace_id: string) => {
+    setBusy(workspace_id);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'remove_from_workspace', user_id: user.user_id, workspace_id },
+    });
+    setBusy(null);
+    if (error) return toast.error(error.message);
+    setWorkspaces((prev) => prev.filter((w) => w.workspace_id !== workspace_id));
+    toast.success('Removido do workspace');
+  };
+
+  const changeRole = async (workspace_id: string, role: string) => {
+    setBusy(workspace_id);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'update_workspace_role', user_id: user.user_id, workspace_id, role },
+    });
+    setBusy(null);
+    if (error) return toast.error(error.message);
+    setWorkspaces((prev) =>
+      prev.map((w) => (w.workspace_id === workspace_id ? { ...w, role } : w)),
+    );
+  };
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Editar usuário</DialogTitle>
-          <DialogDescription>Atualize nome de exibição e e-mail.</DialogDescription>
+          <DialogDescription>Dados pessoais e participação em workspaces.</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
           <div>
             <Label>Nome</Label>
             <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
@@ -309,6 +383,91 @@ function EditUserDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: 
           <div>
             <Label>E-mail</Label>
             <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+
+          <div className="border-t pt-3">
+            <Label className="flex items-center gap-1.5 mb-2">
+              <UsersIcon className="h-3.5 w-3.5" /> Workspaces
+            </Label>
+            <div className="space-y-1.5">
+              {workspaces.filter((w) => !w.is_personal).length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Esse usuário ainda não participa de nenhum workspace de equipe.
+                </p>
+              )}
+              {workspaces
+                .filter((w) => !w.is_personal)
+                .map((w) => (
+                  <div
+                    key={w.workspace_id}
+                    className="flex items-center gap-2 rounded-md border bg-muted/30 px-2 py-1.5"
+                  >
+                    <span className="flex-1 text-sm font-medium truncate">{w.name}</span>
+                    <Select
+                      value={w.role}
+                      onValueChange={(v) => changeRole(w.workspace_id, v)}
+                      disabled={busy === w.workspace_id}
+                    >
+                      <SelectTrigger className="h-7 w-28 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="owner">Owner</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="member">Member</SelectItem>
+                        <SelectItem value="viewer">Viewer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeWorkspace(w.workspace_id)}
+                      disabled={busy === w.workspace_id}
+                    >
+                      {busy === w.workspace_id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <X className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+            </div>
+
+            {availableWs.length > 0 && (
+              <div className="flex items-center gap-2 mt-3">
+                <Select value={addWsId} onValueChange={setAddWsId}>
+                  <SelectTrigger className="h-8 flex-1 text-xs">
+                    <SelectValue placeholder="Adicionar a workspace…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableWs.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={addRole} onValueChange={setAddRole}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                    <SelectItem value="viewer">Viewer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button size="sm" onClick={addWorkspace} disabled={!addWsId || busy === 'add'}>
+                  {busy === 'add' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
         <DialogFooter>
