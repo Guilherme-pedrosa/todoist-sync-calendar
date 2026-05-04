@@ -14,6 +14,7 @@ import { MobileTopBar } from '@/components/MobileTopBar';
 import { InstallPwaBanner } from '@/components/InstallPwaBanner';
 import { ChatLauncher } from '@/components/ChatLauncher';
 import { MentionNotifier } from '@/components/MentionNotifier';
+import { ChatNotifier } from '@/components/ChatNotifier';
 import { NotificationBell } from '@/components/NotificationBell';
 
 import { useGlobalShortcuts } from '@/hooks/useGlobalShortcuts';
@@ -197,6 +198,7 @@ export default function AppLayout() {
       <AIAssistantPanel />
       <ChatLauncher />
       <MentionNotifier />
+      <ChatNotifier />
       {/* Floating notification bell — desktop only (mobile has it in topbar) */}
       <div className="hidden lg:block fixed top-3 right-3 z-40">
         <NotificationBell />
