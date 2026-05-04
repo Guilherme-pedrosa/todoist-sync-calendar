@@ -448,7 +448,12 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const members = useWorkspaceStore((s) => s.members);
   const { calendarConnected } = useAuth();
 
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const messages = useAIAssistantStore((s) => s.messages);
+  const setMessages = useAIAssistantStore((s) => s.setMessages);
+  const clearMessages = useAIAssistantStore((s) => s.clearMessages);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const closePanel = useAIAssistantStore((s) => s.close);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<
