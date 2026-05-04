@@ -15,11 +15,13 @@ import { ViewModeToolbar } from '@/components/ViewModeToolbar';
 import { useViewPref } from '@/hooks/useViewPref';
 import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+  const { user } = useAuth();
   const [overdueOpen, setOverdueOpen] = useState(true);
   const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
   const [showCompleted, setShowCompleted] = useShowCompleted('today');
@@ -33,6 +35,10 @@ export default function TodayPage() {
     for (const t of tasks) {
       if (t.parentId) continue;
       if (!t.dueDate) continue;
+      // Se a tarefa tem responsáveis atribuídos e o usuário atual NÃO está entre eles, ocultar
+      if (user && t.assigneeIds && t.assigneeIds.length > 0 && !t.assigneeIds.includes(user.id)) {
+        continue;
+      }
       if (t.completed) {
         // Show completed tasks in "Hoje" only if they were due today
         if (t.dueDate === today) completedToday.push(t);
@@ -52,7 +58,7 @@ export default function TodayPage() {
     todayTasks.sort(sortFn);
     completedToday.sort(sortFn);
     return { overdue, todayTasks, completedToday };
-  }, [tasks, today]);
+  }, [tasks, today, user]);
 
   const rescheduleAllOverdue = async () => {
     await Promise.all(overdue.map((t) => updateTask(t.id, { dueDate: today })));
