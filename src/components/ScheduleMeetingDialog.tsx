@@ -311,7 +311,7 @@ export function ScheduleMeetingDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
-            Agendar reunião
+            {convertTaskId ? 'Transformar em reunião' : 'Agendar reunião'}
           </DialogTitle>
         </DialogHeader>
 
