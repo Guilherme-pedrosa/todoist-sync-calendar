@@ -948,6 +948,18 @@ export function TaskDetailPanel() {
         onOpenChange={setRemindersOpen}
         taskId={task.id}
       />
+
+      <ScheduleMeetingDialog
+        open={meetingOpen}
+        onOpenChange={setMeetingOpen}
+        convertTaskId={task.id}
+        defaultTitle={task.title}
+        defaultDescription={task.description ?? undefined}
+        defaultDate={task.dueDate ?? undefined}
+        defaultTime={task.dueTime ?? undefined}
+        defaultDuration={task.durationMinutes ?? undefined}
+        defaultUserInviteeIds={assigneeIds}
+      />
     </div>
   );
 
