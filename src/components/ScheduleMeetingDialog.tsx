@@ -156,7 +156,7 @@ export function ScheduleMeetingDialog({
       return;
     }
     if (!user) return;
-    if (!inboxId) {
+    if (!convertTaskId && !inboxId) {
       toast.error('Não foi possível localizar o projeto padrão');
       return;
     }
@@ -167,29 +167,50 @@ export function ScheduleMeetingDialog({
 
     setSubmitting(true);
     try {
-      // 1) Cria a tarefa-reunião
-      const { data: created, error: insertError } = await supabase
-        .from('tasks')
-        .insert({
-          user_id: user.id,
-          created_by: user.id,
-          project_id: inboxId,
-          title: title.trim(),
-          description: description.trim() || null,
-          due_date: date,
-          due_time: time,
-          duration_minutes: duration,
-          priority: 3,
-          is_meeting: true,
-        } as any)
-        .select('id, workspace_id')
-        .single();
+      let taskId: string;
 
-      if (insertError || !created) {
-        throw insertError || new Error('Falha ao criar reunião');
+      if (convertTaskId) {
+        // Converte tarefa existente em reunião
+        const { data: updated, error: updateError } = await supabase
+          .from('tasks')
+          .update({
+            title: title.trim(),
+            description: description.trim() || null,
+            due_date: date,
+            due_time: time,
+            duration_minutes: duration,
+            is_meeting: true,
+          } as any)
+          .eq('id', convertTaskId)
+          .select('id, workspace_id')
+          .single();
+        if (updateError || !updated) {
+          throw updateError || new Error('Falha ao converter em reunião');
+        }
+        taskId = updated.id as string;
+      } else {
+        // Cria nova tarefa-reunião
+        const { data: created, error: insertError } = await supabase
+          .from('tasks')
+          .insert({
+            user_id: user.id,
+            created_by: user.id,
+            project_id: inboxId!,
+            title: title.trim(),
+            description: description.trim() || null,
+            due_date: date,
+            due_time: time,
+            duration_minutes: duration,
+            priority: 3,
+            is_meeting: true,
+          } as any)
+          .select('id, workspace_id')
+          .single();
+        if (insertError || !created) {
+          throw insertError || new Error('Falha ao criar reunião');
+        }
+        taskId = created.id as string;
       }
-
-      const taskId = created.id as string;
 
       // 2) Cria os convites
       const rows = invitees.map((i) =>
