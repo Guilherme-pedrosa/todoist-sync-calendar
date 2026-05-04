@@ -899,6 +899,30 @@ export type Database = {
           },
         ]
       }
+      productivity_admins: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          is_super: boolean
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          is_super?: boolean
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          is_super?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2345,6 +2369,11 @@ export type Database = {
       }
       is_conversation_participant: {
         Args: { _conversation_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_productivity_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_productivity_super_admin: {
+        Args: { _user_id: string }
         Returns: boolean
       }
       is_workspace_admin: {
