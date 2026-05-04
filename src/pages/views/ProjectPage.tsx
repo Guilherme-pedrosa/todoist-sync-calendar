@@ -199,10 +199,13 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
+      <BoardGroupToolbar projectId={projectId!} value={boardGroup} onChange={setBoardGroup} />
+
       <KanbanBoard
         tasks={projectTasks}
-        boardKey={`project:${projectId}`}
+        boardKey={`project:${projectId}:${boardGroup}`}
         projectId={projectId}
+        groupBy={boardGroup === 'assignee' ? 'assignee' : undefined}
         sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
         newTaskDefaults={{ projectId }}
       />
