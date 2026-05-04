@@ -190,16 +190,31 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     if (msg.type === "pair") {
-      await setCfg({
-        access_token: msg.access_token,
-        refresh_token: msg.refresh_token,
-        expires_at: msg.expires_at,
-        workspace_id: msg.workspace_id,
-        session_id: null,
-      });
-      await sendHeartbeat();
-      sendResponse({ ok: true });
-    } else if (msg.type === "unpair") {
+      try {
+        await setCfg({
+          access_token: msg.access_token,
+          refresh_token: msg.refresh_token,
+          expires_at: msg.expires_at,
+          workspace_id: msg.workspace_id,
+          session_id: null,
+          is_idle: false,
+          idle_id: null,
+          interactions: 0,
+        });
+        // try to start a session NOW so we know auth works
+        const sid = await ensureSession();
+        if (!sid) {
+          sendResponse({ ok: false, error: "Não foi possível iniciar sessão (token inválido ou expirado). Gere um novo código." });
+          return;
+        }
+        await sendHeartbeat();
+        // make sure heartbeat alarm is registered (onInstalled doesn't fire after pair)
+        chrome.alarms.create("heartbeat", { periodInMinutes: 1 });
+        sendResponse({ ok: true, session_id: sid });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
+    } else if (msg.type === "ping_now_legacy") {} else if (msg.type === "unpair") {
       const cfg = await getCfg();
       if (cfg.session_id) {
         await callTrack({
