@@ -18,6 +18,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   defaultDate?: string;
   defaultTime?: string;
+  /** Se informado, converte a tarefa existente em reunião em vez de criar uma nova. */
+  convertTaskId?: string;
+  /** Pré-preenche o título quando convertendo. */
+  defaultTitle?: string;
+  /** Pré-preenche a descrição quando convertendo. */
+  defaultDescription?: string;
+  /** Pré-preenche a duração em minutos quando convertendo. */
+  defaultDuration?: number;
+  /** Membros já marcados como responsáveis (serão adicionados como convidados). */
+  defaultUserInviteeIds?: string[];
 }
 
 type Invitee =
