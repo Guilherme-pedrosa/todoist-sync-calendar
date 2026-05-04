@@ -273,6 +273,15 @@ export default function UpcomingPage() {
           <Button
             size="sm"
             variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setMeetingOpen(true)}
+          >
+            <CalendarPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Reunião</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
             onClick={() => useAIAssistantStore.getState().open('analyze')}
           >
@@ -281,6 +290,8 @@ export default function UpcomingPage() {
           </Button>
         </div>
       </header>
+
+      <ScheduleMeetingDialog open={meetingOpen} onOpenChange={setMeetingOpen} />
 
       {mode === 'kanban' ? (
         <KanbanBoard tasks={upcoming} boardKey="upcoming" />
