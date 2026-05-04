@@ -321,6 +321,24 @@ function minutesToTime(m: number): string {
   const min = m % 60;
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
+
+function localDateKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function isTaskOverdue(task: Task, occurrenceDate = task.dueDate, endMin?: number): boolean {
+  if (task.completed || !occurrenceDate) return false;
+
+  const todayStr = localDateKey();
+  if (occurrenceDate < todayStr) return true;
+  if (occurrenceDate > todayStr) return false;
+  if (!task.dueTime && endMin === undefined) return false;
+
+  const effectiveEndMin = endMin ?? timeToMinutes(task.dueTime) + (task.durationMinutes ?? 0);
+  const now = new Date();
+  return effectiveEndMin < now.getHours() * 60 + now.getMinutes();
+}
+
 function snap(min: number) {
   return Math.round(min / SNAP_MINUTES) * SNAP_MINUTES;
 }
