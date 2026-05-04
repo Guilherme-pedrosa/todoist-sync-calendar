@@ -226,10 +226,11 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
   };
 
   const deleteColumn = (colId: string) => {
+    if (colId === RECURRING_COLUMN_ID) return; // recurring column is permanent
     setBoard((current) => {
       if (current.columns.length <= 1) return current;
       const remaining = current.columns.filter((c) => c.id !== colId);
-      const fallbackId = remaining[0].id;
+      const fallbackId = remaining.find((c) => c.id !== RECURRING_COLUMN_ID)?.id || remaining[0].id;
       const newTaskColumns: Record<string, string> = { ...current.taskColumns };
       for (const [tid, cid] of Object.entries(newTaskColumns)) {
         if (cid === colId) newTaskColumns[tid] = fallbackId;
@@ -237,6 +238,8 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
       return { ...current, columns: remaining, taskColumns: newTaskColumns };
     });
   };
+
+  const sortableColumnIds = useMemo(() => columns.map((c) => `col:${c.id}`), [columns]);
 
   return (
     <DndContext
@@ -248,23 +251,26 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
     >
       <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-thin">
         <div className="flex gap-3 px-3 sm:px-6 py-4 h-full min-w-max">
-          {columns.map((col) => (
-            <KanbanColumn
-              key={col.id}
-              column={col}
-              tasks={tasksByColumn.get(col.id) || []}
-              canDelete={columns.length > 1}
-              onAddTask={() => {
-                openQuickAdd({
-                  ...(newTaskDefaults || {}),
-                  ...(col.newTaskDefaults || {}),
-                } as any);
-              }}
-              onOpenTask={(id) => openTaskDetail(id)}
-              onRename={(title) => renameColumn(col.id, title)}
-              onDelete={() => deleteColumn(col.id)}
-            />
-          ))}
+          <SortableContext items={sortableColumnIds} strategy={horizontalListSortingStrategy}>
+            {columns.map((col) => (
+              <KanbanColumn
+                key={col.id}
+                column={col}
+                tasks={tasksByColumn.get(col.id) || []}
+                canDelete={col.id !== RECURRING_COLUMN_ID && columns.length > 1}
+                isRecurringColumn={col.id === RECURRING_COLUMN_ID}
+                onAddTask={() => {
+                  openQuickAdd({
+                    ...(newTaskDefaults || {}),
+                    ...(col.newTaskDefaults || {}),
+                  } as any);
+                }}
+                onOpenTask={(id) => openTaskDetail(id)}
+                onRename={(title) => renameColumn(col.id, title)}
+                onDelete={() => deleteColumn(col.id)}
+              />
+            ))}
+          </SortableContext>
           <AddKanbanColumn onAdd={addColumn} />
         </div>
       </div>
