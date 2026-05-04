@@ -253,12 +253,23 @@ function buildContextBlock(p: BasePayload): string {
     .slice(0, 200)
     .map(
       (t) =>
-        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.completed ? " | ✓" : ""}`,
+        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.assignees && t.assignees.length ? ` | assignees=${t.assignees.join(",")}` : ""}${t.completed ? " | ✓" : ""}`,
     )
     .join("\n");
   const projectsBlock = (p.projectCatalog ?? [])
     .slice(0, 50)
     .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .join("\n");
+  const membersBlock = (p.memberCatalog ?? [])
+    .slice(0, 100)
+    .map((m) => `- userId=${m.userId} | ${m.name}${m.email ? ` <${m.email}>` : ""}`)
+    .join("\n");
+  const eventsBlock = (p.calendarEvents ?? [])
+    .slice(0, 100)
+    .map(
+      (e) =>
+        `- eventId=${e.id} | ${e.title}${e.date ? ` | ${e.date}${e.time ? ` ${e.time}` : ""}` : ""}${e.durationMinutes ? ` | ${e.durationMinutes}min` : ""}`,
+    )
     .join("\n");
 
   return [
@@ -277,6 +288,12 @@ function buildContextBlock(p: BasePayload): string {
     "",
     projectsBlock ? "PROJETOS DISPONÍVEIS:" : "",
     projectsBlock,
+    "",
+    membersBlock ? "CATÁLOGO DE MEMBROS (use estes userId em assign_task):" : "",
+    membersBlock,
+    "",
+    eventsBlock ? "CATÁLOGO DE EVENTOS DO CALENDÁRIO (use estes eventId em delete_calendar_event):" : "",
+    eventsBlock,
     "",
     "FERIADOS BR:",
     hol || "(nenhum no período)",
