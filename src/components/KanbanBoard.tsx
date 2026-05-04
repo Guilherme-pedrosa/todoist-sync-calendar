@@ -426,7 +426,7 @@ function KanbanColumn({
         </div>
       </div>
       <div
-        ref={setNodeRef}
+        ref={setDropRef}
         className={cn(
           'flex-1 overflow-y-auto scrollbar-thin px-2 py-2 space-y-1.5 min-h-[120px]',
           isOver && 'bg-primary/5 ring-2 ring-primary/30 rounded-b-lg'
