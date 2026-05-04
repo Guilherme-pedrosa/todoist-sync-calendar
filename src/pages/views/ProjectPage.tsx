@@ -122,7 +122,7 @@ export default function ProjectPage() {
       list = [...list].sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
     }
     return list;
-  }, [tasks, projectId, labelFilter, sortBy]);
+  }, [tasks, projectId, labelFilter, sortBy, boardGroup]);
 
   const handleViewChange = async (newView: 'list' | 'board') => {
     setView(newView);
