@@ -58,7 +58,7 @@ export default function TodayPage() {
     todayTasks.sort(sortFn);
     completedToday.sort(sortFn);
     return { overdue, todayTasks, completedToday };
-  }, [tasks, today]);
+  }, [tasks, today, user]);
 
   const rescheduleAllOverdue = async () => {
     await Promise.all(overdue.map((t) => updateTask(t.id, { dueDate: today })));
