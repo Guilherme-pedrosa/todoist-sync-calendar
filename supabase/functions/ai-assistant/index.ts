@@ -562,6 +562,11 @@ Deno.serve(async (req) => {
                   priority: { type: "number", description: "1=baixa, 4=urgente" },
                   projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS); opcional" },
                   recurrenceRule: { type: "string", description: "RRULE iCal; opcional. Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR" },
+                  assigneeUserIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "userIds do CATÁLOGO DE MEMBROS para delegar a tarefa. OBRIGATÓRIO sempre que o usuário mencionar uma pessoa (ex.: 'cria pro Filipe', 'lança uma tarefa pro João'). NUNCA omitir nesse caso.",
+                  },
                 },
                 required: ["title"],
                 additionalProperties: false,
