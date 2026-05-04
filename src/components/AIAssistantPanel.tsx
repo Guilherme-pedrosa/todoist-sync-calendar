@@ -772,6 +772,8 @@ function ActionProposalCard({
   state,
   tasks,
   projects,
+  members,
+  calendarEvents,
   onApply,
   onDiscard,
 }: {
@@ -779,6 +781,8 @@ function ActionProposalCard({
   state: 'pending' | 'applied' | 'discarded';
   tasks: any[];
   projects: any[];
+  members: { userId: string; displayName: string | null; email: string | null }[];
+  calendarEvents: { id: string; title: string; date?: string | null; time?: string | null }[];
   onApply: () => void;
   onDiscard: () => void;
 }) {
@@ -786,6 +790,12 @@ function ActionProposalCard({
     id ? tasks.find((t) => t.id === id)?.title ?? `(id ${id.slice(0, 6)}…)` : '';
   const projectName = (id?: string) =>
     id ? projects.find((p) => p.id === id)?.name ?? '' : '';
+  const memberName = (id?: string) => {
+    const m = id ? members.find((mm) => mm.userId === id) : null;
+    return m?.displayName ?? m?.email ?? (id ? `(user ${id.slice(0, 6)}…)` : '');
+  };
+  const eventTitle = (id?: string) =>
+    id ? calendarEvents.find((e) => e.id === id)?.title ?? `(evento ${id.slice(0, 6)}…)` : '';
 
   const describe = (a: AssistantAction): { icon: string; label: string; detail?: string } => {
     if (a.type === 'create_task') {
@@ -812,7 +822,32 @@ function ActionProposalCard({
     if (a.type === 'complete_task') {
       return { icon: '✅', label: `Concluir: ${taskTitle(a.args.taskId)}` };
     }
-    return { icon: '🗑️', label: `Excluir: ${taskTitle(a.args.taskId)}` };
+    if (a.type === 'delete_task') {
+      return { icon: '🗑️', label: `Excluir: ${taskTitle(a.args.taskId)}` };
+    }
+    if (a.type === 'assign_task') {
+      return { icon: '👤', label: `Delegar: ${taskTitle(a.args.taskId)}`, detail: `→ ${memberName(a.args.userId)}` };
+    }
+    if (a.type === 'unassign_task') {
+      return { icon: '🚫', label: `Desatribuir: ${taskTitle(a.args.taskId)}`, detail: `de ${memberName(a.args.userId)}` };
+    }
+    if (a.type === 'bulk_reschedule') {
+      const sample = a.args.items.slice(0, 3).map((it) => taskTitle(it.taskId)).join(', ');
+      const more = a.args.items.length > 3 ? ` + ${a.args.items.length - 3} mais` : '';
+      return {
+        icon: '🔀',
+        label: `Reagendar ${a.args.items.length} tarefa(s)`,
+        detail: `${sample}${more}${a.args.reason ? ` · ${a.args.reason}` : ''}`,
+      };
+    }
+    if (a.type === 'create_calendar_event') {
+      const bits = [a.args.date, a.args.time, a.args.durationMinutes ? `${a.args.durationMinutes}min` : null].filter(Boolean);
+      return { icon: '📅', label: `Calendário: ${a.args.title}`, detail: bits.join(' · ') };
+    }
+    if (a.type === 'delete_calendar_event') {
+      return { icon: '❌', label: `Apagar evento: ${eventTitle(a.args.eventId)}` };
+    }
+    return { icon: '🧹', label: `Limpar calendário do dia ${a.args.date}` };
   };
 
   return (
