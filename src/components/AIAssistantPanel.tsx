@@ -609,7 +609,6 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
               { onConflict: 'task_id,user_id' },
             );
           }
-        }
         } else if (action.type === 'update_task') {
           const updates: Record<string, any> = {};
           if (action.args.title !== undefined) updates.title = action.args.title;
