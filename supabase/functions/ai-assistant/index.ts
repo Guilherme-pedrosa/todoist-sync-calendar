@@ -262,7 +262,7 @@ function buildContextBlock(p: BasePayload): string {
     .join("\n");
   const projectsBlock = (p.projectCatalog ?? [])
     .slice(0, 50)
-    .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .map((pr) => `- id=${pr.id} | ${pr.name}${pr.isInbox ? " | ⚠️ CAIXA DE ENTRADA (PRIVADA — NUNCA usar para delegar a outra pessoa)" : ""}`)
     .join("\n");
   const membersBlock = (p.memberCatalog ?? [])
     .slice(0, 100)
