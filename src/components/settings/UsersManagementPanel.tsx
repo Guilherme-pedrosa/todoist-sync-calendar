@@ -279,13 +279,6 @@ function EditUserDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: 
   const [email, setEmail] = useState(user.email || '');
   const [saving, setSaving] = useState(false);
 
-  const save = async () => {
-    setSaving(true);
-function EditUserDialog({ user, onClose, onSaved }: { user: AdminUser; onClose: () => void; onSaved: () => void }) {
-  const [displayName, setDisplayName] = useState(user.display_name || '');
-  const [email, setEmail] = useState(user.email || '');
-  const [saving, setSaving] = useState(false);
-
   // Workspaces state
   const [workspaces, setWorkspaces] = useState<WorkspaceLite[]>(user.workspaces);
   const [allWs, setAllWs] = useState<{ id: string; name: string; is_personal: boolean }[]>([]);
