@@ -428,6 +428,50 @@ export type Database = {
         }
         Relationships: []
       }
+      meeting_invitations: {
+        Row: {
+          created_at: string
+          id: string
+          invited_by: string
+          invitee_email: string | null
+          invitee_name: string | null
+          invitee_user_id: string | null
+          responded_at: string | null
+          status: string
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invited_by: string
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_user_id?: string | null
+          responded_at?: string | null
+          status?: string
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invited_by?: string
+          invitee_email?: string | null
+          invitee_name?: string | null
+          invitee_user_id?: string | null
+          responded_at?: string | null
+          status?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_invitations_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           attachments: Json
@@ -1197,8 +1241,11 @@ export type Database = {
           due_string: string | null
           due_time: string | null
           duration_minutes: number | null
+          gcal_event_id: string | null
           google_calendar_event_id: string | null
           id: string
+          is_meeting: boolean
+          meeting_url: string | null
           parent_id: string | null
           position: number
           priority: number
@@ -1226,8 +1273,11 @@ export type Database = {
           due_string?: string | null
           due_time?: string | null
           duration_minutes?: number | null
+          gcal_event_id?: string | null
           google_calendar_event_id?: string | null
           id?: string
+          is_meeting?: boolean
+          meeting_url?: string | null
           parent_id?: string | null
           position?: number
           priority?: number
@@ -1255,8 +1305,11 @@ export type Database = {
           due_string?: string | null
           due_time?: string | null
           duration_minutes?: number | null
+          gcal_event_id?: string | null
           google_calendar_event_id?: string | null
           id?: string
+          is_meeting?: boolean
+          meeting_url?: string | null
           parent_id?: string | null
           position?: number
           priority?: number
