@@ -198,6 +198,7 @@ export default function AppLayout() {
       <AIAssistantPanel />
       <ChatLauncher />
       <MentionNotifier />
+      <ChatNotifier />
       {/* Floating notification bell — desktop only (mobile has it in topbar) */}
       <div className="hidden lg:block fixed top-3 right-3 z-40">
         <NotificationBell />
