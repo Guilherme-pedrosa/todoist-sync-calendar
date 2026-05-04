@@ -117,7 +117,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
         // Cria a nova tarefa standalone SEM copiar o googleCalendarEventId
         // (senão o mesmo evento do GCal fica linkado a duas tarefas → duplica).
         // O addTask cria um novo evento próprio para essa nova ocorrência.
-        await addTask({
+        const createdTask = await addTask({
           title: task.title,
           description: task.description ?? '',
           priority: task.priority,
@@ -129,6 +129,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
           labels: task.labels,
           assigneeIds: task.assigneeIds,
         } as any);
+        if (!createdTask) throw new Error('Falha ao criar a ocorrência remanejada');
 
         // Mantém o googleCalendarEventId da série original (não limpar!),
         // só atualiza a regra para excluir a ocorrência movida.
