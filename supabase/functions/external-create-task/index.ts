@@ -28,7 +28,7 @@ const PRIORITY_MAP: Record<string, number> = {
 };
 
 function normalizeSubtasks(body: any): any[] {
-  const raw = body.subtasks || body.sub_tarefas || body.children || body.items || body.checklist;
+  const raw = body.subtasks || body.subtarefas || body.sub_tarefas || body.children || body.items || body.checklist;
   return Array.isArray(raw) ? raw : [];
 }
 
