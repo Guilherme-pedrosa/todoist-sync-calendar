@@ -36,7 +36,14 @@ export function NotificationBell() {
     setOpen(false);
     if (n.type === 'chat_mention' && n.payload?.conversation_id) {
       navigate(`/conversations/${n.payload.conversation_id}`);
-    } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
+    } else if (
+      (n.type === 'task_assigned' ||
+        n.type === 'task_reminder' ||
+        n.type === 'meeting_invite' ||
+        n.type === 'meeting_accepted' ||
+        n.type === 'meeting_declined') &&
+      n.payload?.task_id
+    ) {
       navigate(`/?task=${n.payload.task_id}`);
     }
   };
