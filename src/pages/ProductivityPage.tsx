@@ -419,11 +419,75 @@ export default function ProductivityPage() {
                 <SelectItem value="30">Últimos 30 dias</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing}>
+            <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing} title="Recalcular">
               {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+            {isSuper && (
+              <Button variant="outline" onClick={() => setManageOpen(true)} title="Gerenciar acesso">
+                <Shield className="h-4 w-4 mr-2" /> Acesso
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Dialog: gerenciar admins */}
+        <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-primary" /> Acesso ao painel de Produtividade
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Apenas as pessoas listadas abaixo podem ver as métricas. Adicione pelo e-mail (precisa já ter conta no TaskFlow).
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void addAdminByEmail(); }}
+                />
+                <Button onClick={addAdminByEmail} disabled={adding || !newEmail.trim()}>
+                  {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <><UserPlus className="h-4 w-4 mr-1" /> Adicionar</>}
+                </Button>
+              </div>
+              <div className="border border-border rounded-md divide-y divide-border max-h-72 overflow-auto">
+                {admins.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">Nenhum administrador.</div>
+                ) : admins.map((a) => (
+                  <div key={a.user_id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <Avatar className="h-8 w-8">
+                        {a.avatar_url && <AvatarImage src={a.avatar_url} />}
+                        <AvatarFallback className="text-xs">{initials(a.display_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate flex items-center gap-2">
+                          {a.display_name || a.user_id.slice(0, 8)}
+                          {a.is_super && <Crown className="h-3.5 w-3.5 text-warning" />}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {a.is_super ? "Super Admin" : "Admin"}
+                        </div>
+                      </div>
+                    </div>
+                    {a.user_id !== user?.id && (
+                      <Button size="icon" variant="ghost" onClick={() => removeAdmin(a.user_id)} title="Remover">
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setManageOpen(false)}>Fechar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
