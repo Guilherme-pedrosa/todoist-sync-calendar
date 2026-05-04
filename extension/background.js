@@ -64,40 +64,43 @@ async function getValidToken() {
 async function callTrack(payload) {
   const token = await getValidToken();
   if (!token) throw new Error("not paired");
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (res.status === 401) {
-    const t = await refreshAccessToken();
-    if (!t) throw new Error("expired");
-    const r2 = await fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
+  const doFetch = (tok) =>
+    fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${t}`,
+        Authorization: `Bearer ${tok}`,
         apikey: SUPABASE_ANON,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
-    return r2.json();
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const t = await refreshAccessToken();
+    if (!t) throw new Error("auth expired — please re-pair");
+    res = await doFetch(t);
   }
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("[TaskFlow] track error", res.status, data);
+    throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+  return data;
 }
 
 async function ensureSession() {
   const cfg = await getCfg();
   if (!cfg.workspace_id) return null;
   if (cfg.session_id) return cfg.session_id;
-  const r = await callTrack({ action: "start", workspace_id: cfg.workspace_id });
-  if (r?.session_id) {
-    await setCfg({ session_id: r.session_id });
-    return r.session_id;
+  try {
+    const r = await callTrack({ action: "start", workspace_id: cfg.workspace_id });
+    if (r?.session_id) {
+      await setCfg({ session_id: r.session_id });
+      return r.session_id;
+    }
+  } catch (e) {
+    console.error("[TaskFlow] ensureSession failed:", e);
+    throw e;
   }
   return null;
 }
