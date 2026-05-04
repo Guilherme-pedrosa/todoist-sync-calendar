@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
+import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { Input } from '@/components/ui/input';
 import {
   Collapsible,
@@ -464,9 +465,10 @@ export function AppSidebar() {
           Adicionar tarefa
         </button>
         <button
-          aria-label="IA (em breve)"
-          title="IA — em breve"
-          className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-sidebar-accent/40 text-sidebar-foreground/60 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors"
+          onClick={() => useAIAssistantStore.getState().open('chat')}
+          aria-label="Assistente IA"
+          title="Assistente IA"
+          className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-sidebar-accent/40 text-sidebar-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
         >
           <Sparkles className="h-4 w-4" />
         </button>
