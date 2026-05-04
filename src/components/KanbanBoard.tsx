@@ -44,7 +44,18 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee';
+export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee' | 'vehicle';
+
+/** Extrai placa/modelo do veículo a partir da descrição da task.
+ *  Aceita formatos como "Veículo: ABC1234 (Onix)" ou "Veiculo: ABC-1234". */
+export function extractVehicle(task: Task): { plate: string; label: string } | null {
+  const text = `${task.description || ''}\n${task.title || ''}`;
+  const m = text.match(/Ve[ií]culo:\s*([A-Z0-9-]{4,10})(?:\s*\(([^)]+)\))?/i);
+  if (!m) return null;
+  const plate = m[1].toUpperCase().replace(/\s+/g, '');
+  const model = m[2]?.trim();
+  return { plate, label: model ? `${plate} · ${model}` : plate };
+}
 
 export interface KanbanSection {
   id: string;
