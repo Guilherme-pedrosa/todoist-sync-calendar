@@ -123,7 +123,14 @@ function writeManualKanban(storageKey: string, board: ManualKanbanState) {
   window.localStorage.setItem(storageKey, JSON.stringify({ columns: board.columns, taskColumns: board.taskColumns }));
 }
 
-export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, projectId }: KanbanBoardProps) {
+  if (groupBy === 'assignee') {
+    return <AssigneeKanban tasks={tasks} projectId={projectId} newTaskDefaults={newTaskDefaults} />;
+  }
+  return <ManualKanban tasks={tasks} boardKey={boardKey} newTaskDefaults={newTaskDefaults} />;
+}
+
+function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
