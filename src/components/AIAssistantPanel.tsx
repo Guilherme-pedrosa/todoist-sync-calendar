@@ -725,6 +725,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
                   state={m.actionsState ?? 'pending'}
                   tasks={tasks}
                   projects={projects}
+                  members={members}
+                  calendarEvents={calendarEvents}
                   onApply={() => applyActions(i)}
                   onDiscard={() => discardActions(i)}
                 />
