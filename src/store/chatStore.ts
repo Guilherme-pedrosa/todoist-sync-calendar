@@ -434,8 +434,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               [msg.conversationId]: [...list, msg],
             };
             // unread bump se não for ativa nem própria
-            supabase.auth.getUser().then(({ data }) => {
-              const uid = data?.user?.id;
+            getCurrentUserId().then((uid) => {
               if (msg.userId !== uid && s.activeConversationId !== msg.conversationId) {
                 set((ss) => ({
                   unreadByConversation: {
@@ -493,8 +492,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         async (payload) => {
           // Quando viro participante de uma conversa nova (ex.: fui adicionado como responsável),
           // re-busca a lista para incluí-la.
-          const { data: userData } = await supabase.auth.getUser();
-          const uid = userData?.user?.id;
+          const uid = await getCurrentUserId();
           const newRow: any = payload.new;
           if (!uid || newRow.user_id !== uid) return;
           if (get().conversations.some((c) => c.id === newRow.conversation_id)) return;
