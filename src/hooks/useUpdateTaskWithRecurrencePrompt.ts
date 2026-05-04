@@ -37,8 +37,12 @@ export function useUpdateTaskWithRecurrencePrompt() {
         updates.dueTime !== undefined ||
         updates.durationMinutes !== undefined;
 
-      // If the rule itself is being changed → always treat as series-wide.
-      const touchesRule = updates.recurrenceRule !== undefined;
+      // Only treat as a rule edit when the recurrence value actually changes.
+      // Date pickers often send the existing recurrenceRule together with
+      // date/time edits; that must still go through the occurrence prompt.
+      const touchesRule =
+        updates.recurrenceRule !== undefined &&
+        (updates.recurrenceRule ?? null) !== (task.recurrenceRule ?? null);
 
       // Non-recurring, rule edit, or change unrelated to scheduling → just update.
       if (!isRecurring || !touchesSchedule || touchesRule) {
@@ -113,7 +117,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
         // Cria a nova tarefa standalone SEM copiar o googleCalendarEventId
         // (senão o mesmo evento do GCal fica linkado a duas tarefas → duplica).
         // O addTask cria um novo evento próprio para essa nova ocorrência.
-        await addTask({
+        const createdTask = await addTask({
           title: task.title,
           description: task.description ?? '',
           priority: task.priority,
@@ -123,7 +127,9 @@ export function useUpdateTaskWithRecurrencePrompt() {
           projectId: task.projectId ?? undefined,
           sectionId: task.sectionId ?? undefined,
           labels: task.labels,
+          assigneeIds: task.assigneeIds,
         } as any);
+        if (!createdTask) throw new Error('Falha ao criar a ocorrência remanejada');
 
         // Mantém o googleCalendarEventId da série original (não limpar!),
         // só atualiza a regra para excluir a ocorrência movida.

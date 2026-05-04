@@ -22,6 +22,7 @@ import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { useDeleteTaskWithRecurrencePrompt } from '@/hooks/useDeleteTaskWithRecurrencePrompt';
+import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecurrencePrompt';
 import { format, isToday, isTomorrow, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -72,7 +73,7 @@ function formatDueDate(dateStr: string) {
 export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const navigate = useNavigate();
   const deleteTask = useTaskStore((s) => s.deleteTask);
-  const updateTask = useTaskStore((s) => s.updateTask);
+  const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const tasks = useTaskStore((s) => s.tasks);
@@ -374,12 +375,16 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
               <DatePickerPopover
                 value={dateValue}
                 onChange={(v) =>
-                  updateTask(task.id, {
-                    dueDate: v.date ?? null as any,
-                    dueTime: v.time ?? null as any,
-                    recurrenceRule: v.recurrenceRule ?? null,
-                    durationMinutes: v.durationMinutes ?? null,
-                  })
+                  updateWithPrompt(
+                    task.id,
+                    {
+                      dueDate: v.date ?? null as any,
+                      dueTime: v.time ?? null as any,
+                      recurrenceRule: v.recurrenceRule ?? null,
+                      durationMinutes: v.durationMinutes ?? null,
+                    },
+                    { occurrenceDate: task.dueDate ?? undefined, changeLabel: 'data e horário' }
+                  )
                 }
                 trigger={<span />}
               />
