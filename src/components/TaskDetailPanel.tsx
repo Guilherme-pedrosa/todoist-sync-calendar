@@ -686,6 +686,38 @@ export function TaskDetailPanel() {
                   </div>
                 ))}
               </div>
+
+              {/* Composer */}
+              <div className="flex gap-2 pt-2">
+                <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">
+                  {(user?.email?.[0] ?? '?').toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0 space-y-2">
+                  <Textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void sendComment();
+                      }
+                    }}
+                    placeholder="Escreva um comentário... (Ctrl+Enter para enviar)"
+                    className="text-sm min-h-[60px]"
+                    rows={2}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={() => void sendComment()}
+                      disabled={!commentText.trim()}
+                      className="h-7 text-xs"
+                    >
+                      Comentar
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
