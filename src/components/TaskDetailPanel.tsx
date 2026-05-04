@@ -25,6 +25,7 @@ import {
   Paperclip,
   MessageSquare,
   Users,
+  Video,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
