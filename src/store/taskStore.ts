@@ -787,20 +787,33 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
           if (user) {
             const { data: settings } = await supabase
               .from('user_settings')
-              .select('default_reminder_minutes')
+              .select('default_reminder_minutes, reminder_offsets_minutes')
               .eq('user_id', user.id)
               .maybeSingle();
-            const minutes = settings?.default_reminder_minutes ?? 15;
-            const triggerAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
-            triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
-            if (triggerAt.getTime() > Date.now()) {
-              await supabase.from('reminders').insert({
-                task_id: id,
-                trigger_at: triggerAt.toISOString(),
-                type: 'absolute',
-                relative_minutes: minutes,
-                channel: 'push',
-              });
+            const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
+              ? ((settings as any).reminder_offsets_minutes as number[])
+              : null;
+            const offsets = fromArray && fromArray.length > 0
+              ? fromArray
+              : [settings?.default_reminder_minutes ?? 15];
+            const dueAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
+            const rows = offsets
+              .filter((m) => typeof m === 'number' && m >= 0)
+              .map((m) => {
+                const t = new Date(dueAt.getTime() - m * 60_000);
+                return t.getTime() > Date.now()
+                  ? {
+                      task_id: id,
+                      trigger_at: t.toISOString(),
+                      type: 'absolute',
+                      relative_minutes: m,
+                      channel: 'push',
+                    }
+                  : null;
+              })
+              .filter(Boolean);
+            if (rows.length > 0) {
+              await supabase.from('reminders').insert(rows as any);
             }
           }
         }
