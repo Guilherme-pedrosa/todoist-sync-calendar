@@ -642,6 +642,12 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
+            <TabsContent value="users" className="space-y-6 mt-0">
+              <Section title="Gerenciar usuários">
+                <UsersManagementPanel />
+              </Section>
+            </TabsContent>
+
             <TabsContent value="reminders" className="space-y-6 mt-0">
               <Section title="Notificações push neste dispositivo">
                 <PushSubscriptionPanel />
