@@ -834,7 +834,17 @@ function AddKanbanColumn({ onAdd }: { onAdd: (title: string) => void }) {
 
 // ---------------- Card ----------------
 
-function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+function KanbanCard({
+  task,
+  onOpen,
+  subtasks = [],
+  onOpenSubtask,
+}: {
+  task: Task;
+  onOpen: () => void;
+  subtasks?: Task[];
+  onOpenSubtask?: (id: string) => void;
+}) {
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const completeTask = useCompleteTask();
@@ -926,6 +936,37 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
               </span>
             )}
           </div>
+          {subtasks.length > 0 && (
+            <div className="mt-2 space-y-1 border-t border-border/50 pt-2" onPointerDown={(e) => e.stopPropagation()}>
+              {subtasks.map((subtask) => (
+                <div
+                  key={subtask.id}
+                  className="flex items-start gap-2 rounded-sm px-1 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenSubtask?.(subtask.id);
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      completeTask(subtask.id);
+                    }}
+                    className={cn(
+                      'mt-0.5 h-3.5 w-3.5 rounded-full border shrink-0 hover:bg-muted',
+                      subtask.priority === 1 && 'border-priority-1',
+                      subtask.priority === 2 && 'border-priority-2',
+                      subtask.priority === 3 && 'border-priority-3',
+                      subtask.priority === 4 && 'border-muted-foreground/40'
+                    )}
+                    aria-label="Concluir subtarefa"
+                  />
+                  <span className="min-w-0 flex-1 break-words leading-snug">{subtask.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
