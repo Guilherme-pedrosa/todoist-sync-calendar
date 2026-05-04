@@ -811,11 +811,13 @@ function ActionProposalCard({
 
   const describe = (a: AssistantAction): { icon: string; label: string; detail?: string } => {
     if (a.type === 'create_task') {
+      const assignees = (a.args.assigneeUserIds ?? []).map((uid) => memberName(uid)).filter(Boolean);
       const bits = [
         a.args.date ? a.args.date : null,
         a.args.time ? a.args.time : null,
         a.args.priority ? `P${a.args.priority}` : null,
         a.args.projectId ? projectName(a.args.projectId) : null,
+        assignees.length ? `→ ${assignees.join(', ')}` : null,
       ].filter(Boolean);
       return { icon: '➕', label: `Criar: ${a.args.title}`, detail: bits.join(' · ') || undefined };
     }
