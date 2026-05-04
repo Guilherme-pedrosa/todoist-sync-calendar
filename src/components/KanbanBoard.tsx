@@ -19,7 +19,7 @@ import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon, MoreHorizontal, Pencil, Trash2, Repeat } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
