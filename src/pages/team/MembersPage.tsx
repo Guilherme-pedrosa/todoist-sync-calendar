@@ -151,15 +151,7 @@ export default function MembersPage() {
       setSubmitting(false);
     }
   };
-    if (!currentWorkspaceId) return;
-    try {
-      await callAdminFn({ action: 'update_role', workspace_id: currentWorkspaceId, user_id: userId, role });
-      toast.success('Papel atualizado');
-      fetchMembers(currentWorkspaceId);
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  };
+
 
   const handleRoleChange = async (userId: string, role: string) => {
     if (!currentWorkspaceId) return;

@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
   let priority = 1;
   if (body.priority != null) {
     const p = String(body.priority).toLowerCase();
-    priority = PRIORITY_MAP[p] ?? Number(body.priority) || 1;
+    priority = PRIORITY_MAP[p] ?? (Number(body.priority) || 1);
     if (priority < 1 || priority > 4) priority = 1;
   }
 
