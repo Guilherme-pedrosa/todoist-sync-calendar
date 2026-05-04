@@ -168,8 +168,19 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   }, [board, storageKey]);
 
   const columns = useMemo<Column[]>(
-    () => board.columns.map((col) => ({ ...col, newTaskDefaults: { ...(newTaskDefaults || {}) } })),
-    [board.columns, newTaskDefaults]
+    () =>
+      board.columns.map((col) => {
+        const member = col.assigneeUserId ? members.find((m) => m.userId === col.assigneeUserId) : null;
+        return {
+          ...col,
+          assigneeName: member ? (member.displayName || member.email || 'Membro') : null,
+          newTaskDefaults: {
+            ...(newTaskDefaults || {}),
+            ...(col.assigneeUserId ? { assigneeIds: [col.assigneeUserId] } : {}),
+          },
+        };
+      }),
+    [board.columns, newTaskDefaults, members]
   );
 
   const tasksByColumn = useMemo(() => {
