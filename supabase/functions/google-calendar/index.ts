@@ -105,7 +105,7 @@ serve(async (req) => {
         redirect_uri: redirectUri,
         response_type: "code",
         access_type: "offline",
-        prompt: "consent select_account",
+        prompt: "select_account consent",
         include_granted_scopes: "true",
         scope: "https://www.googleapis.com/auth/calendar.events",
         state: user.id,
