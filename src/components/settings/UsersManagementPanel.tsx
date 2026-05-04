@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon } from 'lucide-react';
+import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon, Plus, X } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
