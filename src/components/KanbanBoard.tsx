@@ -148,11 +148,20 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
     for (const c of columns) map.set(c.id, []);
-    const firstCol = columns[0];
+    const firstNonRecurring = columns.find((c) => c.id !== RECURRING_COLUMN_ID) || columns[0];
     const validIds = new Set(columns.map((c) => c.id));
     for (const t of tasks) {
+      // Recurring tasks always go to the recurring column
+      if (isRecurringTask(t) && map.has(RECURRING_COLUMN_ID)) {
+        map.get(RECURRING_COLUMN_ID)!.push(t);
+        continue;
+      }
       const colId = board.taskColumns[t.id];
-      const targetId = colId && validIds.has(colId) ? colId : firstCol?.id;
+      let targetId = colId && validIds.has(colId) ? colId : firstNonRecurring?.id;
+      // Don't allow non-recurring tasks pinned to recurring column
+      if (targetId === RECURRING_COLUMN_ID && !isRecurringTask(t)) {
+        targetId = firstNonRecurring?.id;
+      }
       if (targetId) map.get(targetId)!.push(t);
     }
     return map;
@@ -164,12 +173,33 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
     setActiveId(null);
     const { active, over } = event;
     if (!over) return;
-    const taskId = String(active.id);
-    const colId = String(over.id);
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    // Column reorder: ids prefixed with "col:"
+    if (activeId.startsWith('col:') && overId.startsWith('col:')) {
+      const fromId = activeId.slice(4);
+      const toId = overId.slice(4);
+      setBoard((current) => {
+        const oldIndex = current.columns.findIndex((c) => c.id === fromId);
+        const newIndex = current.columns.findIndex((c) => c.id === toId);
+        if (oldIndex < 0 || newIndex < 0) return current;
+        return { ...current, columns: arrayMove(current.columns, oldIndex, newIndex) };
+      });
+      return;
+    }
+
+    // Task move
+    const taskId = activeId;
+    const colId = overId;
     const col = columns.find((c) => c.id === colId);
     if (!col) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task) return;
+    // Block dropping non-recurring tasks into the recurring column (and vice versa)
+    if (colId === RECURRING_COLUMN_ID && !isRecurringTask(task)) return;
+    if (colId !== RECURRING_COLUMN_ID && isRecurringTask(task)) return;
     if (board.taskColumns[taskId] === colId) return;
     setBoard((current) => ({
       ...current,
