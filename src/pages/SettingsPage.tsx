@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
 import { InstallAppCard } from '@/components/settings/InstallAppCard';
+import { PushSubscriptionPanel } from '@/components/settings/PushSubscriptionPanel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
