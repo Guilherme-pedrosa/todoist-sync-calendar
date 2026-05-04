@@ -1052,10 +1052,15 @@ function EventBlock({
   const isHistoricalCompletion = !!task.isRecurringCompletion;
   const isOverdue = (() => {
     if (isDone || !task.dueDate) return false;
-    const end = task.dueTime
-      ? new Date(`${task.dueDate}T${task.dueTime}`).getTime() + (task.durationMinutes ?? 0) * 60000
-      : new Date(`${task.dueDate}T23:59:59`).getTime();
-    return end < Date.now();
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (task.dueDate < todayStr) return true;
+    if (task.dueDate > todayStr) return false;
+    if (!task.dueTime) return false;
+    const [h, m] = task.dueTime.split(':').map(Number);
+    const end = new Date(today);
+    end.setHours(h, m + (task.durationMinutes ?? 0), 0, 0);
+    return end.getTime() < Date.now();
   })();
 
   // Variant styles: completed wins, overdue next, then recurring, then default (priority border).
