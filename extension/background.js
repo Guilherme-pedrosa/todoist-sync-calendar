@@ -64,40 +64,43 @@ async function getValidToken() {
 async function callTrack(payload) {
   const token = await getValidToken();
   if (!token) throw new Error("not paired");
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: SUPABASE_ANON,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-  if (res.status === 401) {
-    const t = await refreshAccessToken();
-    if (!t) throw new Error("expired");
-    const r2 = await fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
+  const doFetch = (tok) =>
+    fetch(`${SUPABASE_URL}/functions/v1/activity-track`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${t}`,
+        Authorization: `Bearer ${tok}`,
         apikey: SUPABASE_ANON,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
     });
-    return r2.json();
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const t = await refreshAccessToken();
+    if (!t) throw new Error("auth expired — please re-pair");
+    res = await doFetch(t);
   }
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error("[TaskFlow] track error", res.status, data);
+    throw new Error(data?.error || `HTTP ${res.status}`);
+  }
+  return data;
 }
 
 async function ensureSession() {
   const cfg = await getCfg();
   if (!cfg.workspace_id) return null;
   if (cfg.session_id) return cfg.session_id;
-  const r = await callTrack({ action: "start", workspace_id: cfg.workspace_id });
-  if (r?.session_id) {
-    await setCfg({ session_id: r.session_id });
-    return r.session_id;
+  try {
+    const r = await callTrack({ action: "start", workspace_id: cfg.workspace_id });
+    if (r?.session_id) {
+      await setCfg({ session_id: r.session_id });
+      return r.session_id;
+    }
+  } catch (e) {
+    console.error("[TaskFlow] ensureSession failed:", e);
+    throw e;
   }
   return null;
 }
@@ -130,7 +133,7 @@ async function sendHeartbeat() {
     route,
     interactions: cfg.interactions || 0,
     seconds: HEARTBEAT_SECONDS,
-  }).catch(() => {});
+  });
   await setCfg({ interactions: 0 });
 }
 
@@ -190,16 +193,31 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     if (msg.type === "pair") {
-      await setCfg({
-        access_token: msg.access_token,
-        refresh_token: msg.refresh_token,
-        expires_at: msg.expires_at,
-        workspace_id: msg.workspace_id,
-        session_id: null,
-      });
-      await sendHeartbeat();
-      sendResponse({ ok: true });
-    } else if (msg.type === "unpair") {
+      try {
+        await setCfg({
+          access_token: msg.access_token,
+          refresh_token: msg.refresh_token,
+          expires_at: msg.expires_at,
+          workspace_id: msg.workspace_id,
+          session_id: null,
+          is_idle: false,
+          idle_id: null,
+          interactions: 0,
+        });
+        // try to start a session NOW so we know auth works
+        const sid = await ensureSession();
+        if (!sid) {
+          sendResponse({ ok: false, error: "Não foi possível iniciar sessão (token inválido ou expirado). Gere um novo código." });
+          return;
+        }
+        await sendHeartbeat();
+        // make sure heartbeat alarm is registered (onInstalled doesn't fire after pair)
+        chrome.alarms.create("heartbeat", { periodInMinutes: 1 });
+        sendResponse({ ok: true, session_id: sid });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
+    } else if (msg.type === "ping_now_legacy") {} else if (msg.type === "unpair") {
       const cfg = await getCfg();
       if (cfg.session_id) {
         await callTrack({
@@ -219,8 +237,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         is_idle: !!cfg.is_idle,
       });
     } else if (msg.type === "ping_now") {
-      await sendHeartbeat();
-      sendResponse({ ok: true });
+      try {
+        await sendHeartbeat();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
     }
   })();
   return true;

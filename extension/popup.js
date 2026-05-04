@@ -5,6 +5,11 @@ function show(paired) {
   $("unpaired").style.display = paired ? "none" : "block";
 }
 
+function setMsg(text, kind) {
+  $("msg").textContent = text || "";
+  $("msg").className = kind || "";
+}
+
 async function refresh() {
   const status = await chrome.runtime.sendMessage({ type: "status" });
   show(!!status.paired);
@@ -18,38 +23,56 @@ async function refresh() {
 }
 
 $("pairBtn").addEventListener("click", async () => {
-  const raw = $("token").value.trim();
-  $("msg").textContent = "";
-  $("msg").className = "";
-  if (!raw) return;
+  // strip ALL whitespace (spaces, newlines, tabs) — base64 is whitespace-safe
+  const raw = $("token").value.replace(/\s+/g, "");
+  setMsg("");
+  if (!raw) {
+    setMsg("Cole o código primeiro.", "err");
+    return;
+  }
+
   let payload;
   try {
-    // accepts JSON or base64-JSON
     let txt = raw;
     if (!raw.startsWith("{")) {
-      try { txt = atob(raw); } catch {}
+      txt = atob(raw);
     }
     payload = JSON.parse(txt);
-  } catch {
-    $("msg").textContent = "Código inválido. Copie novamente do app.";
-    $("msg").className = "err";
+  } catch (e) {
+    setMsg("Código inválido (não é JSON nem base64). Gere de novo no app.", "err");
+    console.error("[TaskFlow] parse error:", e);
     return;
   }
+
   if (!payload.access_token || !payload.workspace_id) {
-    $("msg").textContent = "Código incompleto.";
-    $("msg").className = "err";
+    setMsg("Código incompleto: faltam access_token ou workspace_id.", "err");
     return;
   }
-  await chrome.runtime.sendMessage({
-    type: "pair",
-    access_token: payload.access_token,
-    refresh_token: payload.refresh_token,
-    expires_at: payload.expires_at || (Date.now() + 50 * 60 * 1000),
-    workspace_id: payload.workspace_id,
-  });
-  $("msg").textContent = "Conectado!";
-  $("msg").className = "ok";
-  setTimeout(refresh, 400);
+
+  setMsg("Conectando...", "");
+  $("pairBtn").disabled = true;
+
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: "pair",
+      access_token: payload.access_token,
+      refresh_token: payload.refresh_token,
+      expires_at: payload.expires_at || (Date.now() + 50 * 60 * 1000),
+      workspace_id: payload.workspace_id,
+    });
+    console.log("[TaskFlow] pair result:", resp);
+    if (resp?.ok) {
+      setMsg("Conectado! Sessão iniciada.", "ok");
+      setTimeout(refresh, 400);
+    } else {
+      setMsg("Erro: " + (resp?.error || "falha desconhecida"), "err");
+    }
+  } catch (e) {
+    setMsg("Erro: " + (e?.message || e), "err");
+    console.error("[TaskFlow] pair error:", e);
+  } finally {
+    $("pairBtn").disabled = false;
+  }
 });
 
 $("unpairBtn").addEventListener("click", async () => {
@@ -58,7 +81,9 @@ $("unpairBtn").addEventListener("click", async () => {
 });
 
 $("pingBtn").addEventListener("click", async () => {
-  await chrome.runtime.sendMessage({ type: "ping_now" });
+  setMsg("Enviando ping...", "");
+  const r = await chrome.runtime.sendMessage({ type: "ping_now" });
+  setMsg(r?.ok ? "Ping ok!" : ("Erro: " + (r?.error || "?")), r?.ok ? "ok" : "err");
   refresh();
 });
 
