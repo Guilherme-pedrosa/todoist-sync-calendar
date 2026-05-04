@@ -25,6 +25,7 @@ import {
   Paperclip,
   MessageSquare,
   Users,
+  Video,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -53,6 +54,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { AssigneeChip } from '@/components/AssigneeChip';
 import { supabase } from '@/integrations/supabase/client';
 import { parseNlp } from '@/lib/nlp';
@@ -146,6 +148,7 @@ export function TaskDetailPanel() {
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [meetingOpen, setMeetingOpen] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -466,6 +469,9 @@ export function TaskDetailPanel() {
                 }
               >
                 <Copy className="h-4 w-4 mr-2" /> Duplicar
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMeetingOpen(true)}>
+                <Video className="h-4 w-4 mr-2" /> Transformar em reunião
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => window.print()}>
                 <Printer className="h-4 w-4 mr-2" /> Imprimir
@@ -941,6 +947,18 @@ export function TaskDetailPanel() {
         open={remindersOpen}
         onOpenChange={setRemindersOpen}
         taskId={task.id}
+      />
+
+      <ScheduleMeetingDialog
+        open={meetingOpen}
+        onOpenChange={setMeetingOpen}
+        convertTaskId={task.id}
+        defaultTitle={task.title}
+        defaultDescription={task.description ?? undefined}
+        defaultDate={task.dueDate ?? undefined}
+        defaultTime={task.dueTime ?? undefined}
+        defaultDuration={task.durationMinutes ?? undefined}
+        defaultUserInviteeIds={assigneeIds}
       />
     </div>
   );

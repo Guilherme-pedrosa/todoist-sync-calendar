@@ -18,6 +18,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   defaultDate?: string;
   defaultTime?: string;
+  /** Se informado, converte a tarefa existente em reunião em vez de criar uma nova. */
+  convertTaskId?: string;
+  /** Pré-preenche o título quando convertendo. */
+  defaultTitle?: string;
+  /** Pré-preenche a descrição quando convertendo. */
+  defaultDescription?: string;
+  /** Pré-preenche a duração em minutos quando convertendo. */
+  defaultDuration?: number;
+  /** Membros já marcados como responsáveis (serão adicionados como convidados). */
+  defaultUserInviteeIds?: string[];
 }
 
 type Invitee =
@@ -32,7 +42,17 @@ function getInitials(name: string | null | undefined) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, defaultTime }: Props) {
+export function ScheduleMeetingDialog({
+  open,
+  onOpenChange,
+  defaultDate,
+  defaultTime,
+  convertTaskId,
+  defaultTitle,
+  defaultDescription,
+  defaultDuration,
+  defaultUserInviteeIds,
+}: Props) {
   const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const projects = useTaskStore((s) => s.projects);
@@ -56,17 +76,30 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
 
   useEffect(() => {
     if (open) {
-      setTitle('');
+      setTitle(defaultTitle || '');
       setDate(defaultDate || today);
       setTime(defaultTime || '10:00');
-      setDuration(60);
-      setDescription('');
-      setInvitees([]);
+      setDuration(defaultDuration || 60);
+      setDescription(defaultDescription || '');
+      // Pré-popula convidados com responsáveis existentes (excluindo o próprio usuário)
+      const seedIds = (defaultUserInviteeIds || []).filter((id) => id && id !== user?.id);
+      const seeded: Invitee[] = seedIds
+        .map((uid) => members.find((m) => m.userId === uid))
+        .filter((m): m is WorkspaceMember => !!m)
+        .map((m) => ({
+          kind: 'user',
+          userId: m.userId,
+          name: m.displayName || m.email || 'Membro',
+          email: m.email,
+          avatarUrl: m.avatarUrl,
+        }));
+      setInvitees(seeded);
       setSearch('');
       setEmailDraft('');
       setAddMeet(true);
     }
-  }, [open, defaultDate, defaultTime, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDate, defaultTime, defaultTitle, defaultDescription, defaultDuration, today]);
 
   useEffect(() => {
     if (open && currentWorkspaceId && currentWorkspaceId !== membersWorkspaceId) {
@@ -123,7 +156,7 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
       return;
     }
     if (!user) return;
-    if (!inboxId) {
+    if (!convertTaskId && !inboxId) {
       toast.error('Não foi possível localizar o projeto padrão');
       return;
     }
@@ -134,29 +167,50 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
 
     setSubmitting(true);
     try {
-      // 1) Cria a tarefa-reunião
-      const { data: created, error: insertError } = await supabase
-        .from('tasks')
-        .insert({
-          user_id: user.id,
-          created_by: user.id,
-          project_id: inboxId,
-          title: title.trim(),
-          description: description.trim() || null,
-          due_date: date,
-          due_time: time,
-          duration_minutes: duration,
-          priority: 3,
-          is_meeting: true,
-        } as any)
-        .select('id, workspace_id')
-        .single();
+      let taskId: string;
 
-      if (insertError || !created) {
-        throw insertError || new Error('Falha ao criar reunião');
+      if (convertTaskId) {
+        // Converte tarefa existente em reunião
+        const { data: updated, error: updateError } = await supabase
+          .from('tasks')
+          .update({
+            title: title.trim(),
+            description: description.trim() || null,
+            due_date: date,
+            due_time: time,
+            duration_minutes: duration,
+            is_meeting: true,
+          } as any)
+          .eq('id', convertTaskId)
+          .select('id, workspace_id')
+          .single();
+        if (updateError || !updated) {
+          throw updateError || new Error('Falha ao converter em reunião');
+        }
+        taskId = updated.id as string;
+      } else {
+        // Cria nova tarefa-reunião
+        const { data: created, error: insertError } = await supabase
+          .from('tasks')
+          .insert({
+            user_id: user.id,
+            created_by: user.id,
+            project_id: inboxId!,
+            title: title.trim(),
+            description: description.trim() || null,
+            due_date: date,
+            due_time: time,
+            duration_minutes: duration,
+            priority: 3,
+            is_meeting: true,
+          } as any)
+          .select('id, workspace_id')
+          .single();
+        if (insertError || !created) {
+          throw insertError || new Error('Falha ao criar reunião');
+        }
+        taskId = created.id as string;
       }
-
-      const taskId = created.id as string;
 
       // 2) Cria os convites
       const rows = invitees.map((i) =>
@@ -239,7 +293,7 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
         console.warn('[meeting] GCal opcional falhou', e);
       }
 
-      toast.success('Reunião agendada!', {
+      toast.success(convertTaskId ? 'Tarefa convertida em reunião!' : 'Reunião agendada!', {
         description: `${invitees.length} convite(s) enviado(s)`,
       });
       onOpenChange(false);
@@ -257,7 +311,7 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
-            Agendar reunião
+            {convertTaskId ? 'Transformar em reunião' : 'Agendar reunião'}
           </DialogTitle>
         </DialogHeader>
 
@@ -417,7 +471,7 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
           </Button>
           <Button onClick={handleSubmit} disabled={submitting} className={cn('gap-2')}>
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-            Agendar e enviar convites
+            {convertTaskId ? 'Converter e enviar convites' : 'Agendar e enviar convites'}
           </Button>
         </DialogFooter>
       </DialogContent>
