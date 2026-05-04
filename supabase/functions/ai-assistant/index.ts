@@ -73,9 +73,13 @@ interface BasePayload {
   // chat
   messages?: { role: "user" | "assistant"; content: string }[];
   // Catálogo de tarefas com id (chat usa para tool calling com id real)
-  taskCatalog?: { id: string; title: string; date?: string | null; time?: string | null; priority?: number; project?: string | null; completed?: boolean }[];
+  taskCatalog?: { id: string; title: string; date?: string | null; time?: string | null; priority?: number; project?: string | null; completed?: boolean; assignees?: string[] }[];
   // Projetos disponíveis (para create_task escolher projeto por nome)
   projectCatalog?: { id: string; name: string }[];
+  // Membros do workspace (para assign_task referenciar usuários por id real)
+  memberCatalog?: { userId: string; name: string; email?: string | null }[];
+  // Eventos do Google Calendar (para gerenciar eventos do calendário)
+  calendarEvents?: { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[];
 }
 
 function toMinutes(time?: string | null) {
@@ -185,7 +189,7 @@ Se nenhum slot em 7 dias úteis, date=null com rationale.
 
 const SYSTEM_CHAT = BASE_PROMPT + `
 AÇÃO: chat
-OBJETIVO: Responder perguntas livres E EXECUTAR AÇÕES sobre a agenda/tarefas.
+OBJETIVO: Responder perguntas livres E EXECUTAR AÇÕES sobre a agenda/tarefas/calendário.
 
 ESTILO:
 - Texto natural, curto. Máx 4 frases por padrão.
@@ -193,21 +197,33 @@ ESTILO:
 - Ao citar tarefa: (P1/P2/P3/P4) e horário se houver.
 
 VOCÊ TEM FERRAMENTAS (tool calling). USE-AS quando o usuário pedir AÇÃO:
+
+Tarefas:
 - create_task: criar uma tarefa nova ("cria…", "adiciona…", "marca reunião…").
 - update_task: editar tarefa existente ("move pra 14h", "muda prioridade", "renomeia").
-- complete_task: marcar como concluída ("conclui…", "marca como feita…").
-- delete_task: apagar ("apaga…", "remove…", "deleta…").
+- complete_task: marcar como concluída.
+- delete_task: apagar.
+- assign_task: atribuir/delegar tarefa a outra pessoa do workspace ("delega pro João").
+- unassign_task: remover atribuição.
+- bulk_reschedule: reagendar VÁRIAS tarefas de uma vez ("move tudo de hoje pra amanhã", "limpa minha sexta").
+
+Calendário (Google Calendar):
+- create_calendar_event: criar evento direto no calendário (sem virar tarefa). Use para "bloqueie tal horário", "marca um foco às 9h".
+- delete_calendar_event: apagar um evento do calendário.
+- clear_calendar_day: limpar TODOS os eventos do calendário de um dia ("limpa meu calendário de sexta").
 
 REGRAS DE FERRAMENTAS:
-- Para update/complete/delete, OBRIGATÓRIO usar o id real da tarefa do contexto. Se não souber qual tarefa, NÃO chame ferramenta — pergunte qual.
-- Você pode chamar VÁRIAS ferramentas na mesma resposta (ex.: criar 3 tarefas).
-- Sempre escreva também uma resposta em texto explicando o que vai fazer (1-2 frases). O usuário vai CONFIRMAR antes de aplicar.
-- Se for só pergunta ("quando tenho 1h livre?"), NÃO chame ferramenta — só responda em texto.
-- NUNCA invente tarefa fora de \`tasks\` ao referenciar id.
+- Para qualquer ação que precise de id (task/usuário/evento), OBRIGATÓRIO usar o id real do CATÁLOGO. Se não souber qual, NÃO chame ferramenta — pergunte qual.
+- assign_task / unassign_task: use o userId do CATÁLOGO DE MEMBROS. Match por nome ou email.
+- bulk_reschedule: pode receber muitos taskIds; use uma única chamada com a lista.
+- Você pode chamar VÁRIAS ferramentas na mesma resposta.
+- SEMPRE escreva também uma resposta em texto explicando o que vai fazer (1-2 frases). O usuário SEMPRE confirma antes de aplicar.
+- Se for só pergunta ("quando tenho 1h livre?"), NÃO chame ferramenta.
+- NUNCA invente id que não esteja no contexto.
 
 PROIBIDO:
-- Conselhos genéricos de produtividade ("acorde cedo", "use pomodoro"). Só falar dos DADOS DELE.
-- Responder sobre dias fora do contexto sem avisar que não tem visibilidade.
+- Conselhos genéricos de produtividade. Só falar dos DADOS DELE.
+- Responder sobre dias fora do contexto sem avisar.
 `;
 
 function buildContextBlock(p: BasePayload): string {
@@ -237,12 +253,23 @@ function buildContextBlock(p: BasePayload): string {
     .slice(0, 200)
     .map(
       (t) =>
-        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.completed ? " | ✓" : ""}`,
+        `- id=${t.id} | ${t.title}${t.date ? ` | ${t.date}${t.time ? ` ${t.time}` : ""}` : " | sem data"} | P${t.priority ?? 4}${t.project ? ` | ${t.project}` : ""}${t.assignees && t.assignees.length ? ` | assignees=${t.assignees.join(",")}` : ""}${t.completed ? " | ✓" : ""}`,
     )
     .join("\n");
   const projectsBlock = (p.projectCatalog ?? [])
     .slice(0, 50)
     .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .join("\n");
+  const membersBlock = (p.memberCatalog ?? [])
+    .slice(0, 100)
+    .map((m) => `- userId=${m.userId} | ${m.name}${m.email ? ` <${m.email}>` : ""}`)
+    .join("\n");
+  const eventsBlock = (p.calendarEvents ?? [])
+    .slice(0, 100)
+    .map(
+      (e) =>
+        `- eventId=${e.id} | ${e.title}${e.date ? ` | ${e.date}${e.time ? ` ${e.time}` : ""}` : ""}${e.durationMinutes ? ` | ${e.durationMinutes}min` : ""}`,
+    )
     .join("\n");
 
   return [
@@ -261,6 +288,12 @@ function buildContextBlock(p: BasePayload): string {
     "",
     projectsBlock ? "PROJETOS DISPONÍVEIS:" : "",
     projectsBlock,
+    "",
+    membersBlock ? "CATÁLOGO DE MEMBROS (use estes userId em assign_task):" : "",
+    membersBlock,
+    "",
+    eventsBlock ? "CATÁLOGO DE EVENTOS DO CALENDÁRIO (use estes eventId em delete_calendar_event):" : "",
+    eventsBlock,
     "",
     "FERIADOS BR:",
     hol || "(nenhum no período)",
@@ -582,6 +615,118 @@ Deno.serve(async (req) => {
                   taskId: { type: "string" },
                 },
                 required: ["taskId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "assign_task",
+              description: "Atribui (delega) uma tarefa a um usuário do workspace. Use o userId do CATÁLOGO DE MEMBROS.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  userId: { type: "string", description: "userId do membro (do CATÁLOGO DE MEMBROS)" },
+                },
+                required: ["taskId", "userId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "unassign_task",
+              description: "Remove a atribuição de um usuário de uma tarefa.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  userId: { type: "string" },
+                },
+                required: ["taskId", "userId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "bulk_reschedule",
+              description: "Reagenda VÁRIAS tarefas de uma vez (ex.: 'move tudo de hoje pra amanhã'). Cada item pode ter newDate, newTime, ou clearDate/clearTime.",
+              parameters: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        taskId: { type: "string" },
+                        newDate: { type: "string", description: "YYYY-MM-DD" },
+                        newTime: { type: "string", description: "HH:mm" },
+                        clearDate: { type: "boolean" },
+                        clearTime: { type: "boolean" },
+                      },
+                      required: ["taskId"],
+                      additionalProperties: false,
+                    },
+                  },
+                  reason: { type: "string", description: "Resumo curto do porquê" },
+                },
+                required: ["items"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "create_calendar_event",
+              description: "Cria um evento direto no Google Calendar (sem virar tarefa). Use para bloqueios de tempo, foco, pausas.",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                  time: { type: "string", description: "HH:mm" },
+                  durationMinutes: { type: "number" },
+                  allDay: { type: "boolean" },
+                },
+                required: ["title", "date"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "delete_calendar_event",
+              description: "Apaga um evento específico do Google Calendar. Use eventId do CATÁLOGO DE EVENTOS.",
+              parameters: {
+                type: "object",
+                properties: {
+                  eventId: { type: "string" },
+                },
+                required: ["eventId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "clear_calendar_day",
+              description: "Apaga TODOS os eventos do Google Calendar de um dia inteiro. Operação destrutiva.",
+              parameters: {
+                type: "object",
+                properties: {
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                },
+                required: ["date"],
                 additionalProperties: false,
               },
             },

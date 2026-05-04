@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Sheet,
   SheetContent,
@@ -444,11 +446,68 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const updateTask = useTaskStore((s) => s.updateTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const toggleTask = useTaskStore((s) => s.toggleTask);
+  const members = useWorkspaceStore((s) => s.members);
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<
+    { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[]
+  >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) return;
+        const timeMin = new Date().toISOString();
+        const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list-events&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
+        const r = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        if (cancelled) return;
+        setCalendarEvents(
+          items.slice(0, 80).map((e: any) => {
+            const startDateTime = e.start?.dateTime ?? null;
+            const endDateTime = e.end?.dateTime ?? null;
+            let date: string | null = e.start?.date ?? null;
+            let time: string | null = null;
+            let durationMinutes: number | null = null;
+            if (startDateTime) {
+              const [d, t] = startDateTime.split('T');
+              date = d;
+              time = t?.slice(0, 5) ?? null;
+              if (endDateTime) {
+                const start = new Date(startDateTime).getTime();
+                const end = new Date(endDateTime).getTime();
+                if (Number.isFinite(start) && Number.isFinite(end)) {
+                  durationMinutes = Math.max(1, Math.round((end - start) / 60000));
+                }
+              }
+            }
+            return { id: e.id, title: e.summary ?? '(sem título)', date, time, durationMinutes };
+          }),
+        );
+      } catch {
+        // silencioso — Calendar pode não estar conectado
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -462,7 +521,19 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     setInput('');
     setLoading(true);
     try {
-      const r = await chatWithAssistant({ messages: next, tasks, projects });
+      const r = await chatWithAssistant({
+        messages: next,
+        tasks,
+        projects,
+        extras: {
+          members: members.map((m) => ({
+            userId: m.userId,
+            name: m.displayName ?? '(sem nome)',
+            email: m.email,
+          })),
+          calendarEvents,
+        },
+      });
       const replyText = (r && typeof r.text === 'string' && r.text.trim())
         ? r.text
         : (r?.actions?.length
@@ -485,6 +556,27 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('Sessão expirada');
+    const qs = query ? `&${query}` : '';
+    const r = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=${action}${qs}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      },
+    );
+    if (!r.ok) throw new Error(`Calendar ${action} falhou`);
+    return r.json();
   };
 
   const applyActions = async (msgIndex: number) => {
@@ -521,6 +613,50 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
           await toggleTask(action.args.taskId);
         } else if (action.type === 'delete_task') {
           await deleteTask(action.args.taskId);
+        } else if (action.type === 'assign_task') {
+          const { data: userData } = await supabase.auth.getUser();
+          const me = userData.user?.id;
+          const { error } = await supabase.from('task_assignees').insert({
+            task_id: action.args.taskId,
+            user_id: action.args.userId,
+            assigned_by: me,
+          });
+          if (error && !error.message?.toLowerCase().includes('duplicate')) throw error;
+        } else if (action.type === 'unassign_task') {
+          const { error } = await supabase
+            .from('task_assignees')
+            .delete()
+            .eq('task_id', action.args.taskId)
+            .eq('user_id', action.args.userId);
+          if (error) throw error;
+        } else if (action.type === 'bulk_reschedule') {
+          for (const item of action.args.items) {
+            const updates: Record<string, any> = {};
+            if (item.clearDate) updates.dueDate = null;
+            else if (item.newDate !== undefined) updates.dueDate = item.newDate;
+            if (item.clearTime) updates.dueTime = null;
+            else if (item.newTime !== undefined) updates.dueTime = item.newTime;
+            await updateTask(item.taskId, updates);
+          }
+        } else if (action.type === 'create_calendar_event') {
+          await callCalendar('create-event', {
+            title: action.args.title,
+            description: action.args.description ?? '',
+            date: action.args.date,
+            time: action.args.time,
+            allDay: action.args.allDay ?? !action.args.time,
+            durationMinutes: action.args.durationMinutes ?? 60,
+          });
+        } else if (action.type === 'delete_calendar_event') {
+          await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(action.args.eventId)}`);
+          setCalendarEvents((prev) => prev.filter((e) => e.id !== action.args.eventId));
+        } else if (action.type === 'clear_calendar_day') {
+          const day = action.args.date;
+          const targets = calendarEvents.filter((e) => e.date === day);
+          for (const ev of targets) {
+            await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(ev.id)}`);
+          }
+          setCalendarEvents((prev) => prev.filter((e) => e.date !== day));
         }
         ok++;
       } catch (err) {
@@ -589,6 +725,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
                   state={m.actionsState ?? 'pending'}
                   tasks={tasks}
                   projects={projects}
+                  members={members}
+                  calendarEvents={calendarEvents}
                   onApply={() => applyActions(i)}
                   onDiscard={() => discardActions(i)}
                 />
@@ -634,6 +772,8 @@ function ActionProposalCard({
   state,
   tasks,
   projects,
+  members,
+  calendarEvents,
   onApply,
   onDiscard,
 }: {
@@ -641,6 +781,8 @@ function ActionProposalCard({
   state: 'pending' | 'applied' | 'discarded';
   tasks: any[];
   projects: any[];
+  members: { userId: string; displayName: string | null; email: string | null }[];
+  calendarEvents: { id: string; title: string; date?: string | null; time?: string | null }[];
   onApply: () => void;
   onDiscard: () => void;
 }) {
@@ -648,6 +790,12 @@ function ActionProposalCard({
     id ? tasks.find((t) => t.id === id)?.title ?? `(id ${id.slice(0, 6)}…)` : '';
   const projectName = (id?: string) =>
     id ? projects.find((p) => p.id === id)?.name ?? '' : '';
+  const memberName = (id?: string) => {
+    const m = id ? members.find((mm) => mm.userId === id) : null;
+    return m?.displayName ?? m?.email ?? (id ? `(user ${id.slice(0, 6)}…)` : '');
+  };
+  const eventTitle = (id?: string) =>
+    id ? calendarEvents.find((e) => e.id === id)?.title ?? `(evento ${id.slice(0, 6)}…)` : '';
 
   const describe = (a: AssistantAction): { icon: string; label: string; detail?: string } => {
     if (a.type === 'create_task') {
@@ -674,7 +822,32 @@ function ActionProposalCard({
     if (a.type === 'complete_task') {
       return { icon: '✅', label: `Concluir: ${taskTitle(a.args.taskId)}` };
     }
-    return { icon: '🗑️', label: `Excluir: ${taskTitle(a.args.taskId)}` };
+    if (a.type === 'delete_task') {
+      return { icon: '🗑️', label: `Excluir: ${taskTitle(a.args.taskId)}` };
+    }
+    if (a.type === 'assign_task') {
+      return { icon: '👤', label: `Delegar: ${taskTitle(a.args.taskId)}`, detail: `→ ${memberName(a.args.userId)}` };
+    }
+    if (a.type === 'unassign_task') {
+      return { icon: '🚫', label: `Desatribuir: ${taskTitle(a.args.taskId)}`, detail: `de ${memberName(a.args.userId)}` };
+    }
+    if (a.type === 'bulk_reschedule') {
+      const sample = a.args.items.slice(0, 3).map((it) => taskTitle(it.taskId)).join(', ');
+      const more = a.args.items.length > 3 ? ` + ${a.args.items.length - 3} mais` : '';
+      return {
+        icon: '🔀',
+        label: `Reagendar ${a.args.items.length} tarefa(s)`,
+        detail: `${sample}${more}${a.args.reason ? ` · ${a.args.reason}` : ''}`,
+      };
+    }
+    if (a.type === 'create_calendar_event') {
+      const bits = [a.args.date, a.args.time, a.args.durationMinutes ? `${a.args.durationMinutes}min` : null].filter(Boolean);
+      return { icon: '📅', label: `Calendário: ${a.args.title}`, detail: bits.join(' · ') };
+    }
+    if (a.type === 'delete_calendar_event') {
+      return { icon: '❌', label: `Apagar evento: ${eventTitle(a.args.eventId)}` };
+    }
+    return { icon: '🧹', label: `Limpar calendário do dia ${a.args.date}` };
   };
 
   return (
