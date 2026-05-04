@@ -960,25 +960,20 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       return null;
     }
 
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({
-        user_id: userId,
-        workspace_id: workspaceId,
-        owner_id: userId,
-        visibility: 'private',
-        name: projectData.name,
-        color: projectData.color,
-        parent_id: projectData.parentId || null,
-        is_favorite: !!projectData.isFavorite,
-        view_type: projectData.viewType || 'list',
-        description: projectData.description || null,
-        position: maxPosition + 1,
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('create_project_secure', {
+      p_workspace_id: workspaceId,
+      p_name: projectData.name,
+      p_color: projectData.color,
+      p_parent_id: projectData.parentId || null,
+      p_is_favorite: !!projectData.isFavorite,
+      p_view_type: projectData.viewType || 'list',
+      p_description: projectData.description || null,
+    });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Erro ao criar projeto:', error);
+      throw error;
+    }
     if (!data) throw new Error('Projeto não foi criado');
 
     const newProject: Project = {
