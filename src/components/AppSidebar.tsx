@@ -153,6 +153,23 @@ export function AppSidebar() {
     };
   }, [user]);
 
+  // Produtividade/Extensão só aparecem para donos de workspace (não-pessoal)
+  const [isAnyWorkspaceOwner, setIsAnyWorkspaceOwner] = useState(false);
+  useEffect(() => {
+    if (!user) { setIsAnyWorkspaceOwner(false); return; }
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', user.id)
+        .eq('is_personal', false)
+        .limit(1);
+      if (active) setIsAnyWorkspaceOwner((data?.length || 0) > 0);
+    })();
+    return () => { active = false; };
+  }, [user]);
+
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter((t) => !t.completed && t.dueDate === today).length;
   const inboxProject = projects.find((p) => p.isInbox);
@@ -522,14 +539,18 @@ export function AppSidebar() {
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Carga de trabalho</span>
         </NavLink>
-        <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
-          <Activity className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Produtividade</span>
-        </NavLink>
-        <NavLink to="/extensao" className={({ isActive }) => navLinkClass(isActive)}>
-          <Chrome className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Extensão Chrome</span>
-        </NavLink>
+        {isAnyWorkspaceOwner && (
+          <>
+            <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
+              <Activity className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Produtividade</span>
+            </NavLink>
+            <NavLink to="/extensao" className={({ isActive }) => navLinkClass(isActive)}>
+              <Chrome className="h-4 w-4 shrink-0" />
+              <span className="flex-1 text-left">Extensão Chrome</span>
+            </NavLink>
+          </>
+        )}
 
         {/* Favorites */}
         {(favoriteProjects.length > 0 || favoriteLabels.length > 0 || favoriteFilters.length > 0) && (
