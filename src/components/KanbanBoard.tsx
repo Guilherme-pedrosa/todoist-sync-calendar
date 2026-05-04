@@ -655,6 +655,15 @@ function KanbanColumn({
             </h3>
           )}
           <span className="text-[10px] text-muted-foreground">{tasks.length}</span>
+          {column.assigneeUserId && column.assigneeName && (
+            <span
+              className="ml-1 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-medium max-w-[110px] truncate"
+              title={`Vinculada a ${column.assigneeName}`}
+            >
+              <UserIcon className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{column.assigneeName}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <button
@@ -664,7 +673,7 @@ function KanbanColumn({
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-          {(onRename || onDelete) && (
+          {(onRename || onDelete || onSetAssignee) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
