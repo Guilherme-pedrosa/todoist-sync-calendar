@@ -14,7 +14,9 @@ import {
   CalendarClock,
   LayoutGrid,
   Sparkles,
+  CalendarPlus,
 } from 'lucide-react';
+import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
