@@ -588,30 +588,43 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
-    // Reminder: usa o valor passado ou cai no default do usuário (15min).
+    // Reminders: cria um registro por antecedência configurada (ex.: [1440, 15] = 1 dia e 15 min antes).
     if (data.due_date && data.due_time) {
-      let minutes = taskData.reminderMinutes;
-      if (minutes == null) {
+      let offsets: number[] = [];
+      const explicit = taskData.reminderMinutes;
+      if (explicit != null) {
+        offsets = [explicit];
+      } else {
         const { data: settings } = await supabase
           .from('user_settings')
-          .select('default_reminder_minutes')
+          .select('default_reminder_minutes, reminder_offsets_minutes')
           .eq('user_id', userId)
           .maybeSingle();
-        minutes = settings?.default_reminder_minutes ?? 15;
+        const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
+          ? ((settings as any).reminder_offsets_minutes as number[])
+          : null;
+        offsets = fromArray && fromArray.length > 0
+          ? fromArray
+          : [settings?.default_reminder_minutes ?? 15];
       }
-      if (minutes != null && minutes >= 0) {
-        const triggerAt = new Date(`${data.due_date}T${data.due_time}`);
-        triggerAt.setMinutes(triggerAt.getMinutes() - minutes);
-        // Só agenda se o trigger ainda está no futuro
-        if (triggerAt.getTime() > Date.now()) {
-          await supabase.from('reminders').insert({
-            task_id: data.id,
-            trigger_at: triggerAt.toISOString(),
-            type: 'absolute',
-            relative_minutes: minutes,
-            channel: 'push',
-          });
-        }
+      const dueAt = new Date(`${data.due_date}T${data.due_time}`);
+      const rows = offsets
+        .filter((m) => typeof m === 'number' && m >= 0)
+        .map((m) => {
+          const t = new Date(dueAt.getTime() - m * 60_000);
+          return t.getTime() > Date.now()
+            ? {
+                task_id: data.id,
+                trigger_at: t.toISOString(),
+                type: 'absolute',
+                relative_minutes: m,
+                channel: 'push',
+              }
+            : null;
+        })
+        .filter(Boolean);
+      if (rows.length > 0) {
+        await supabase.from('reminders').insert(rows as any);
       }
     }
 
