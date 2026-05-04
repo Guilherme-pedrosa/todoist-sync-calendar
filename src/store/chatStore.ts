@@ -2,6 +2,25 @@ import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+// Event bus para notificar a UI quando chega mensagem nova de outro usuário
+export type IncomingChatEvent = {
+  message: { id: string; conversationId: string; userId: string; body: string };
+  conversationTitle: string | null;
+  conversationType: 'workspace' | 'task' | 'context';
+  taskId: string | null;
+};
+type ChatListener = (e: IncomingChatEvent) => void;
+const chatListeners = new Set<ChatListener>();
+export function onIncomingChatMessage(fn: ChatListener) {
+  chatListeners.add(fn);
+  return () => chatListeners.delete(fn);
+}
+function emitIncomingChat(e: IncomingChatEvent) {
+  chatListeners.forEach((fn) => {
+    try { fn(e); } catch { /* noop */ }
+  });
+}
+
 export type ConversationType = 'workspace' | 'task' | 'context';
 
 export interface Conversation {
