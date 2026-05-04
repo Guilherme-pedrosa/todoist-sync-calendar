@@ -905,14 +905,39 @@ function ActionProposalCard({
       <div className="space-y-1.5">
         {actions.map((a, idx) => {
           const d = describe(a);
+          let clickableId: string | null = null;
+          if (a.type === 'create_task') clickableId = createdTaskIds?.[idx] ?? null;
+          else if (
+            a.type === 'update_task' ||
+            a.type === 'complete_task' ||
+            a.type === 'delete_task' ||
+            a.type === 'assign_task' ||
+            a.type === 'unassign_task'
+          ) {
+            // só clica se a tarefa ainda existe (delete remove)
+            const exists = tasks.some((t) => t.id === a.args.taskId);
+            if (exists) clickableId = a.args.taskId;
+          }
+          const canClick = !!(clickableId && onOpenTask && state !== 'discarded');
+          const Wrapper: any = canClick ? 'button' : 'div';
           return (
-            <div key={idx} className="text-xs flex gap-2">
+            <Wrapper
+              key={idx}
+              type={canClick ? 'button' : undefined}
+              onClick={canClick ? () => onOpenTask!(clickableId!) : undefined}
+              className={cn(
+                'text-xs flex gap-2 w-full text-left',
+                canClick && 'rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/60 transition-colors cursor-pointer',
+              )}
+            >
               <span className="shrink-0">{d.icon}</span>
-              <div className="min-w-0">
-                <div className="font-medium truncate">{d.label}</div>
+              <div className="min-w-0 flex-1">
+                <div className={cn('font-medium truncate', canClick && 'group-hover:underline text-primary hover:underline')}>
+                  {d.label}
+                </div>
                 {d.detail && <div className="text-muted-foreground">{d.detail}</div>}
               </div>
-            </div>
+            </Wrapper>
           );
         })}
       </div>
