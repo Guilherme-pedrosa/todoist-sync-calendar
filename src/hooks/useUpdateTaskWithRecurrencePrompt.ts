@@ -110,6 +110,9 @@ export function useUpdateTaskWithRecurrencePrompt() {
             ? (updates.durationMinutes as number | null)
             : task.durationMinutes ?? null;
 
+        // Cria a nova tarefa standalone SEM copiar o googleCalendarEventId
+        // (senão o mesmo evento do GCal fica linkado a duas tarefas → duplica).
+        // O addTask cria um novo evento próprio para essa nova ocorrência.
         await addTask({
           title: task.title,
           description: task.description ?? '',
@@ -120,10 +123,11 @@ export function useUpdateTaskWithRecurrencePrompt() {
           projectId: task.projectId ?? undefined,
           sectionId: task.sectionId ?? undefined,
           labels: task.labels,
-          googleCalendarEventId: task.googleCalendarEventId,
         } as any);
 
-        await updateTask(taskId, { recurrenceRule: newRule, googleCalendarEventId: undefined } as any);
+        // Mantém o googleCalendarEventId da série original (não limpar!),
+        // só atualiza a regra para excluir a ocorrência movida.
+        await updateTask(taskId, { recurrenceRule: newRule } as any);
       } catch (e) {
         console.error('single-occurrence edit failed', e);
         toast.error('Falha ao editar apenas esta ocorrência');
