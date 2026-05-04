@@ -701,6 +701,20 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   return (
     <div className="h-full flex flex-col">
+      {messages.length > 0 && (
+        <div className="px-5 py-2 border-b border-border/60 flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              if (confirm('Limpar todo o histórico desta conversa?')) clearMessages();
+            }}
+          >
+            <Trash2 className="h-3 w-3" /> Limpar histórico
+          </Button>
+        </div>
+      )}
       <ScrollArea className="flex-1">
         <div ref={scrollRef} className="p-5 space-y-3">
           {messages.length === 0 && (
@@ -745,12 +759,17 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
                 <ActionProposalCard
                   actions={m.actions}
                   state={m.actionsState ?? 'pending'}
+                  createdTaskIds={m.createdTaskIds}
                   tasks={tasks}
                   projects={projects}
                   members={members}
                   calendarEvents={calendarEvents}
                   onApply={() => applyActions(i)}
                   onDiscard={() => discardActions(i)}
+                  onOpenTask={(id) => {
+                    closePanel();
+                    openTaskDetail(id);
+                  }}
                 />
               )}
             </div>
