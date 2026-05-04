@@ -19,7 +19,9 @@ import {
   Trash2,
   Loader2,
   Check,
+  Users as UsersIcon,
 } from 'lucide-react';
+import { UsersManagementPanel } from '@/components/settings/UsersManagementPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
@@ -72,6 +74,7 @@ const TAB_ITEMS = [
   { value: 'sidebar', icon: SidebarIcon, label: 'Barra lateral' },
   { value: 'quickadd', icon: Zap, label: 'Adição rápida' },
   { value: 'productivity', icon: Sparkles, label: 'Produtividade' },
+  { value: 'users', icon: UsersIcon, label: 'Usuários' },
   { value: 'reminders', icon: Bell, label: 'Lembretes' },
   { value: 'notifications', icon: BellRing, label: 'Notificações' },
   { value: 'backups', icon: Database, label: 'Backups' },
