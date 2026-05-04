@@ -992,7 +992,7 @@ function VehicleKanban({
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
-  const { columns, tasksByColumn } = useMemo(() => {
+  const { columns, tasksByColumn, subtasksByParent } = useMemo(() => {
     const byId = new Map<string, Task>();
     for (const t of tasks) byId.set(t.id, t);
 
@@ -1009,8 +1009,14 @@ function VehicleKanban({
     };
 
     const map = new Map<string, { id: string; title: string; plate: string | null; tasks: Task[] }>();
+    const children = new Map<string, Task[]>();
     for (const t of tasks) {
       if (t.completed) continue;
+      if (t.parentId) {
+        if (!children.has(t.parentId)) children.set(t.parentId, []);
+        children.get(t.parentId)!.push(t);
+        continue;
+      }
       const v = resolveVehicle(t);
       const id = v ? `vehicle:${v.plate}` : VEHICLE_UNKNOWN_ID;
       const title = v ? v.label : 'Sem veículo';
@@ -1027,7 +1033,7 @@ function VehicleKanban({
 
     const byCol = new Map<string, Task[]>();
     for (const c of cols) byCol.set(c.id, c.tasks);
-    return { columns: cols, tasksByColumn: byCol };
+    return { columns: cols, tasksByColumn: byCol, subtasksByParent: children };
   }, [tasks]);
 
   if (columns.length === 0) {
@@ -1047,6 +1053,7 @@ function VehicleKanban({
             id={col.id}
             title={col.title}
             tasks={tasksByColumn.get(col.id) || []}
+            subtasksByParent={subtasksByParent}
             onAddTask={() => {
               openQuickAdd({
                 ...(newTaskDefaults || {}),
