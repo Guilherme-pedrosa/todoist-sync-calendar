@@ -75,7 +75,7 @@ interface BasePayload {
   // Catálogo de tarefas com id (chat usa para tool calling com id real)
   taskCatalog?: { id: string; title: string; date?: string | null; time?: string | null; priority?: number; project?: string | null; completed?: boolean; assignees?: string[] }[];
   // Projetos disponíveis (para create_task escolher projeto por nome)
-  projectCatalog?: { id: string; name: string }[];
+  projectCatalog?: { id: string; name: string; isInbox?: boolean }[];
   // Membros do workspace (para assign_task referenciar usuários por id real)
   memberCatalog?: { userId: string; name: string; email?: string | null }[];
   // Eventos do Google Calendar (para gerenciar eventos do calendário)
