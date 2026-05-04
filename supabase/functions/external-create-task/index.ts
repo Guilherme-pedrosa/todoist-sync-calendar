@@ -63,6 +63,46 @@ function splitDueAt(dueAt: string | null) {
   return { due_date: d.toISOString().slice(0, 10), due_time: d.toISOString().slice(11, 19) };
 }
 
+function parseCompleted(raw: unknown): boolean | null {
+  if (raw == null) return null;
+  if (typeof raw === 'boolean') return raw;
+  if (typeof raw === 'number') return raw === 1;
+
+  const value = String(raw).trim().toLowerCase();
+  if (!value) return null;
+
+  if (['true', '1', 'yes', 'sim', 'done', 'completed', 'complete', 'concluido', 'concluida', 'finalizado', 'finalizada'].includes(value)) return true;
+  if (['false', '0', 'no', 'nao', 'não', 'open', 'opened', 'pending', 'pendente', 'em aberto', 'aberto', 'aberta'].includes(value)) return false;
+
+  return null;
+}
+
+function readCompleted(source: any): { completed: boolean; completed_at: string | null } | null {
+  const completed = parseCompleted(
+    source?.completed ??
+      source?.is_completed ??
+      source?.isCompleted ??
+      source?.done ??
+      source?.finished ??
+      source?.finalizada ??
+      source?.finalizado ??
+      source?.concluida ??
+      source?.concluido ??
+      source?.status,
+  );
+
+  const completedAtRaw = source?.completed_at ?? source?.completedAt ?? source?.finished_at ?? source?.finishedAt ?? source?.closed_at ?? source?.closedAt;
+  const completedAt = completedAtRaw ? parseDueAt(completedAtRaw) : null;
+
+  if (completed === null && !completedAt) return null;
+
+  const isCompleted = completed ?? true;
+  return {
+    completed: isCompleted,
+    completed_at: isCompleted ? (completedAt || new Date().toISOString()) : null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -129,6 +169,7 @@ Deno.serve(async (req) => {
 
   // Decompose dueAt -> due_date / due_time (campos legados usados pelo app)
   const { due_date, due_time } = splitDueAt(dueAt);
+  const completion = readCompleted(body);
 
   const taskPayload: Record<string, unknown> = {
     user_id: keyRow.created_by,
@@ -145,6 +186,7 @@ Deno.serve(async (req) => {
     external_source: externalSource,
     assignee,
     last_sync_source: syncSource,
+    ...(completion ? { completed: completion.completed, completed_at: completion.completed_at } : {}),
   };
 
   let task: any = null;
@@ -171,6 +213,7 @@ Deno.serve(async (req) => {
           assignee,
           external_source: externalSource,
           last_sync_source: syncSource,
+          ...(completion ? { completed: completion.completed, completed_at: completion.completed_at } : {}),
         })
         .eq('id', existing.id)
         .select('id, title, due_at, priority, project_id, external_ref')
@@ -229,6 +272,7 @@ Deno.serve(async (req) => {
     const subExternalRef = readSubtaskExternalRef(externalRef, item, index);
     const subDueAt = parseDueAt(item?.due_at || item?.dueAt || item?.date || dueAt);
     const split = splitDueAt(subDueAt);
+    const subCompletion = typeof item === 'object' && item !== null ? readCompleted(item) : null;
     const subPayload = {
       user_id: keyRow.created_by,
       created_by: keyRow.created_by,
@@ -245,6 +289,7 @@ Deno.serve(async (req) => {
       external_source: externalSource,
       assignee: typeof item === 'object' && item?.assignee ? String(item.assignee) : assignee,
       last_sync_source: syncSource,
+      ...(subCompletion ? { completed: subCompletion.completed, completed_at: subCompletion.completed_at } : {}),
     };
     const query = subExternalRef
       ? admin.from('tasks').upsert(subPayload, { onConflict: 'external_ref' })
