@@ -42,7 +42,17 @@ function getInitials(name: string | null | undefined) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, defaultTime }: Props) {
+export function ScheduleMeetingDialog({
+  open,
+  onOpenChange,
+  defaultDate,
+  defaultTime,
+  convertTaskId,
+  defaultTitle,
+  defaultDescription,
+  defaultDuration,
+  defaultUserInviteeIds,
+}: Props) {
   const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const projects = useTaskStore((s) => s.projects);
@@ -66,17 +76,30 @@ export function ScheduleMeetingDialog({ open, onOpenChange, defaultDate, default
 
   useEffect(() => {
     if (open) {
-      setTitle('');
+      setTitle(defaultTitle || '');
       setDate(defaultDate || today);
       setTime(defaultTime || '10:00');
-      setDuration(60);
-      setDescription('');
-      setInvitees([]);
+      setDuration(defaultDuration || 60);
+      setDescription(defaultDescription || '');
+      // Pré-popula convidados com responsáveis existentes (excluindo o próprio usuário)
+      const seedIds = (defaultUserInviteeIds || []).filter((id) => id && id !== user?.id);
+      const seeded: Invitee[] = seedIds
+        .map((uid) => members.find((m) => m.userId === uid))
+        .filter((m): m is WorkspaceMember => !!m)
+        .map((m) => ({
+          kind: 'user',
+          userId: m.userId,
+          name: m.displayName || m.email || 'Membro',
+          email: m.email,
+          avatarUrl: m.avatarUrl,
+        }));
+      setInvitees(seeded);
       setSearch('');
       setEmailDraft('');
       setAddMeet(true);
     }
-  }, [open, defaultDate, defaultTime, today]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, defaultDate, defaultTime, defaultTitle, defaultDescription, defaultDuration, today]);
 
   useEffect(() => {
     if (open && currentWorkspaceId && currentWorkspaceId !== membersWorkspaceId) {
