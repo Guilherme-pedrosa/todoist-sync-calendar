@@ -78,21 +78,28 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
+interface ManualColumn {
+  id: string;
+  title: string;
+  /** Se setado, tarefas que caem nessa coluna são reatribuídas a esse usuário */
+  assigneeUserId?: string | null;
+}
+
 interface ManualKanbanState {
   storageKey: string;
-  columns: Pick<Column, 'id' | 'title'>[];
+  columns: ManualColumn[];
   taskColumns: Record<string, string>;
 }
 
-const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+const DEFAULT_COLUMN: ManualColumn = { id: 'manual-default', title: 'Kanban' };
 const RECURRING_COLUMN_ID = 'manual-recurring';
-const RECURRING_COLUMN: Pick<Column, 'id' | 'title'> = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
+const RECURRING_COLUMN: ManualColumn = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
 
 function isRecurringTask(t: Task): boolean {
   return Boolean((t as any).recurrenceRule || (t as any).recurrence);
 }
 
-function ensureRecurringColumn(cols: Pick<Column, 'id' | 'title'>[]): Pick<Column, 'id' | 'title'>[] {
+function ensureRecurringColumn(cols: ManualColumn[]): ManualColumn[] {
   if (cols.some((c) => c.id === RECURRING_COLUMN_ID)) return cols;
   return [...cols, RECURRING_COLUMN];
 }
@@ -107,7 +114,11 @@ function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageK
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
     const rawColumns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
     const columns = ensureRecurringColumn(
-      rawColumns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') }))
+      rawColumns.map((c: any) => ({
+        id: String(c.id),
+        title: String(c.title || 'Kanban'),
+        assigneeUserId: c.assigneeUserId ?? null,
+      }))
     );
     return {
       columns,
