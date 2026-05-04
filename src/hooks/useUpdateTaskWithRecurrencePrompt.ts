@@ -37,8 +37,12 @@ export function useUpdateTaskWithRecurrencePrompt() {
         updates.dueTime !== undefined ||
         updates.durationMinutes !== undefined;
 
-      // If the rule itself is being changed → always treat as series-wide.
-      const touchesRule = updates.recurrenceRule !== undefined;
+      // Only treat as a rule edit when the recurrence value actually changes.
+      // Date pickers often send the existing recurrenceRule together with
+      // date/time edits; that must still go through the occurrence prompt.
+      const touchesRule =
+        updates.recurrenceRule !== undefined &&
+        (updates.recurrenceRule ?? null) !== (task.recurrenceRule ?? null);
 
       // Non-recurring, rule edit, or change unrelated to scheduling → just update.
       if (!isRecurring || !touchesSchedule || touchesRule) {
@@ -123,6 +127,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
           projectId: task.projectId ?? undefined,
           sectionId: task.sectionId ?? undefined,
           labels: task.labels,
+          assigneeIds: task.assigneeIds,
         } as any);
 
         // Mantém o googleCalendarEventId da série original (não limpar!),
