@@ -36,8 +36,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status';
+export type GroupBy = 'priority' | 'project' | 'label' | 'section' | 'date' | 'status' | 'assignee';
 
 export interface KanbanSection {
   id: string;
