@@ -619,6 +619,118 @@ Deno.serve(async (req) => {
               },
             },
           },
+          {
+            type: "function",
+            function: {
+              name: "assign_task",
+              description: "Atribui (delega) uma tarefa a um usuário do workspace. Use o userId do CATÁLOGO DE MEMBROS.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  userId: { type: "string", description: "userId do membro (do CATÁLOGO DE MEMBROS)" },
+                },
+                required: ["taskId", "userId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "unassign_task",
+              description: "Remove a atribuição de um usuário de uma tarefa.",
+              parameters: {
+                type: "object",
+                properties: {
+                  taskId: { type: "string" },
+                  userId: { type: "string" },
+                },
+                required: ["taskId", "userId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "bulk_reschedule",
+              description: "Reagenda VÁRIAS tarefas de uma vez (ex.: 'move tudo de hoje pra amanhã'). Cada item pode ter newDate, newTime, ou clearDate/clearTime.",
+              parameters: {
+                type: "object",
+                properties: {
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        taskId: { type: "string" },
+                        newDate: { type: "string", description: "YYYY-MM-DD" },
+                        newTime: { type: "string", description: "HH:mm" },
+                        clearDate: { type: "boolean" },
+                        clearTime: { type: "boolean" },
+                      },
+                      required: ["taskId"],
+                      additionalProperties: false,
+                    },
+                  },
+                  reason: { type: "string", description: "Resumo curto do porquê" },
+                },
+                required: ["items"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "create_calendar_event",
+              description: "Cria um evento direto no Google Calendar (sem virar tarefa). Use para bloqueios de tempo, foco, pausas.",
+              parameters: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  description: { type: "string" },
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                  time: { type: "string", description: "HH:mm" },
+                  durationMinutes: { type: "number" },
+                  allDay: { type: "boolean" },
+                },
+                required: ["title", "date"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "delete_calendar_event",
+              description: "Apaga um evento específico do Google Calendar. Use eventId do CATÁLOGO DE EVENTOS.",
+              parameters: {
+                type: "object",
+                properties: {
+                  eventId: { type: "string" },
+                },
+                required: ["eventId"],
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: "function",
+            function: {
+              name: "clear_calendar_day",
+              description: "Apaga TODOS os eventos do Google Calendar de um dia inteiro. Operação destrutiva.",
+              parameters: {
+                type: "object",
+                properties: {
+                  date: { type: "string", description: "YYYY-MM-DD" },
+                },
+                required: ["date"],
+                additionalProperties: false,
+              },
+            },
+          },
         ],
       });
       if (!aiResp.ok) return aiResp;
