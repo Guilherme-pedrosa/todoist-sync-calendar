@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
 import { InstallAppCard } from '@/components/settings/InstallAppCard';
+import { PushSubscriptionPanel } from '@/components/settings/PushSubscriptionPanel';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -94,7 +95,9 @@ const DEFAULT_SETTINGS = {
   show_sidebar_counts: true,
   show_calendar_status: true,
   default_reminder_minutes: 15,
+  reminder_offsets_minutes: [15],
   reminder_channels: ['push', 'email'],
+  notify_overdue: true,
   daily_goal: 5,
   weekly_goal: 30,
   vacation_mode: false,
@@ -637,50 +640,82 @@ export default function SettingsPage() {
             </TabsContent>
 
             <TabsContent value="reminders" className="space-y-6 mt-0">
-              <Section title="Lembretes">
-                <Field label="Antecedência padrão">
-                  <Select
-                    value={String(settings.default_reminder_minutes ?? 30)}
-                    onValueChange={(v) => update({ default_reminder_minutes: Number(v) })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">No horário</SelectItem>
-                      <SelectItem value="5">5 minutos antes</SelectItem>
-                      <SelectItem value="15">15 minutos antes</SelectItem>
-                      <SelectItem value="30">30 minutos antes</SelectItem>
-                      <SelectItem value="60">1 hora antes</SelectItem>
-                      <SelectItem value="1440">1 dia antes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Canais">
-                  <div className="space-y-2">
-                    {(['push', 'email', 'mobile'] as const).map((ch) => {
-                      const active = (settings.reminder_channels || []).includes(ch);
+              <Section title="Notificações push neste dispositivo">
+                <PushSubscriptionPanel />
+              </Section>
+              <Section title="Quando avisar">
+                <Field label="Antecedências (você pode escolher várias)">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {[
+                      { v: 0, label: 'No horário' },
+                      { v: 5, label: '5 min antes' },
+                      { v: 10, label: '10 min antes' },
+                      { v: 15, label: '15 min antes' },
+                      { v: 30, label: '30 min antes' },
+                      { v: 60, label: '1 h antes' },
+                      { v: 120, label: '2 h antes' },
+                      { v: 1440, label: '1 dia antes' },
+                    ].map((opt) => {
+                      const list: number[] = settings.reminder_offsets_minutes || [Number(settings.default_reminder_minutes ?? 15)];
+                      const active = list.includes(opt.v);
                       return (
-                        <label key={ch} className="flex items-center gap-2 text-sm">
-                          <Switch
-                            checked={active}
-                            onCheckedChange={(v) =>
-                              update({
-                                reminder_channels: v
-                                  ? [...(settings.reminder_channels || []), ch]
-                                  : (settings.reminder_channels || []).filter((c: string) => c !== ch),
-                              })
-                            }
-                          />
-                          {ch === 'push' && 'Notificações desktop'}
-                          {ch === 'mobile' && 'Notificações móveis'}
-                          {ch === 'email' && 'E-mail'}
-                        </label>
+                        <button
+                          key={opt.v}
+                          type="button"
+                          onClick={() => {
+                            const next = active
+                              ? list.filter((m) => m !== opt.v)
+                              : [...list, opt.v].sort((a, b) => a - b);
+                            const safe = next.length ? next : [15];
+                            update({
+                              reminder_offsets_minutes: safe,
+                              default_reminder_minutes: safe[safe.length - 1] ?? 15,
+                            });
+                          }}
+                          className={cn(
+                            'rounded-md border px-3 py-2 text-sm transition',
+                            active
+                              ? 'border-primary bg-primary/10 text-primary font-medium'
+                              : 'border-border hover:bg-muted',
+                          )}
+                        >
+                          {opt.label}
+                        </button>
                       );
                     })}
                   </div>
                 </Field>
-                <Button onClick={testReminder} variant="outline" size="sm">
-                  <Bell className="h-3.5 w-3.5 mr-1.5" /> Testar lembrete agora
-                </Button>
+                <ToggleRow
+                  label="Avisar quando uma tarefa atrasar"
+                  desc="Você recebe um alerta logo após o horário marcado caso ainda não tenha concluído"
+                  value={settings.notify_overdue !== false}
+                  onChange={(v) => update({ notify_overdue: v })}
+                />
+              </Section>
+              <Section title="Canais">
+                {(['push', 'email', 'mobile'] as const).map((ch) => {
+                  const active = (settings.reminder_channels || []).includes(ch);
+                  const labels: Record<string, { t: string; d: string }> = {
+                    push: { t: 'Notificações no navegador', d: 'Desktop e Android via push' },
+                    mobile: { t: 'Notificações móveis', d: 'iOS / app instalado' },
+                    email: { t: 'E-mail', d: 'Recebe um e-mail no horário do lembrete' },
+                  };
+                  return (
+                    <ToggleRow
+                      key={ch}
+                      label={labels[ch].t}
+                      desc={labels[ch].d}
+                      value={active}
+                      onChange={(v) =>
+                        update({
+                          reminder_channels: v
+                            ? [...(settings.reminder_channels || []), ch]
+                            : (settings.reminder_channels || []).filter((c: string) => c !== ch),
+                        })
+                      }
+                    />
+                  );
+                })}
               </Section>
             </TabsContent>
 

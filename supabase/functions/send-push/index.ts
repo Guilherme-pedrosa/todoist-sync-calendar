@@ -90,6 +90,15 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // GET público para o frontend pegar a VAPID public key
+  const url = new URL(req.url);
+  if (req.method === "GET" || url.searchParams.get("action") === "vapid-key") {
+    return new Response(
+      JSON.stringify({ vapid_public_key: VAPID_PUBLIC }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
 
@@ -120,21 +129,36 @@ Deno.serve(async (req) => {
       const p = (notif.payload || {}) as Record<string, any>;
       let title = "TaskFlow";
       let bodyText = "Você tem uma nova notificação";
-      let url = "/today";
+      let urlPath = "/today";
 
       if (notif.type === "task_assigned") {
         title = "📌 Nova tarefa atribuída";
         bodyText = p.task_title || "Você recebeu uma nova tarefa";
+        if (p.task_id) urlPath = `/today?task=${p.task_id}`;
+      } else if (notif.type === "task_reminder") {
+        const mins = typeof p.relative_minutes === "number" ? p.relative_minutes : null;
+        const when = mins === 0 ? "agora" : mins ? `em ${mins} min` : "em breve";
+        title = `⏰ ${p.task_title || "Tarefa"}`;
+        bodyText = `Compromisso ${when}`;
+        if (p.task_id) urlPath = `/upcoming?task=${p.task_id}`;
+      } else if (notif.type === "task_overdue") {
+        title = `⚠️ Atrasada: ${p.task_title || "Tarefa"}`;
+        bodyText = "Essa tarefa passou do horário";
+        if (p.task_id) urlPath = `/today?task=${p.task_id}`;
+      } else if (notif.type === "meeting_invite") {
+        title = "📅 Novo convite de reunião";
+        bodyText = p.task_title || "Você foi convidado para uma reunião";
+        if (p.task_id) urlPath = `/upcoming?task=${p.task_id}`;
       } else if (p.title) {
         title = p.title;
         bodyText = p.body || p.message || bodyText;
       }
-      if (p.url) url = p.url;
+      if (p.url) urlPath = p.url;
 
       const result = await sendToUsers([notif.user_id], {
         title,
         body: bodyText,
-        url,
+        url: urlPath,
         tag: `notif-${notif.id}`,
       });
       return new Response(JSON.stringify(result), {
