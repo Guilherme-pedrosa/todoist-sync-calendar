@@ -2393,6 +2393,43 @@ export type Database = {
         Args: { _target_user: string; _viewer: string; _workspace_id: string }
         Returns: boolean
       }
+      create_project_secure: {
+        Args: {
+          p_color: string
+          p_description?: string
+          p_is_favorite?: boolean
+          p_name: string
+          p_parent_id?: string
+          p_view_type?: string
+          p_workspace_id: string
+        }
+        Returns: {
+          archived_at: string | null
+          color: string
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_favorite: boolean
+          is_inbox: boolean
+          name: string
+          owner_id: string | null
+          parent_id: string | null
+          position: number
+          team_id: string | null
+          updated_at: string
+          user_id: string
+          view_type: string
+          visibility: Database["public"]["Enums"]["project_visibility"]
+          workspace_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
