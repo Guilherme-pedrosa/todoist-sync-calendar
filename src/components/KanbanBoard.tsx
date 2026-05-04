@@ -703,6 +703,36 @@ function KanbanColumn({
                     Excluir
                   </DropdownMenuItem>
                 )}
+                {onSetAssignee && members && members.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Vincular a responsável
+                    </DropdownMenuLabel>
+                    <div className="max-h-56 overflow-y-auto">
+                      {members.map((m) => {
+                        const isSelected = column.assigneeUserId === m.userId;
+                        const label = m.displayName || m.email || 'Membro';
+                        return (
+                          <DropdownMenuItem
+                            key={m.userId}
+                            onClick={() => onSetAssignee(isSelected ? null : m.userId)}
+                          >
+                            <UserIcon className="h-3.5 w-3.5 mr-2" />
+                            <span className="truncate">{label}</span>
+                            {isSelected && <span className="ml-auto text-primary text-xs">✓</span>}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </div>
+                    {column.assigneeUserId && (
+                      <DropdownMenuItem onClick={() => onSetAssignee(null)}>
+                        <UserMinus className="h-3.5 w-3.5 mr-2" />
+                        Remover vínculo
+                      </DropdownMenuItem>
+                    )}
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
