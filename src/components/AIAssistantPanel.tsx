@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAIAssistantStore } from '@/store/aiAssistantStore';
+import { useAIAssistantStore, type ChatMsg } from '@/store/aiAssistantStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +26,7 @@ import {
   Wand2,
   MessageSquare,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
 import {
   analyzeDay,
@@ -38,12 +40,8 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type ChatMsg = {
-  role: 'user' | 'assistant';
-  content: string;
-  actions?: AssistantAction[];
-  actionsState?: 'pending' | 'applied' | 'discarded';
-};
+// ChatMsg movido para o store (persistência).
+
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
 
@@ -450,7 +448,12 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const members = useWorkspaceStore((s) => s.members);
   const { calendarConnected } = useAuth();
 
-  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const messages = useAIAssistantStore((s) => s.messages);
+  const setMessages = useAIAssistantStore((s) => s.setMessages);
+  const clearMessages = useAIAssistantStore((s) => s.clearMessages);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const closePanel = useAIAssistantStore((s) => s.close);
+
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<
@@ -587,7 +590,9 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     if (!msg?.actions?.length) return;
     let ok = 0;
     let fail = 0;
+    const createdTaskIds: (string | null)[] = [];
     for (const action of msg.actions) {
+      let createdId: string | null = null;
       try {
         if (action.type === 'create_task') {
           const created = await addTask({
@@ -601,6 +606,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             recurrenceRule: action.args.recurrenceRule ?? null,
             assigneeIds: action.args.assigneeUserIds ?? [],
           } as any);
+          createdId = created?.id ?? null;
           // Fallback de segurança: se por algum motivo o store não inseriu
           // os assignees, garantimos aqui.
           const ids = action.args.assigneeUserIds ?? [];
@@ -678,9 +684,10 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
         console.error('Falha ao aplicar ação', action, err);
         fail++;
       }
+      createdTaskIds.push(createdId);
     }
     setMessages((prev) =>
-      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'applied' } : m)),
+      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'applied', createdTaskIds } : m)),
     );
     if (fail === 0) toast.success(`${ok} ação(ões) aplicada(s).`);
     else toast.warning(`${ok} aplicada(s), ${fail} falharam.`);
@@ -694,6 +701,20 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   return (
     <div className="h-full flex flex-col">
+      {messages.length > 0 && (
+        <div className="px-5 py-2 border-b border-border/60 flex justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-[11px] gap-1.5 text-muted-foreground hover:text-destructive"
+            onClick={() => {
+              if (confirm('Limpar todo o histórico desta conversa?')) clearMessages();
+            }}
+          >
+            <Trash2 className="h-3 w-3" /> Limpar histórico
+          </Button>
+        </div>
+      )}
       <ScrollArea className="flex-1">
         <div ref={scrollRef} className="p-5 space-y-3">
           {messages.length === 0 && (
@@ -738,12 +759,17 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
                 <ActionProposalCard
                   actions={m.actions}
                   state={m.actionsState ?? 'pending'}
+                  createdTaskIds={m.createdTaskIds}
                   tasks={tasks}
                   projects={projects}
                   members={members}
                   calendarEvents={calendarEvents}
                   onApply={() => applyActions(i)}
                   onDiscard={() => discardActions(i)}
+                  onOpenTask={(id) => {
+                    closePanel();
+                    openTaskDetail(id);
+                  }}
                 />
               )}
             </div>
@@ -785,21 +811,25 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 function ActionProposalCard({
   actions,
   state,
+  createdTaskIds,
   tasks,
   projects,
   members,
   calendarEvents,
   onApply,
   onDiscard,
+  onOpenTask,
 }: {
   actions: AssistantAction[];
   state: 'pending' | 'applied' | 'discarded';
+  createdTaskIds?: (string | null)[];
   tasks: any[];
   projects: any[];
   members: { userId: string; displayName: string | null; email: string | null }[];
   calendarEvents: { id: string; title: string; date?: string | null; time?: string | null }[];
   onApply: () => void;
   onDiscard: () => void;
+  onOpenTask?: (taskId: string) => void;
 }) {
   const taskTitle = (id?: string) =>
     id ? tasks.find((t) => t.id === id)?.title ?? `(id ${id.slice(0, 6)}…)` : '';
@@ -875,14 +905,39 @@ function ActionProposalCard({
       <div className="space-y-1.5">
         {actions.map((a, idx) => {
           const d = describe(a);
+          let clickableId: string | null = null;
+          if (a.type === 'create_task') clickableId = createdTaskIds?.[idx] ?? null;
+          else if (
+            a.type === 'update_task' ||
+            a.type === 'complete_task' ||
+            a.type === 'delete_task' ||
+            a.type === 'assign_task' ||
+            a.type === 'unassign_task'
+          ) {
+            // só clica se a tarefa ainda existe (delete remove)
+            const exists = tasks.some((t) => t.id === a.args.taskId);
+            if (exists) clickableId = a.args.taskId;
+          }
+          const canClick = !!(clickableId && onOpenTask && state !== 'discarded');
+          const Wrapper: any = canClick ? 'button' : 'div';
           return (
-            <div key={idx} className="text-xs flex gap-2">
+            <Wrapper
+              key={idx}
+              type={canClick ? 'button' : undefined}
+              onClick={canClick ? () => onOpenTask!(clickableId!) : undefined}
+              className={cn(
+                'text-xs flex gap-2 w-full text-left',
+                canClick && 'rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/60 transition-colors cursor-pointer',
+              )}
+            >
               <span className="shrink-0">{d.icon}</span>
-              <div className="min-w-0">
-                <div className="font-medium truncate">{d.label}</div>
+              <div className="min-w-0 flex-1">
+                <div className={cn('font-medium truncate', canClick && 'group-hover:underline text-primary hover:underline')}>
+                  {d.label}
+                </div>
                 {d.detail && <div className="text-muted-foreground">{d.detail}</div>}
               </div>
-            </div>
+            </Wrapper>
           );
         })}
       </div>
