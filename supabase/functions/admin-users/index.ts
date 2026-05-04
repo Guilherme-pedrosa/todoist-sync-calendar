@@ -233,6 +233,53 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
+    // ───── LIST ALL WORKSPACES (for picker) ─────
+    if (action === 'list_workspaces') {
+      const { data, error } = await admin
+        .from('workspaces')
+        .select('id, name, is_personal, owner_id')
+        .order('is_personal', { ascending: true })
+        .order('name', { ascending: true });
+      if (error) return json({ error: error.message }, 400);
+      return json({ workspaces: data ?? [] });
+    }
+
+    // ───── ADD USER TO WORKSPACE ─────
+    if (action === 'add_to_workspace') {
+      const { user_id, workspace_id, role } = body;
+      if (!user_id || !workspace_id) return json({ error: 'user_id and workspace_id required' }, 400);
+      const r = (role as string) || 'member';
+      if (!['owner', 'admin', 'member', 'viewer'].includes(r)) {
+        return json({ error: 'Invalid role' }, 400);
+      }
+      const { error } = await admin
+        .from('workspace_members')
+        .upsert(
+          { workspace_id, user_id, role: r },
+          { onConflict: 'workspace_id,user_id' },
+        );
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
+    }
+
+    // ───── UPDATE WORKSPACE ROLE ─────
+    if (action === 'update_workspace_role') {
+      const { user_id, workspace_id, role } = body;
+      if (!user_id || !workspace_id || !role) {
+        return json({ error: 'user_id, workspace_id and role required' }, 400);
+      }
+      if (!['owner', 'admin', 'member', 'viewer'].includes(role)) {
+        return json({ error: 'Invalid role' }, 400);
+      }
+      const { error } = await admin
+        .from('workspace_members')
+        .update({ role })
+        .eq('workspace_id', workspace_id)
+        .eq('user_id', user_id);
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
+    }
+
     // ───── DELETE USER (super only) ─────
     if (action === 'delete_user') {
       if (!isSuper) return json({ error: 'Forbidden — super admin only' }, 403);
