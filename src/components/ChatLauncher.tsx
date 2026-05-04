@@ -55,8 +55,16 @@ export function ChatLauncher() {
     return m;
   }, [tasks]);
 
+  const completedTaskIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const t of tasks) if (t.completed) s.add(t.id);
+    return s;
+  }, [tasks]);
+
   const workspaceConvs = conversations.filter((c) => c.type === 'workspace');
-  const taskConvs = conversations.filter((c) => c.type === 'task');
+  const taskConvs = conversations.filter(
+    (c) => c.type === 'task' && (!c.taskId || !completedTaskIds.has(c.taskId)),
+  );
 
   return (
     <>
