@@ -72,11 +72,13 @@ export default function ProjectPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const boardGroupKey = `taskflow.kanban.group.${projectId}`;
-  const [boardGroup, setBoardGroupState] = useState<'manual' | 'assignee'>(() => {
+  const isFleetProject = (project?.name || '').toUpperCase().includes('FROTA');
+  type BoardGroup = 'manual' | 'assignee' | 'vehicle';
+  const [boardGroup, setBoardGroupState] = useState<BoardGroup>(() => {
     if (typeof window === 'undefined') return 'manual';
-    return (window.localStorage.getItem(boardGroupKey) as any) || 'manual';
+    return (window.localStorage.getItem(boardGroupKey) as BoardGroup) || 'manual';
   });
-  const setBoardGroup = (v: 'manual' | 'assignee') => {
+  const setBoardGroup = (v: BoardGroup) => {
     setBoardGroupState(v);
     if (typeof window !== 'undefined') window.localStorage.setItem(boardGroupKey, v);
   };
