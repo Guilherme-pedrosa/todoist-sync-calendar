@@ -5,7 +5,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type, x-api-key',
+    'authorization, x-client-info, apikey, content-type, x-api-key, x-sync-source',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -33,6 +33,8 @@ Deno.serve(async (req) => {
 
   const apiKey = req.headers.get('x-api-key') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
   if (!apiKey) return json({ error: 'Missing x-api-key header' }, 401);
+
+  const syncSource = req.headers.get('x-sync-source') || null;
 
   const admin = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -91,22 +93,101 @@ Deno.serve(async (req) => {
     return json({ error: 'Project not accessible by this API key' }, 403);
   }
 
-  const { data: task, error: taskErr } = await admin
-    .from('tasks')
-    .insert({
-      user_id: keyRow.created_by,
-      created_by: keyRow.created_by,
-      workspace_id: keyRow.workspace_id,
-      project_id: projectId,
-      title,
-      description,
-      priority,
-      due_at: dueAt,
-    })
-    .select('id, title, due_at, priority, project_id')
-    .single();
+  const externalRef = body.external_ref ? String(body.external_ref) : null;
+  const externalSource = body.external_source ? String(body.external_source) : (syncSource || null);
+  const assignee = body.assignee ? String(body.assignee) : null;
+
+  // Decompose dueAt -> due_date / due_time (campos legados usados pelo app)
+  let due_date: string | null = null;
+  let due_time: string | null = null;
+  if (dueAt) {
+    const d = new Date(dueAt);
+    due_date = d.toISOString().slice(0, 10);
+    due_time = d.toISOString().slice(11, 19);
+  }
+
+  const taskPayload: Record<string, unknown> = {
+    user_id: keyRow.created_by,
+    created_by: keyRow.created_by,
+    workspace_id: keyRow.workspace_id,
+    project_id: projectId,
+    title,
+    description,
+    priority,
+    due_at: dueAt,
+    due_date,
+    due_time,
+    external_ref: externalRef,
+    external_source: externalSource,
+    assignee,
+    last_sync_source: syncSource,
+  };
+
+  let task: any = null;
+  let taskErr: any = null;
+
+  if (externalRef) {
+    // Tenta localizar existente
+    const { data: existing } = await admin
+      .from('tasks')
+      .select('id')
+      .eq('external_ref', externalRef)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { data: updated, error: updErr } = await admin
+        .from('tasks')
+        .update({
+          title,
+          description,
+          priority,
+          due_at: dueAt,
+          due_date,
+          due_time,
+          assignee,
+          external_source: externalSource,
+          last_sync_source: syncSource,
+        })
+        .eq('id', existing.id)
+        .select('id, title, due_at, priority, project_id, external_ref')
+        .single();
+      task = updated;
+      taskErr = updErr;
+    } else {
+      const { data: inserted, error: insErr } = await admin
+        .from('tasks')
+        .insert(taskPayload)
+        .select('id, title, due_at, priority, project_id, external_ref')
+        .single();
+      task = inserted;
+      taskErr = insErr;
+    }
+  } else {
+    const { data: inserted, error: insErr } = await admin
+      .from('tasks')
+      .insert(taskPayload)
+      .select('id, title, due_at, priority, project_id, external_ref')
+      .single();
+    task = inserted;
+    taskErr = insErr;
+  }
 
   if (taskErr || !task) return json({ error: taskErr?.message ?? 'Failed to create task' }, 500);
+
+  // Vínculo FleetDesk (upsert)
+  if (externalRef) {
+    await admin
+      .from('fleetdesk_task_links')
+      .upsert(
+        {
+          task_id: task.id,
+          external_ref: externalRef,
+          last_synced_at: new Date().toISOString(),
+          last_sync_source: syncSource,
+        },
+        { onConflict: 'external_ref' },
+      );
+  }
 
   // Atribui responsável padrão se houver
   if (keyRow.default_assignee_id) {
@@ -114,7 +195,7 @@ Deno.serve(async (req) => {
       task_id: task.id,
       user_id: keyRow.default_assignee_id,
       assigned_by: keyRow.created_by,
-    });
+    }).select();
   }
 
   // Atualiza last_used
@@ -123,5 +204,5 @@ Deno.serve(async (req) => {
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', keyRow.id);
 
-  return json({ ok: true, task });
+  return json({ ok: true, id: task.id, external_ref: task.external_ref ?? externalRef, task });
 });
