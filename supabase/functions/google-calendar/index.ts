@@ -394,11 +394,18 @@ serve(async (req) => {
           }
         }
 
-        const res = await fetch(`${calendarBase}/calendars/primary/events`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(event),
-        });
+        const createParams = new URLSearchParams();
+        if (addMeet) createParams.set("conferenceDataVersion", "1");
+        if (attendees && attendees.length > 0) createParams.set("sendUpdates", "all");
+        const qs = createParams.toString();
+        const res = await fetch(
+          `${calendarBase}/calendars/primary/events${qs ? `?${qs}` : ""}`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify(event),
+          },
+        );
 
         const data = await safeGoogleJson(res);
         return jsonResponse(data, 200);
