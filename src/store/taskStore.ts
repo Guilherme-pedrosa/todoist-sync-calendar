@@ -978,7 +978,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       .select()
       .single();
 
-    if (error || !data) return null;
+    if (error) throw error;
+    if (!data) throw new Error('Projeto não foi criado');
 
     const newProject: Project = {
       id: data.id,
@@ -991,6 +992,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       description: data.description || null,
       archivedAt: data.archived_at || null,
       position: data.position ?? 0,
+      workspaceId: data.workspace_id || null,
+      ownerId: data.owner_id || null,
+      teamId: data.team_id || null,
+      visibility: (data.visibility as 'private' | 'team' | 'workspace') || 'private',
     };
 
     set((state) => ({ projects: [...state.projects, newProject] }));
