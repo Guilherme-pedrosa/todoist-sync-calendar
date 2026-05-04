@@ -161,7 +161,9 @@ export default function MembersPage() {
     if (editForm.display_name.trim() && editForm.display_name.trim() !== editing.displayName) {
       payload.display_name = editForm.display_name.trim();
     }
-    if (editForm.email.trim()) payload.email = editForm.email.trim();
+    if (editForm.email.trim() && editForm.email.trim() !== editing.email) {
+      payload.email = editForm.email.trim();
+    }
     if (editForm.password) {
       if (editForm.password.length < 8) {
         toast.error('Senha precisa ter pelo menos 8 caracteres');
