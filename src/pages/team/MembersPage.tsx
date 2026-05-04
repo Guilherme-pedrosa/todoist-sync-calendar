@@ -284,9 +284,9 @@ export default function MembersPage() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Novo membro</DialogTitle>
+                  <DialogTitle>Adicionar pessoa</DialogTitle>
                   <DialogDescription>
-                    Cria a conta diretamente. A pessoa receberá email e senha por outro canal (você).
+                    Digite o e-mail. Se a pessoa já tiver conta, ela será apenas vinculada ao workspace.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
@@ -297,22 +297,46 @@ export default function MembersPage() {
                       value={form.email}
                       onChange={(e) => setForm({ ...form, email: e.target.value })}
                     />
+                    {lookup.state === 'searching' && (
+                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Procurando…
+                      </p>
+                    )}
+                    {lookup.state === 'existing' && (
+                      <p className="text-xs text-primary mt-1">
+                        Conta encontrada{lookup.display_name ? ` — ${lookup.display_name}` : ''}. Será apenas vinculada (sem nova senha).
+                      </p>
+                    )}
+                    {lookup.state === 'already_member' && (
+                      <p className="text-xs text-destructive mt-1">
+                        Esta pessoa já é membro deste workspace ({lookup.current_role}).
+                      </p>
+                    )}
+                    {lookup.state === 'new' && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Nenhuma conta encontrada. Vamos criar uma nova.
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <Label>Nome</Label>
-                    <Input
-                      value={form.display_name}
-                      onChange={(e) => setForm({ ...form, display_name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Senha inicial (mín. 8 caracteres)</Label>
-                    <Input
-                      type="text"
-                      value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    />
-                  </div>
+                  {lookup.state !== 'existing' && lookup.state !== 'already_member' && (
+                    <>
+                      <div>
+                        <Label>Nome</Label>
+                        <Input
+                          value={form.display_name}
+                          onChange={(e) => setForm({ ...form, display_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Senha inicial (mín. 8 caracteres)</Label>
+                        <Input
+                          type="text"
+                          value={form.password}
+                          onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label>Papel</Label>
                     <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
@@ -331,9 +355,12 @@ export default function MembersPage() {
                   <Button variant="ghost" onClick={() => setOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleCreate} disabled={submitting}>
+                  <Button
+                    onClick={handleCreate}
+                    disabled={submitting || lookup.state === 'searching' || lookup.state === 'already_member'}
+                  >
                     {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Criar
+                    {lookup.state === 'existing' ? 'Vincular' : 'Criar'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
