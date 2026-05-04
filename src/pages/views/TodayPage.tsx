@@ -35,6 +35,10 @@ export default function TodayPage() {
     for (const t of tasks) {
       if (t.parentId) continue;
       if (!t.dueDate) continue;
+      // Se a tarefa tem responsáveis atribuídos e o usuário atual NÃO está entre eles, ocultar
+      if (user && t.assigneeIds && t.assigneeIds.length > 0 && !t.assigneeIds.includes(user.id)) {
+        continue;
+      }
       if (t.completed) {
         // Show completed tasks in "Hoje" only if they were due today
         if (t.dueDate === today) completedToday.push(t);
