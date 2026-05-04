@@ -1,5 +1,14 @@
 const $ = (id) => document.getElementById(id);
 
+// Guard: chrome.runtime only exists when popup is opened via the extension icon
+if (typeof chrome === "undefined" || !chrome.runtime || !chrome.runtime.sendMessage) {
+  document.body.innerHTML =
+    '<div style="padding:20px;font-family:sans-serif;color:#ef4444;font-size:13px;line-height:1.5">' +
+    '<strong>Contexto inválido.</strong><br/><br/>Abra este popup clicando no ícone da extensão <strong>TaskFlow Tracker</strong> na barra do Chrome — não abra o arquivo HTML diretamente.' +
+    '</div>';
+  throw new Error("not in extension context");
+}
+
 function show(paired) {
   $("paired").style.display = paired ? "block" : "none";
   $("unpaired").style.display = paired ? "none" : "block";
