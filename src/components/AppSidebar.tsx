@@ -153,6 +153,23 @@ export function AppSidebar() {
     };
   }, [user]);
 
+  // Produtividade/Extensão só aparecem para donos de workspace (não-pessoal)
+  const [isAnyWorkspaceOwner, setIsAnyWorkspaceOwner] = useState(false);
+  useEffect(() => {
+    if (!user) { setIsAnyWorkspaceOwner(false); return; }
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', user.id)
+        .eq('is_personal', false)
+        .limit(1);
+      if (active) setIsAnyWorkspaceOwner((data?.length || 0) > 0);
+    })();
+    return () => { active = false; };
+  }, [user]);
+
   const today = new Date().toISOString().split('T')[0];
   const todayCount = tasks.filter((t) => !t.completed && t.dueDate === today).length;
   const inboxProject = projects.find((p) => p.isInbox);
