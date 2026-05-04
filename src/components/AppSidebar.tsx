@@ -735,6 +735,20 @@ export function AppSidebar() {
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-sidebar-border space-y-3">
+        <button
+          onClick={() => signOut()}
+          className="w-full flex items-center gap-2 text-xs text-sidebar-foreground/70 hover:text-destructive transition-colors"
+          aria-label="Sair da conta"
+          title={user?.email ? `Sair (${user.email})` : 'Sair'}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          <span>Sair</span>
+          {user?.email && (
+            <span className="ml-auto truncate text-[10px] text-sidebar-foreground/40 max-w-[140px]">
+              {user.email}
+            </span>
+          )}
+        </button>
         <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
           <CalendarDays className="h-3.5 w-3.5" />
           <span>Google Calendar</span>
