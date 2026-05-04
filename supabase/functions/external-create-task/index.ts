@@ -27,6 +27,42 @@ const PRIORITY_MAP: Record<string, number> = {
   media: 2, média: 2, medium: 2, p3: 2, baixa: 1, low: 1, p4: 1,
 };
 
+function normalizeSubtasks(body: any): any[] {
+  const raw = body.subtasks || body.sub_tarefas || body.children || body.items || body.checklist;
+  return Array.isArray(raw) ? raw : [];
+}
+
+function readSubtaskTitle(item: any): string {
+  if (typeof item === 'string') return item.trim();
+  return String(item?.title ?? item?.name ?? item?.description ?? '').trim();
+}
+
+function readSubtaskExternalRef(parentRef: string | null, item: any, index: number): string | null {
+  if (typeof item !== 'object' || item === null) return parentRef ? `${parentRef}:subtask:${index + 1}` : null;
+  const raw = item.external_ref ?? item.externalRef ?? item.ref ?? item.id;
+  return raw ? String(raw) : (parentRef ? `${parentRef}:subtask:${index + 1}` : null);
+}
+
+function parsePriority(raw: unknown, fallback = 1) {
+  if (raw == null) return fallback;
+  const p = String(raw).toLowerCase();
+  const priority = PRIORITY_MAP[p] ?? (Number(raw) || fallback);
+  return priority >= 1 && priority <= 4 ? priority : fallback;
+}
+
+function parseDueAt(raw: unknown): string | null {
+  if (!raw) return null;
+  const d = new Date(raw as string);
+  if (isNaN(d.getTime())) throw new Error('Invalid date format');
+  return d.toISOString();
+}
+
+function splitDueAt(dueAt: string | null) {
+  if (!dueAt) return { due_date: null, due_time: null };
+  const d = new Date(dueAt);
+  return { due_date: d.toISOString().slice(0, 10), due_time: d.toISOString().slice(11, 19) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
