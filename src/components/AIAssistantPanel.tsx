@@ -811,21 +811,25 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 function ActionProposalCard({
   actions,
   state,
+  createdTaskIds,
   tasks,
   projects,
   members,
   calendarEvents,
   onApply,
   onDiscard,
+  onOpenTask,
 }: {
   actions: AssistantAction[];
   state: 'pending' | 'applied' | 'discarded';
+  createdTaskIds?: (string | null)[];
   tasks: any[];
   projects: any[];
   members: { userId: string; displayName: string | null; email: string | null }[];
   calendarEvents: { id: string; title: string; date?: string | null; time?: string | null }[];
   onApply: () => void;
   onDiscard: () => void;
+  onOpenTask?: (taskId: string) => void;
 }) {
   const taskTitle = (id?: string) =>
     id ? tasks.find((t) => t.id === id)?.title ?? `(id ${id.slice(0, 6)}…)` : '';
