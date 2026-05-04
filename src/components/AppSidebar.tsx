@@ -526,6 +526,10 @@ export function AppSidebar() {
           <Activity className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Produtividade</span>
         </NavLink>
+        <NavLink to="/extensao" className={({ isActive }) => navLinkClass(isActive)}>
+          <Chrome className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Extensão Chrome</span>
+        </NavLink>
 
         {/* Favorites */}
         {(favoriteProjects.length > 0 || favoriteLabels.length > 0 || favoriteFilters.length > 0) && (
