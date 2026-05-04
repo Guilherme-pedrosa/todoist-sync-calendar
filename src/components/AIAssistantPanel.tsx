@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useWorkspaceStore } from '@/store/workspaceStore';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Sheet,
   SheetContent,
