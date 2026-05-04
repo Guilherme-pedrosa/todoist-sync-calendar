@@ -1050,8 +1050,15 @@ function EventBlock({
   const isRecurring = !!task.recurrenceRule;
   const isDone = task.completed;
   const isHistoricalCompletion = !!task.isRecurringCompletion;
+  const isOverdue = (() => {
+    if (isDone || !task.dueDate) return false;
+    const end = task.dueTime
+      ? new Date(`${task.dueDate}T${task.dueTime}`).getTime() + (task.durationMinutes ?? 0) * 60000
+      : new Date(`${task.dueDate}T23:59:59`).getTime();
+    return end < Date.now();
+  })();
 
-  // Variant styles: completed wins, then recurring, then default (priority border).
+  // Variant styles: completed wins, overdue next, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
     1: 'border-l-priority-1',
     2: 'border-l-priority-2',
@@ -1060,6 +1067,8 @@ function EventBlock({
   };
   const variantClasses = isDone
     ? 'bg-success/15 border-l-success border-success/40'
+    : isOverdue
+    ? 'bg-destructive/15 border-l-destructive border-destructive/50 text-destructive'
     : isRecurring
     ? 'bg-recurring/10 border-l-recurring border-recurring/30'
     : `bg-card ${priorityBorder[task.priority]}`;
@@ -1371,7 +1380,12 @@ function AllDayChip({
         downRef.current = null;
         if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
       }}
-      className="w-full text-left border-l-[3px] bg-card hover:bg-muted/60 rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none"
+      className={cn(
+        'w-full text-left border-l-[3px] rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none',
+        !task.completed && task.dueDate && task.dueDate < new Date().toISOString().slice(0, 10)
+          ? 'bg-destructive/15 border-l-destructive text-destructive hover:bg-destructive/20'
+          : 'bg-card hover:bg-muted/60'
+      )}
       style={{ touchAction: 'pan-y' }}
       title={`${task.title} — arraste para um horário`}
     >
