@@ -164,6 +164,28 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults }: KanbanBoardPro
     }));
   };
 
+  const renameColumn = (colId: string, title: string) => {
+    const cleanTitle = title.trim();
+    if (!cleanTitle) return;
+    setBoard((current) => ({
+      ...current,
+      columns: current.columns.map((c) => (c.id === colId ? { ...c, title: cleanTitle } : c)),
+    }));
+  };
+
+  const deleteColumn = (colId: string) => {
+    setBoard((current) => {
+      if (current.columns.length <= 1) return current;
+      const remaining = current.columns.filter((c) => c.id !== colId);
+      const fallbackId = remaining[0].id;
+      const newTaskColumns: Record<string, string> = { ...current.taskColumns };
+      for (const [tid, cid] of Object.entries(newTaskColumns)) {
+        if (cid === colId) newTaskColumns[tid] = fallbackId;
+      }
+      return { ...current, columns: remaining, taskColumns: newTaskColumns };
+    });
+  };
+
   return (
     <DndContext
       sensors={sensors}
