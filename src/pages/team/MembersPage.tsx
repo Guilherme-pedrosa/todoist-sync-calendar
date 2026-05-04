@@ -290,36 +290,100 @@ export default function MembersPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
-                  <div>
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    />
-                    {lookup.state === 'searching' && (
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Procurando…
-                      </p>
-                    )}
-                    {lookup.state === 'existing' && (
-                      <p className="text-xs text-primary mt-1">
-                        Conta encontrada{lookup.display_name ? ` — ${lookup.display_name}` : ''}. Será apenas vinculada (sem nova senha).
-                      </p>
-                    )}
-                    {lookup.state === 'already_member' && (
-                      <p className="text-xs text-destructive mt-1">
-                        Esta pessoa já é membro deste workspace ({lookup.current_role}).
-                      </p>
-                    )}
-                    {lookup.state === 'new' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Nenhuma conta encontrada. Vamos criar uma nova.
-                      </p>
-                    )}
+                  <div className="flex gap-2 border-b border-border">
+                    <button
+                      type="button"
+                      onClick={() => setMode('pick')}
+                      className={`px-3 py-2 text-sm border-b-2 -mb-px ${
+                        mode === 'pick' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'
+                      }`}
+                    >
+                      Selecionar pessoa
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode('create')}
+                      className={`px-3 py-2 text-sm border-b-2 -mb-px ${
+                        mode === 'create' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'
+                      }`}
+                    >
+                      Criar nova conta
+                    </button>
                   </div>
-                  {lookup.state !== 'existing' && lookup.state !== 'already_member' && (
-                    <>
+
+                  {mode === 'pick' ? (
+                    <div className="space-y-3">
+                      <Input
+                        placeholder="Buscar por nome ou e-mail…"
+                        value={pickFilter}
+                        onChange={(e) => setPickFilter(e.target.value)}
+                      />
+                      <div className="max-h-64 overflow-auto border border-border rounded-md divide-y divide-border">
+                        {loadingCandidates && (
+                          <div className="p-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                            <Loader2 className="h-3 w-3 animate-spin" /> Carregando…
+                          </div>
+                        )}
+                        {!loadingCandidates && filteredCandidates.length === 0 && (
+                          <div className="p-4 text-center text-xs text-muted-foreground">
+                            Ninguém disponível. Use "Criar nova conta".
+                          </div>
+                        )}
+                        {!loadingCandidates &&
+                          filteredCandidates.map((c) => {
+                            const selected = pickedUserId === c.user_id;
+                            return (
+                              <button
+                                key={c.user_id}
+                                type="button"
+                                onClick={() => setPickedUserId(c.user_id)}
+                                className={`w-full flex items-center gap-3 p-2.5 text-left hover:bg-muted/50 transition ${
+                                  selected ? 'bg-primary/10' : ''
+                                }`}
+                              >
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={c.avatar_url ?? undefined} />
+                                  <AvatarFallback>
+                                    {(c.display_name || c.email || '?').slice(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">
+                                    {c.display_name || c.email}
+                                  </div>
+                                  {c.display_name && (
+                                    <div className="text-xs text-muted-foreground truncate">{c.email}</div>
+                                  )}
+                                </div>
+                                {selected && <Badge variant="secondary">Selecionado</Badge>}
+                              </button>
+                            );
+                          })}
+                      </div>
+                      <div>
+                        <Label>Papel</Label>
+                        <Select value={pickRole} onValueChange={setPickRole}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="member">Membro</SelectItem>
+                            <SelectItem value="guest">Convidado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div>
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        />
+                      </div>
                       <div>
                         <Label>Nome</Label>
                         <Input
@@ -335,32 +399,32 @@ export default function MembersPage() {
                           onChange={(e) => setForm({ ...form, password: e.target.value })}
                         />
                       </div>
-                    </>
+                      <div>
+                        <Label>Papel</Label>
+                        <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="member">Membro</SelectItem>
+                            <SelectItem value="guest">Convidado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   )}
-                  <div>
-                    <Label>Papel</Label>
-                    <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="member">Membro</SelectItem>
-                        <SelectItem value="guest">Convidado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 <DialogFooter>
                   <Button variant="ghost" onClick={() => setOpen(false)}>
                     Cancelar
                   </Button>
                   <Button
-                    onClick={handleCreate}
-                    disabled={submitting || lookup.state === 'searching' || lookup.state === 'already_member'}
+                    onClick={mode === 'pick' ? handleAddExisting : handleCreate}
+                    disabled={submitting || (mode === 'pick' && !pickedUserId)}
                   >
                     {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {lookup.state === 'existing' ? 'Vincular' : 'Criar'}
+                    {mode === 'pick' ? 'Vincular' : 'Criar'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
