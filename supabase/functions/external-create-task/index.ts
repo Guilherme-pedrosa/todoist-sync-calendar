@@ -31,9 +31,11 @@ function normalizeSubtasks(body: any): any[] {
   const raw = body.subtasks || body.subtarefas || body.sub_tarefas || body.children || body.items || body.checklist;
   if (Array.isArray(raw) && raw.length > 0) return raw;
 
-  return extractProblemItemsFromDescription(
-    body.description || body.notes || body.observations || body.observacoes || body.message || body.text,
-  );
+  const text = body.description || body.notes || body.observations || body.observacoes || body.message || body.text;
+  const problemItems = extractProblemItemsFromDescription(text);
+  if (problemItems.length > 0) return problemItems;
+
+  return extractCorrectiveItemFromDescription(text);
 }
 
 function extractProblemItemsFromDescription(raw: unknown): any[] {
@@ -42,6 +44,7 @@ function extractProblemItemsFromDescription(raw: unknown): any[] {
   const lines = String(raw).replace(/\r/g, '').split('\n');
   const items: { title: string }[] = [];
   let inProblemSection = false;
+  let inPostResultBullets = false;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -52,7 +55,13 @@ function extractProblemItemsFromDescription(raw: unknown): any[] {
       continue;
     }
 
-    if (!inProblemSection) continue;
+    if (/^resultado\s*:/.test(normalized)) {
+      inPostResultBullets = true;
+      continue;
+    }
+
+    const shouldReadProblemBullet = inProblemSection || inPostResultBullets;
+    if (!shouldReadProblemBullet) continue;
 
     if (!trimmed) continue;
 
@@ -66,6 +75,19 @@ function extractProblemItemsFromDescription(raw: unknown): any[] {
   }
 
   return items;
+}
+
+function extractCorrectiveItemFromDescription(raw: unknown): any[] {
+  if (!raw) return [];
+
+  const lines = String(raw).replace(/\r/g, '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const typeIndex = lines.findIndex((line) =>
+    /^tipo\s*:\s*corretiva\s*$/i.test(line.normalize('NFD').replace(/[\u0300-\u036f]/g, '')),
+  );
+  if (typeIndex === -1) return [];
+
+  const title = lines.slice(typeIndex + 1).find((line) => !/^(veiculo|veículo|data|tecnico|técnico|resultado)\s*:/i.test(line));
+  return title ? [{ title }] : [];
 }
 
 function readSubtaskTitle(item: any): string {
