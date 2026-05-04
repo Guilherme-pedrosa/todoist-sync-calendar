@@ -132,7 +132,20 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
   const isMention = n.type === 'chat_mention';
   const isAssigned = n.type === 'task_assigned';
   const isReminder = n.type === 'task_reminder';
-  const Icon = isMention ? AtSign : MessageSquare;
+  const isInvite = n.type === 'meeting_invite';
+  const isAccepted = n.type === 'meeting_accepted';
+  const isDeclined = n.type === 'meeting_declined';
+  const [busy, setBusy] = useState(false);
+
+  const Icon = isMention
+    ? AtSign
+    : isInvite
+      ? Video
+      : isAccepted
+        ? CalendarCheck
+        : isDeclined
+          ? CalendarX
+          : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
@@ -140,43 +153,91 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
       ? 'Você é o responsável'
       : isReminder
         ? 'Lembrete de tarefa'
-      : 'Notificação';
+        : isInvite
+          ? 'Convite para reunião'
+          : isAccepted
+            ? `${n.payload?.invitee_name || 'Convidado'} aceitou`
+            : isDeclined
+              ? `${n.payload?.invitee_name || 'Convidado'} recusou`
+              : 'Notificação';
 
-  const body =
-    n.payload?.snippet ||
-    n.payload?.task_title ||
-    '';
+  const body = n.payload?.snippet || n.payload?.task_title || '';
+
+  const respond = async (status: 'accepted' | 'declined') => {
+    if (!n.payload?.invitation_id) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('meeting_invitations')
+        .update({ status })
+        .eq('id', n.payload.invitation_id);
+      if (error) throw error;
+      toast.success(status === 'accepted' ? 'Convite aceito' : 'Convite recusado');
+    } catch (e: any) {
+      toast.error('Falha ao responder', { description: e?.message });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
-    <button
-      onClick={onClick}
+    <div
       className={cn(
-        'w-full flex items-start gap-2.5 px-3 py-2.5 text-left border-b last:border-b-0 transition-colors',
+        'w-full flex flex-col gap-2 px-3 py-2.5 border-b last:border-b-0 transition-colors',
         n.readAt ? 'hover:bg-accent/40' : 'bg-primary/5 hover:bg-primary/10'
       )}
     >
-      <div
-        className={cn(
-          'mt-0.5 h-7 w-7 rounded-full flex items-center justify-center shrink-0',
-          n.readAt ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'
-        )}
-      >
-        <Icon className="h-3.5 w-3.5" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className={cn('text-sm', !n.readAt && 'font-semibold')}>{title}</span>
-          <span className="text-[10px] text-muted-foreground shrink-0">
-            {formatDistanceToNow(parseISO(n.createdAt), { addSuffix: false, locale: ptBR })}
-          </span>
+      <button onClick={onClick} className="w-full flex items-start gap-2.5 text-left">
+        <div
+          className={cn(
+            'mt-0.5 h-7 w-7 rounded-full flex items-center justify-center shrink-0',
+            n.readAt ? 'bg-muted text-muted-foreground' : 'bg-primary/15 text-primary'
+          )}
+        >
+          <Icon className="h-3.5 w-3.5" />
         </div>
-        {body && (
-          <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{body}</div>
-        )}
-      </div>
-      {!n.readAt && (
-        <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-2">
+            <span className={cn('text-sm', !n.readAt && 'font-semibold')}>{title}</span>
+            <span className="text-[10px] text-muted-foreground shrink-0">
+              {formatDistanceToNow(parseISO(n.createdAt), { addSuffix: false, locale: ptBR })}
+            </span>
+          </div>
+          {body && <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{body}</div>}
+          {isInvite && n.payload?.due_at && (
+            <div className="text-[11px] text-primary mt-0.5">
+              {format(parseISO(n.payload.due_at), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}
+            </div>
+          )}
+        </div>
+        {!n.readAt && <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />}
+      </button>
+
+      {isInvite && (
+        <div className="flex gap-1.5 pl-9">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={busy}
+            onClick={() => respond('accepted')}
+            className="h-7 text-xs gap-1"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            Aceitar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => respond('declined')}
+            className="h-7 text-xs gap-1"
+          >
+            <X className="h-3 w-3" />
+            Recusar
+          </Button>
+        </div>
       )}
-    </button>
+    </div>
   );
 }
+
