@@ -870,6 +870,10 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
+            <TabsContent value="api" className="space-y-6 mt-0">
+              <ApiKeysPanel />
+            </TabsContent>
+
             <TabsContent value="about" className="space-y-6 mt-0">
               <Section title="TaskFlow">
                 <div className="text-sm space-y-2">
