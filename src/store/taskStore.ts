@@ -21,10 +21,11 @@ interface TaskState {
       labels?: string[];
       reminderMinutes?: number | null;
       assigneeIds?: string[];
-    }
+    },
+    options?: { skipUndo?: boolean }
   ) => Promise<Task | null>;
-  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
-  deleteTask: (id: string) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>, options?: { skipUndo?: boolean }) => Promise<void>;
+  deleteTask: (id: string, options?: { skipUndo?: boolean }) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
 
   addProject: (project: Omit<Project, 'id'>) => Promise<Project | null>;
@@ -513,7 +514,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set({ projects, labels, tasks: syncedTasks, loading: false });
   },
 
-  addTask: async (taskData) => {
+  addTask: async (taskData, options) => {
     const userId = await getUserId();
     if (!userId) return null;
 
@@ -660,19 +661,21 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       }
     }
 
-    useUndoStore.getState().push({
-      label: `Criar "${newTask.title}"`,
-      undo: async () => {
-        await deleteGoogleCalendarEvent(newTask.googleCalendarEventId);
-        await supabase.from('tasks').delete().eq('id', newTask.id);
-        set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
-      },
-    });
+    if (!options?.skipUndo) {
+      useUndoStore.getState().push({
+        label: `Criar "${newTask.title}"`,
+        undo: async () => {
+          await deleteGoogleCalendarEvent(newTask.googleCalendarEventId);
+          await supabase.from('tasks').delete().eq('id', newTask.id);
+          set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
+        },
+      });
+    }
 
     return newTask;
   },
 
-  updateTask: async (id, updates) => {
+  updateTask: async (id, updates, options) => {
     const existing = get().tasks.find((t) => t.id === id);
 
     const dbUpdates: Record<string, any> = {};
@@ -706,7 +709,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }));
 
     // Registra undo restaurando campos anteriores
-    if (existing) {
+    if (existing && !options?.skipUndo) {
       const prevFields: Partial<Task> = {};
       const prevDb: Record<string, any> = {};
       const keys = Object.keys(updates) as (keyof Task)[];
@@ -823,7 +826,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
   },
 
-  deleteTask: async (id) => {
+  deleteTask: async (id, options) => {
     const task = get().tasks.find((t) => t.id === id);
     const children = get().tasks.filter((t) => t.parentId === id);
 
@@ -838,7 +841,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
     }
 
-    if (task) {
+    if (task && !options?.skipUndo) {
       const userId = await getUserId();
       const snapshot = { ...task };
       const childrenSnap = children.map((c) => ({ ...c }));
