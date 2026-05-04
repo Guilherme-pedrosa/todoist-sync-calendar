@@ -470,6 +470,9 @@ export function TaskDetailPanel() {
               >
                 <Copy className="h-4 w-4 mr-2" /> Duplicar
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setMeetingOpen(true)}>
+                <Video className="h-4 w-4 mr-2" /> Transformar em reunião
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => window.print()}>
                 <Printer className="h-4 w-4 mr-2" /> Imprimir
               </DropdownMenuItem>
