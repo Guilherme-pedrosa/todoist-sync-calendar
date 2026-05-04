@@ -54,10 +54,7 @@ function extractProblemItemsFromDescription(raw: unknown): any[] {
 
     if (!inProblemSection) continue;
 
-    if (!trimmed) {
-      if (items.length > 0) break;
-      continue;
-    }
+    if (!trimmed) continue;
 
     if (!/^[•*-]\s+/.test(trimmed)) {
       if (/^[\p{L}\s]+:/u.test(trimmed)) break;
