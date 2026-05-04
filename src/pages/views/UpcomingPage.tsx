@@ -616,6 +616,7 @@ function WeekGrid({
                   <AllDayChip
                     key={t.id}
                     task={t}
+                    occurrenceDate={k}
                     onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
                       if (t.isRecurringCompletion) return;
@@ -1322,10 +1323,12 @@ function EventBlock({
 
 function AllDayChip({
   task,
+  occurrenceDate,
   onOpen,
   onStartDrag,
 }: {
   task: Task;
+  occurrenceDate: string;
   onOpen: () => void;
   onStartDrag: (pointerOffsetMin: number) => void;
 }) {
@@ -1397,7 +1400,7 @@ function AllDayChip({
       }}
       className={cn(
         'w-full text-left border-l-[3px] rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none',
-        isTaskOverdue(task)
+        isTaskOverdue(task, occurrenceDate)
           ? 'bg-destructive/15 border-l-destructive text-destructive hover:bg-destructive/20'
           : 'bg-card hover:bg-muted/60'
       )}
