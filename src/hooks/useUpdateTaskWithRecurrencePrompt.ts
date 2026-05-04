@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
+import { useUndoStore } from '@/store/undoStore';
 import { addExdateToRecurrence, rewriteRecurrenceAnchor } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
@@ -128,12 +129,20 @@ export function useUpdateTaskWithRecurrencePrompt() {
           sectionId: task.sectionId ?? undefined,
           labels: task.labels,
           assigneeIds: task.assigneeIds,
-        } as any);
+        } as any, { skipUndo: true });
         if (!createdTask) throw new Error('Falha ao criar a ocorrência remanejada');
 
         // Mantém o googleCalendarEventId da série original (não limpar!),
         // só atualiza a regra para excluir a ocorrência movida.
-        await updateTask(taskId, { recurrenceRule: newRule } as any);
+        await updateTask(taskId, { recurrenceRule: newRule } as any, { skipUndo: true });
+
+        useUndoStore.getState().push({
+          label: `Remanejar "${task.title}"`,
+          undo: async () => {
+            await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
+            await useTaskStore.getState().updateTask(taskId, { recurrenceRule: task.recurrenceRule } as any, { skipUndo: true });
+          },
+        });
       } catch (e) {
         console.error('single-occurrence edit failed', e);
         toast.error('Falha ao editar apenas esta ocorrência');
