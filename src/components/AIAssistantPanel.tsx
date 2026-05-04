@@ -3,6 +3,7 @@ import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Sheet,
   SheetContent,
@@ -447,6 +448,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const members = useWorkspaceStore((s) => s.members);
+  const { calendarConnected } = useAuth();
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
@@ -458,6 +460,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
   useEffect(() => {
+    if (calendarConnected !== true) return;
     let cancelled = false;
     const load = async () => {
       try {
@@ -507,7 +510,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [calendarConnected]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
