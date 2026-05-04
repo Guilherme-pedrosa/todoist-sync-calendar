@@ -107,7 +107,7 @@ export default function ProjectPage() {
 
   const projectTasks = useMemo(() => {
     let list = tasks.filter(
-      (t) => !t.completed && t.projectId === projectId && !t.parentId
+      (t) => !t.completed && t.projectId === projectId && (boardGroup === 'vehicle' || !t.parentId)
     );
     if (labelFilter !== 'all') {
       list = list.filter((t) => t.labels.includes(labelFilter));
