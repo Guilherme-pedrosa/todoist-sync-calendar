@@ -237,8 +237,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         is_idle: !!cfg.is_idle,
       });
     } else if (msg.type === "ping_now") {
-      await sendHeartbeat();
-      sendResponse({ ok: true });
+      try {
+        await sendHeartbeat();
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: String(e?.message || e) });
+      }
     }
   })();
   return true;
