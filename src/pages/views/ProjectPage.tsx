@@ -71,6 +71,15 @@ export default function ProjectPage() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const boardGroupKey = `taskflow.kanban.group.${projectId}`;
+  const [boardGroup, setBoardGroupState] = useState<'manual' | 'assignee'>(() => {
+    if (typeof window === 'undefined') return 'manual';
+    return (window.localStorage.getItem(boardGroupKey) as any) || 'manual';
+  });
+  const setBoardGroup = (v: 'manual' | 'assignee') => {
+    setBoardGroupState(v);
+    if (typeof window !== 'undefined') window.localStorage.setItem(boardGroupKey, v);
+  };
 
   useEffect(() => {
     if (project?.viewType === 'board' || project?.viewType === 'list') {
