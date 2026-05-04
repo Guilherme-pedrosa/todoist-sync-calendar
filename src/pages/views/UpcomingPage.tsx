@@ -14,7 +14,9 @@ import {
   CalendarClock,
   LayoutGrid,
   Sparkles,
+  CalendarPlus,
 } from 'lucide-react';
+import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { useAIAssistantStore } from '@/store/aiAssistantStore';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -64,6 +66,7 @@ export default function UpcomingPage() {
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const { user } = useAuth();
   const currentUserId = user?.id;
+  const [meetingOpen, setMeetingOpen] = useState(false);
   // Em telas pequenas (mobile), começa em modo "dia" — semana com 7 colunas é inutilizável no celular.
   const [mode, setMode] = useState<Mode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
@@ -270,6 +273,15 @@ export default function UpcomingPage() {
           <Button
             size="sm"
             variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => setMeetingOpen(true)}
+          >
+            <CalendarPlus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Reunião</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             className="h-8 gap-1.5 text-xs border-primary/40 text-primary hover:bg-primary/10"
             onClick={() => useAIAssistantStore.getState().open('analyze')}
           >
@@ -278,6 +290,8 @@ export default function UpcomingPage() {
           </Button>
         </div>
       </header>
+
+      <ScheduleMeetingDialog open={meetingOpen} onOpenChange={setMeetingOpen} />
 
       {mode === 'kanban' ? (
         <KanbanBoard tasks={upcoming} boardKey="upcoming" />

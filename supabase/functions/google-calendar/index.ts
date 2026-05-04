@@ -327,7 +327,13 @@ serve(async (req) => {
         };
         const startTime = normalizeTime(body.time, "09:00:00");
         const endTime = normalizeTime(body.endTime ?? body.time, "10:00:00");
-        const event = {
+        const attendees = Array.isArray(body.attendees)
+          ? (body.attendees as unknown[])
+              .map((a) => (typeof a === "string" ? { email: a } : (a as any)))
+              .filter((a) => a && typeof a.email === "string" && a.email.trim())
+          : undefined;
+        const addMeet = body.addMeet === true;
+        const event: Record<string, unknown> = {
           summary: body.title,
           description: body.description || "",
           start: body.allDay
@@ -345,6 +351,15 @@ serve(async (req) => {
           reminders: { useDefault: true },
           extendedProperties: taskId ? { private: { taskId } } : undefined,
         };
+        if (attendees && attendees.length > 0) event.attendees = attendees;
+        if (addMeet) {
+          event.conferenceData = {
+            createRequest: {
+              requestId: `meet-${taskId || crypto.randomUUID()}`,
+              conferenceSolutionKey: { type: "hangoutsMeet" },
+            },
+          };
+        }
 
         if (taskId) {
           const lookupParams = new URLSearchParams({
@@ -379,11 +394,18 @@ serve(async (req) => {
           }
         }
 
-        const res = await fetch(`${calendarBase}/calendars/primary/events`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(event),
-        });
+        const createParams = new URLSearchParams();
+        if (addMeet) createParams.set("conferenceDataVersion", "1");
+        if (attendees && attendees.length > 0) createParams.set("sendUpdates", "all");
+        const qs = createParams.toString();
+        const res = await fetch(
+          `${calendarBase}/calendars/primary/events${qs ? `?${qs}` : ""}`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify(event),
+          },
+        );
 
         const data = await safeGoogleJson(res);
         return jsonResponse(data, 200);
