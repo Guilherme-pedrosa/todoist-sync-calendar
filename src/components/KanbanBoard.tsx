@@ -19,7 +19,13 @@ import { useCompleteTask } from '@/hooks/useCompleteTask';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon } from 'lucide-react';
+import { Plus, Flag, Calendar as CalendarIcon, Tag as TagIcon, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
