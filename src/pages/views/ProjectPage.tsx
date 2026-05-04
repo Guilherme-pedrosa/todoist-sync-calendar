@@ -210,13 +210,24 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
-      <BoardGroupToolbar projectId={projectId!} value={boardGroup} onChange={setBoardGroup} />
+      <BoardGroupToolbar
+        projectId={projectId!}
+        value={boardGroup}
+        onChange={setBoardGroup}
+        showVehicle={isFleetProject}
+      />
 
       <KanbanBoard
         tasks={projectTasks}
         boardKey={`project:${projectId}:${boardGroup}`}
         projectId={projectId}
-        groupBy={boardGroup === 'assignee' ? 'assignee' : undefined}
+        groupBy={
+          boardGroup === 'assignee'
+            ? 'assignee'
+            : boardGroup === 'vehicle'
+              ? 'vehicle'
+              : undefined
+        }
         sections={sections.map((s) => ({ ...s, projectId: projectId! }))}
         newTaskDefaults={{ projectId }}
       />
