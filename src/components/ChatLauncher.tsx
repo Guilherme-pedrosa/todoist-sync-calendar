@@ -64,7 +64,7 @@ export function ChatLauncher() {
       <button
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'fixed bottom-4 left-4 z-40 h-12 w-12 rounded-full shadow-lg',
+          'fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg',
           'bg-primary text-primary-foreground flex items-center justify-center',
           'hover:scale-105 transition-transform'
         )}
