@@ -39,12 +39,8 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-type ChatMsg = {
-  role: 'user' | 'assistant';
-  content: string;
-  actions?: AssistantAction[];
-  actionsState?: 'pending' | 'applied' | 'discarded';
-};
+// ChatMsg movido para o store (persistência).
+
 
 const todayString = () => format(new Date(), 'yyyy-MM-dd');
 
