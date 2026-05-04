@@ -20,8 +20,10 @@ import {
   Loader2,
   Check,
   Users as UsersIcon,
+  KeyRound,
 } from 'lucide-react';
 import { UsersManagementPanel } from '@/components/settings/UsersManagementPanel';
+import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
@@ -80,6 +82,7 @@ const TAB_ITEMS = [
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
   { value: 'calendars', icon: CalendarDays, label: 'Calendários' },
+  { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
 
@@ -865,6 +868,10 @@ export default function SettingsPage() {
                   </div>
                 </Section>
               </Section>
+            </TabsContent>
+
+            <TabsContent value="api" className="space-y-6 mt-0">
+              <ApiKeysPanel />
             </TabsContent>
 
             <TabsContent value="about" className="space-y-6 mt-0">

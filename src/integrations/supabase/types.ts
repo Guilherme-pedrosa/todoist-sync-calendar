@@ -583,6 +583,48 @@ export type Database = {
         }
         Relationships: []
       }
+      external_api_keys: {
+        Row: {
+          created_at: string
+          created_by: string
+          default_assignee_id: string | null
+          default_project_id: string | null
+          id: string
+          key_hash: string
+          key_prefix: string
+          last_used_at: string | null
+          name: string
+          revoked_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          default_assignee_id?: string | null
+          default_project_id?: string | null
+          id?: string
+          key_hash: string
+          key_prefix: string
+          last_used_at?: string | null
+          name: string
+          revoked_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          default_assignee_id?: string | null
+          default_project_id?: string | null
+          id?: string
+          key_hash?: string
+          key_prefix?: string
+          last_used_at?: string | null
+          name?: string
+          revoked_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       external_links: {
         Row: {
           created_at: string
