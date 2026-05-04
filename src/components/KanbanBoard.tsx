@@ -235,30 +235,108 @@ function KanbanColumn({
   tasks,
   onAddTask,
   onOpenTask,
+  onRename,
+  onDelete,
+  canDelete,
 }: {
   column: Column;
   tasks: Task[];
   onAddTask: () => void;
   onOpenTask: (id: string) => void;
+  onRename?: (title: string) => void;
+  onDelete?: () => void;
+  canDelete?: boolean;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: column.id });
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(column.title);
+
+  useEffect(() => {
+    setDraftTitle(column.title);
+  }, [column.title]);
+
+  const commitRename = () => {
+    const cleaned = draftTitle.trim();
+    if (cleaned && cleaned !== column.title) onRename?.(cleaned);
+    else setDraftTitle(column.title);
+    setIsRenaming(false);
+  };
+
   return (
     <div className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {column.color && (
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: column.color }} />
           )}
-          <h3 className="text-xs font-semibold uppercase tracking-wider truncate">{column.title}</h3>
+          {isRenaming ? (
+            <Input
+              autoFocus
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') {
+                  setDraftTitle(column.title);
+                  setIsRenaming(false);
+                }
+              }}
+              className="h-6 text-xs font-semibold uppercase tracking-wider px-1.5"
+            />
+          ) : (
+            <h3
+              className="text-xs font-semibold uppercase tracking-wider truncate cursor-text hover:text-foreground"
+              onDoubleClick={() => onRename && setIsRenaming(true)}
+              title={onRename ? 'Duplo clique para renomear' : undefined}
+            >
+              {column.title}
+            </h3>
+          )}
           <span className="text-[10px] text-muted-foreground">{tasks.length}</span>
         </div>
-        <button
-          onClick={onAddTask}
-          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-          aria-label="Adicionar tarefa"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={onAddTask}
+            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+            aria-label="Adicionar tarefa"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          {(onRename || onDelete) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                  aria-label="Opções da coluna"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                {onRename && (
+                  <DropdownMenuItem onClick={() => setIsRenaming(true)}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Renomear
+                  </DropdownMenuItem>
+                )}
+                {onDelete && canDelete && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      if (confirm(`Excluir coluna "${column.title}"? As tarefas serão movidas para a primeira coluna.`)) {
+                        onDelete();
+                      }
+                    }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    Excluir
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
       <div
         ref={setNodeRef}
