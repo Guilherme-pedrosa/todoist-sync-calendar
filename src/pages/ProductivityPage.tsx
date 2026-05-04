@@ -345,6 +345,7 @@ export default function ProductivityPage() {
               <TabsList>
                 <TabsTrigger value="ranking">Ranking</TabsTrigger>
                 <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+                <TabsTrigger value="sites">Sites</TabsTrigger>
                 <TabsTrigger value="daily">Dia a dia</TabsTrigger>
               </TabsList>
 
