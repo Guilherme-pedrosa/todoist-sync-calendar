@@ -525,12 +525,14 @@ function AssigneeColumn({
   id,
   title,
   tasks,
+  subtasksByParent,
   onAddTask,
   onOpenTask,
 }: {
   id: string;
   title: string;
   tasks: Task[];
+  subtasksByParent?: Map<string, Task[]>;
   onAddTask: () => void;
   onOpenTask: (id: string) => void;
 }) {
@@ -560,7 +562,13 @@ function AssigneeColumn({
         )}
       >
         {tasks.map((task) => (
-          <KanbanCard key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
+          <KanbanCard
+            key={task.id}
+            task={task}
+            subtasks={subtasksByParent?.get(task.id) || []}
+            onOpen={() => onOpenTask(task.id)}
+            onOpenSubtask={onOpenTask}
+          />
         ))}
         {tasks.length === 0 && (
           <div className="text-[11px] text-muted-foreground/60 text-center py-4">Vazio</div>
@@ -834,7 +842,17 @@ function AddKanbanColumn({ onAdd }: { onAdd: (title: string) => void }) {
 
 // ---------------- Card ----------------
 
-function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
+function KanbanCard({
+  task,
+  onOpen,
+  subtasks = [],
+  onOpenSubtask,
+}: {
+  task: Task;
+  onOpen: () => void;
+  subtasks?: Task[];
+  onOpenSubtask?: (id: string) => void;
+}) {
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const completeTask = useCompleteTask();
@@ -926,6 +944,37 @@ function KanbanCard({ task, onOpen }: { task: Task; onOpen: () => void }) {
               </span>
             )}
           </div>
+          {subtasks.length > 0 && (
+            <div className="mt-2 space-y-1 border-t border-border/50 pt-2" onPointerDown={(e) => e.stopPropagation()}>
+              {subtasks.map((subtask) => (
+                <div
+                  key={subtask.id}
+                  className="flex items-start gap-2 rounded-sm px-1 py-0.5 text-[11px] text-muted-foreground hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenSubtask?.(subtask.id);
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      completeTask(subtask.id);
+                    }}
+                    className={cn(
+                      'mt-0.5 h-3.5 w-3.5 rounded-full border shrink-0 hover:bg-muted',
+                      subtask.priority === 1 && 'border-priority-1',
+                      subtask.priority === 2 && 'border-priority-2',
+                      subtask.priority === 3 && 'border-priority-3',
+                      subtask.priority === 4 && 'border-muted-foreground/40'
+                    )}
+                    aria-label="Concluir subtarefa"
+                  />
+                  <span className="min-w-0 flex-1 break-words leading-snug">{subtask.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -951,7 +1000,7 @@ function VehicleKanban({
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
 
-  const { columns, tasksByColumn } = useMemo(() => {
+  const { columns, tasksByColumn, subtasksByParent } = useMemo(() => {
     const byId = new Map<string, Task>();
     for (const t of tasks) byId.set(t.id, t);
 
@@ -968,8 +1017,14 @@ function VehicleKanban({
     };
 
     const map = new Map<string, { id: string; title: string; plate: string | null; tasks: Task[] }>();
+    const children = new Map<string, Task[]>();
     for (const t of tasks) {
       if (t.completed) continue;
+      if (t.parentId) {
+        if (!children.has(t.parentId)) children.set(t.parentId, []);
+        children.get(t.parentId)!.push(t);
+        continue;
+      }
       const v = resolveVehicle(t);
       const id = v ? `vehicle:${v.plate}` : VEHICLE_UNKNOWN_ID;
       const title = v ? v.label : 'Sem veículo';
@@ -986,7 +1041,7 @@ function VehicleKanban({
 
     const byCol = new Map<string, Task[]>();
     for (const c of cols) byCol.set(c.id, c.tasks);
-    return { columns: cols, tasksByColumn: byCol };
+    return { columns: cols, tasksByColumn: byCol, subtasksByParent: children };
   }, [tasks]);
 
   if (columns.length === 0) {
@@ -1006,6 +1061,7 @@ function VehicleKanban({
             id={col.id}
             title={col.title}
             tasks={tasksByColumn.get(col.id) || []}
+            subtasksByParent={subtasksByParent}
             onAddTask={() => {
               openQuickAdd({
                 ...(newTaskDefaults || {}),

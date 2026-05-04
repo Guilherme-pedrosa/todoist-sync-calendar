@@ -114,6 +114,16 @@ function mapMsg(row: any): Message {
   };
 }
 
+async function getCurrentUserId(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id ?? null;
+  } catch (error) {
+    console.warn('Falha ao obter usuário atual', error);
+    return null;
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   conversations: [],
   participants: [],
@@ -138,8 +148,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const unread: Record<string, number> = {};
 
     if (ids.length > 0) {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData?.user?.id;
+      const uid = await getCurrentUserId();
 
       const { data: partRows } = await supabase
         .from('conversation_participants')
@@ -188,8 +197,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (conversationId, body, attachments = [], mentions = []) => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await getCurrentUserId();
     if (!uid || !body.trim()) return;
 
     const { data, error } = await supabase
@@ -241,8 +249,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   markRead: async (conversationId) => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await getCurrentUserId();
     if (!uid) return;
     const now = new Date().toISOString();
     await supabase
@@ -280,8 +287,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
 
     // Não existe — cria sob demanda
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await getCurrentUserId();
     if (!uid) return null;
 
     const { data: taskRow } = await supabase
@@ -326,8 +332,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const trimmedId = contextId?.trim();
     if (!trimmedId) return null;
 
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await getCurrentUserId();
     if (!uid) return null;
 
     // Find personal workspace of the current user
@@ -390,8 +395,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   uploadAttachment: async (conversationId, file) => {
-    const { data: userData } = await supabase.auth.getUser();
-    const uid = userData?.user?.id;
+    const uid = await getCurrentUserId();
     if (!uid) return null;
     const safeName = file.name.replace(/[^\w.\-]/g, '_');
     const path = `${conversationId}/${uid}/${Date.now()}-${safeName}`;
@@ -430,8 +434,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
               [msg.conversationId]: [...list, msg],
             };
             // unread bump se não for ativa nem própria
-            supabase.auth.getUser().then(({ data }) => {
-              const uid = data?.user?.id;
+            getCurrentUserId().then((uid) => {
               if (msg.userId !== uid && s.activeConversationId !== msg.conversationId) {
                 set((ss) => ({
                   unreadByConversation: {
@@ -489,8 +492,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         async (payload) => {
           // Quando viro participante de uma conversa nova (ex.: fui adicionado como responsável),
           // re-busca a lista para incluí-la.
-          const { data: userData } = await supabase.auth.getUser();
-          const uid = userData?.user?.id;
+          const uid = await getCurrentUserId();
           const newRow: any = payload.new;
           if (!uid || newRow.user_id !== uid) return;
           if (get().conversations.some((c) => c.id === newRow.conversation_id)) return;

@@ -27,6 +27,42 @@ const PRIORITY_MAP: Record<string, number> = {
   media: 2, média: 2, medium: 2, p3: 2, baixa: 1, low: 1, p4: 1,
 };
 
+function normalizeSubtasks(body: any): any[] {
+  const raw = body.subtasks || body.subtarefas || body.sub_tarefas || body.children || body.items || body.checklist;
+  return Array.isArray(raw) ? raw : [];
+}
+
+function readSubtaskTitle(item: any): string {
+  if (typeof item === 'string') return item.trim();
+  return String(item?.title ?? item?.name ?? item?.description ?? '').trim();
+}
+
+function readSubtaskExternalRef(parentRef: string | null, item: any, index: number): string | null {
+  if (typeof item !== 'object' || item === null) return parentRef ? `${parentRef}:subtask:${index + 1}` : null;
+  const raw = item.external_ref ?? item.externalRef ?? item.ref ?? item.id;
+  return raw ? String(raw) : (parentRef ? `${parentRef}:subtask:${index + 1}` : null);
+}
+
+function parsePriority(raw: unknown, fallback = 1) {
+  if (raw == null) return fallback;
+  const p = String(raw).toLowerCase();
+  const priority = PRIORITY_MAP[p] ?? (Number(raw) || fallback);
+  return priority >= 1 && priority <= 4 ? priority : fallback;
+}
+
+function parseDueAt(raw: unknown): string | null {
+  if (!raw) return null;
+  const d = new Date(raw as string);
+  if (isNaN(d.getTime())) throw new Error('Invalid date format');
+  return d.toISOString();
+}
+
+function splitDueAt(dueAt: string | null) {
+  if (!dueAt) return { due_date: null, due_time: null };
+  const d = new Date(dueAt);
+  return { due_date: d.toISOString().slice(0, 10), due_time: d.toISOString().slice(11, 19) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -63,19 +99,13 @@ Deno.serve(async (req) => {
 
   const description = body.description ? String(body.description) : null;
 
-  let priority = 1;
-  if (body.priority != null) {
-    const p = String(body.priority).toLowerCase();
-    priority = PRIORITY_MAP[p] ?? (Number(body.priority) || 1);
-    if (priority < 1 || priority > 4) priority = 1;
-  }
+  const priority = parsePriority(body.priority, 1);
 
   let dueAt: string | null = null;
-  if (body.due_at || body.dueAt || body.date) {
-    const raw = body.due_at || body.dueAt || body.date;
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return json({ error: 'Invalid date format' }, 400);
-    dueAt = d.toISOString();
+  try {
+    dueAt = parseDueAt(body.due_at || body.dueAt || body.date);
+  } catch {
+    return json({ error: 'Invalid date format' }, 400);
   }
 
   const projectId = body.project_id || keyRow.default_project_id;
@@ -98,13 +128,7 @@ Deno.serve(async (req) => {
   const assignee = body.assignee ? String(body.assignee) : null;
 
   // Decompose dueAt -> due_date / due_time (campos legados usados pelo app)
-  let due_date: string | null = null;
-  let due_time: string | null = null;
-  if (dueAt) {
-    const d = new Date(dueAt);
-    due_date = d.toISOString().slice(0, 10);
-    due_time = d.toISOString().slice(11, 19);
-  }
+  const { due_date, due_time } = splitDueAt(dueAt);
 
   const taskPayload: Record<string, unknown> = {
     user_id: keyRow.created_by,
@@ -196,6 +220,36 @@ Deno.serve(async (req) => {
       user_id: keyRow.default_assignee_id,
       assigned_by: keyRow.created_by,
     }).select();
+  }
+
+  const subtasks = normalizeSubtasks(body);
+  for (const [index, item] of subtasks.entries()) {
+    const subTitle = readSubtaskTitle(item);
+    if (!subTitle) continue;
+    const subExternalRef = readSubtaskExternalRef(externalRef, item, index);
+    const subDueAt = parseDueAt(item?.due_at || item?.dueAt || item?.date || dueAt);
+    const split = splitDueAt(subDueAt);
+    const subPayload = {
+      user_id: keyRow.created_by,
+      created_by: keyRow.created_by,
+      workspace_id: keyRow.workspace_id,
+      project_id: projectId,
+      parent_id: task.id,
+      title: subTitle,
+      description: typeof item === 'object' && item?.notes ? String(item.notes) : null,
+      priority: parsePriority(item?.priority, priority),
+      due_at: subDueAt,
+      due_date: split.due_date,
+      due_time: split.due_time,
+      external_ref: subExternalRef,
+      external_source: externalSource,
+      assignee: typeof item === 'object' && item?.assignee ? String(item.assignee) : assignee,
+      last_sync_source: syncSource,
+    };
+    const query = subExternalRef
+      ? admin.from('tasks').upsert(subPayload, { onConflict: 'external_ref' })
+      : admin.from('tasks').insert(subPayload);
+    await query.select('id').single();
   }
 
   // Atualiza last_used
