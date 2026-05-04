@@ -699,6 +699,38 @@ export type Database = {
         }
         Relationships: []
       }
+      fleetdesk_task_links: {
+        Row: {
+          external_ref: string
+          id: string
+          last_sync_source: string | null
+          last_synced_at: string
+          task_id: string
+        }
+        Insert: {
+          external_ref: string
+          id?: string
+          last_sync_source?: string | null
+          last_synced_at?: string
+          task_id: string
+        }
+        Update: {
+          external_ref?: string
+          id?: string
+          last_sync_source?: string | null
+          last_synced_at?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fleetdesk_task_links_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_tokens: {
         Row: {
           access_token: string
@@ -1668,21 +1700,26 @@ export type Database = {
       }
       tasks: {
         Row: {
+          assignee: string | null
           completed: boolean
           completed_at: string | null
           created_at: string
           created_by: string | null
           deadline: string | null
           description: string | null
+          due_at: string | null
           due_date: string | null
           due_datetime: string | null
           due_string: string | null
           due_time: string | null
           duration_minutes: number | null
+          external_ref: string | null
+          external_source: string | null
           gcal_event_id: string | null
           google_calendar_event_id: string | null
           id: string
           is_meeting: boolean
+          last_sync_source: string | null
           meeting_url: string | null
           parent_id: string | null
           position: number
@@ -1700,21 +1737,26 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          assignee?: string | null
           completed?: boolean
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           description?: string | null
+          due_at?: string | null
           due_date?: string | null
           due_datetime?: string | null
           due_string?: string | null
           due_time?: string | null
           duration_minutes?: number | null
+          external_ref?: string | null
+          external_source?: string | null
           gcal_event_id?: string | null
           google_calendar_event_id?: string | null
           id?: string
           is_meeting?: boolean
+          last_sync_source?: string | null
           meeting_url?: string | null
           parent_id?: string | null
           position?: number
@@ -1732,21 +1774,26 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          assignee?: string | null
           completed?: boolean
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           deadline?: string | null
           description?: string | null
+          due_at?: string | null
           due_date?: string | null
           due_datetime?: string | null
           due_string?: string | null
           due_time?: string | null
           duration_minutes?: number | null
+          external_ref?: string | null
+          external_source?: string | null
           gcal_event_id?: string | null
           google_calendar_event_id?: string | null
           id?: string
           is_meeting?: boolean
+          last_sync_source?: string | null
           meeting_url?: string | null
           parent_id?: string | null
           position?: number
