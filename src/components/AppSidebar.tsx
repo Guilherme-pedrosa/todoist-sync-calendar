@@ -32,6 +32,7 @@ import {
   FolderKanban,
   BarChart3,
   FileText,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -519,6 +520,10 @@ export function AppSidebar() {
         <NavLink to="/team/workload" className={({ isActive }) => navLinkClass(isActive)}>
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Carga de trabalho</span>
+        </NavLink>
+        <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
+          <Activity className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Produtividade</span>
         </NavLink>
 
         {/* Favorites */}

@@ -1,0 +1,448 @@
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspaceStore } from "@/store/workspaceStore";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+interface DailyStat {
+  user_id: string;
+  workspace_id: string;
+  day: string;
+  active_seconds: number;
+  idle_seconds: number;
+  online_seconds: number;
+  sessions_count: number;
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  tasks_completed: number;
+  tasks_completed_with_project: number;
+  tasks_completed_inbox: number;
+  activity_score: number;
+  hourly_buckets: Record<string, number>;
+  by_project: Record<string, { name: string; tasks: number; seconds: number }>;
+}
+
+interface MemberLite {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+const fmtH = (sec: number) => {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+};
+
+const initials = (name: string | null) =>
+  (name || "?")
+    .split(" ")
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+export default function ProductivityPage() {
+  const { user } = useAuth();
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaces = useWorkspaceStore((s) => s.workspaces);
+  const currentWs = workspaces.find((w) => w.id === currentWorkspaceId);
+
+  const [range, setRange] = useState<"7" | "30">("7");
+  const [stats, setStats] = useState<DailyStat[]>([]);
+  const [members, setMembers] = useState<MemberLite[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+
+  // owner check
+  useEffect(() => {
+    if (!currentWorkspaceId || !user) return;
+    supabase
+      .from("workspaces")
+      .select("owner_id")
+      .eq("id", currentWorkspaceId)
+      .maybeSingle()
+      .then(({ data }) => setIsOwner(data?.owner_id === user.id));
+  }, [currentWorkspaceId, user]);
+
+  const load = async () => {
+    if (!currentWorkspaceId) return;
+    setLoading(true);
+    const since = new Date();
+    since.setDate(since.getDate() - parseInt(range, 10));
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    const { data: rows } = await supabase
+      .from("daily_activity_stats")
+      .select("*")
+      .eq("workspace_id", currentWorkspaceId)
+      .gte("day", sinceStr)
+      .order("day", { ascending: false });
+
+    setStats(((rows as unknown) as DailyStat[]) || []);
+
+    // members of workspace
+    const { data: wm } = await supabase
+      .from("workspace_members")
+      .select("user_id")
+      .eq("workspace_id", currentWorkspaceId);
+
+    const ids = (wm || []).map((m: any) => m.user_id);
+    if (ids.length) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, display_name, avatar_url")
+        .in("user_id", ids);
+      setMembers((profiles as MemberLite[] | null) || []);
+    } else {
+      setMembers([]);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentWorkspaceId, range]);
+
+  const triggerAggregate = async () => {
+    setRefreshing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activity-aggregate`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Falha ao recalcular");
+      toast.success(`Recalculado: ${j.processed} registros`);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Filtered to selected user (or all)
+  const filtered = useMemo(
+    () => (selectedUser === "all" ? stats : stats.filter((s) => s.user_id === selectedUser)),
+    [stats, selectedUser],
+  );
+
+  // Per-user aggregates over the range
+  const perUser = useMemo(() => {
+    const map = new Map<string, {
+      user_id: string;
+      online: number;
+      active: number;
+      idle: number;
+      tasks: number;
+      tasks_proj: number;
+      tasks_inbox: number;
+      score: number;
+      days: number;
+    }>();
+    for (const r of stats) {
+      let agg = map.get(r.user_id);
+      if (!agg) {
+        agg = { user_id: r.user_id, online: 0, active: 0, idle: 0, tasks: 0, tasks_proj: 0, tasks_inbox: 0, score: 0, days: 0 };
+        map.set(r.user_id, agg);
+      }
+      agg.online += r.online_seconds;
+      agg.active += r.active_seconds;
+      agg.idle += r.idle_seconds;
+      agg.tasks += r.tasks_completed;
+      agg.tasks_proj += r.tasks_completed_with_project;
+      agg.tasks_inbox += r.tasks_completed_inbox;
+      agg.score += r.activity_score;
+      agg.days += 1;
+    }
+    return [...map.values()].map((a) => ({
+      ...a,
+      avg_score: a.days > 0 ? Math.round(a.score / a.days) : 0,
+    })).sort((a, b) => b.avg_score - a.avg_score);
+  }, [stats]);
+
+  // Heatmap data (24 hours x days of week)
+  const heatmap = useMemo(() => {
+    const grid: number[][] = Array.from({ length: 7 }, () => Array(24).fill(0));
+    for (const r of filtered) {
+      const dow = new Date(r.day + "T12:00:00Z").getUTCDay(); // 0..6
+      for (const [hStr, sec] of Object.entries(r.hourly_buckets || {})) {
+        const h = parseInt(hStr, 10);
+        if (h >= 0 && h < 24) grid[dow][h] += Number(sec) || 0;
+      }
+    }
+    const max = Math.max(1, ...grid.flat());
+    return { grid, max };
+  }, [filtered]);
+
+  // Totals (selected user or everyone)
+  const totals = useMemo(() => {
+    return filtered.reduce(
+      (acc, r) => {
+        acc.online += r.online_seconds;
+        acc.active += r.active_seconds;
+        acc.idle += r.idle_seconds;
+        acc.tasks += r.tasks_completed;
+        return acc;
+      },
+      { online: 0, active: 0, idle: 0, tasks: 0 },
+    );
+  }, [filtered]);
+
+  const memberById = (id: string) => members.find((m) => m.user_id === id);
+
+  if (!isOwner) {
+    return (
+      <div className="flex-1 overflow-auto p-6">
+        <Card className="p-8 text-center max-w-xl mx-auto">
+          <Trophy className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <h2 className="font-display text-xl font-semibold mb-2">Painel restrito</h2>
+          <p className="text-muted-foreground text-sm">
+            Apenas o dono do workspace <strong>{currentWs?.name}</strong> pode ver as métricas de produtividade.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <div className="max-w-7xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h1 className="font-display text-3xl font-bold">Produtividade</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Tempo logado, idle, tarefas concluídas e score por colaborador.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={selectedUser} onValueChange={setSelectedUser}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Colaborador" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os colaboradores</SelectItem>
+                {members.map((m) => (
+                  <SelectItem key={m.user_id} value={m.user_id}>
+                    {m.display_name || m.user_id.slice(0, 8)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={range} onValueChange={(v) => setRange(v as "7" | "30")}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing}>
+              {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : (
+          <>
+            {/* Stat cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wide">
+                  <Clock className="h-4 w-4" /> Online
+                </div>
+                <div className="text-2xl font-display font-bold mt-2">{fmtH(totals.online)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wide">
+                  <Activity className="h-4 w-4" /> Ativo
+                </div>
+                <div className="text-2xl font-display font-bold mt-2 text-primary">{fmtH(totals.active)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wide">
+                  <MoonStar className="h-4 w-4" /> Idle
+                </div>
+                <div className="text-2xl font-display font-bold mt-2">{fmtH(totals.idle)}</div>
+              </Card>
+              <Card className="p-4">
+                <div className="flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-wide">
+                  <CheckCircle2 className="h-4 w-4" /> Tarefas concluídas
+                </div>
+                <div className="text-2xl font-display font-bold mt-2">{totals.tasks}</div>
+              </Card>
+            </div>
+
+            <Tabs defaultValue="ranking">
+              <TabsList>
+                <TabsTrigger value="ranking">Ranking</TabsTrigger>
+                <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
+                <TabsTrigger value="daily">Dia a dia</TabsTrigger>
+              </TabsList>
+
+              {/* Ranking */}
+              <TabsContent value="ranking">
+                <Card className="p-0 overflow-hidden">
+                  <div className="grid grid-cols-12 px-4 py-3 text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
+                    <div className="col-span-4">Colaborador</div>
+                    <div className="col-span-2 text-right">Online</div>
+                    <div className="col-span-2 text-right">Ativo</div>
+                    <div className="col-span-2 text-right">Tarefas</div>
+                    <div className="col-span-2 text-right">Score médio</div>
+                  </div>
+                  {perUser.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      Sem dados ainda — aguarde o primeiro agregado ou clique em recalcular.
+                    </div>
+                  ) : (
+                    perUser.map((u) => {
+                      const m = memberById(u.user_id);
+                      return (
+                        <div key={u.user_id} className="grid grid-cols-12 items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30">
+                          <div className="col-span-4 flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              {m?.avatar_url && <AvatarImage src={m.avatar_url} />}
+                              <AvatarFallback className="text-xs">{initials(m?.display_name || null)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-sm">{m?.display_name || u.user_id.slice(0, 8)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {u.tasks_proj} c/ projeto · {u.tasks_inbox} inbox
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-span-2 text-right text-sm tabular-nums">{fmtH(u.online)}</div>
+                          <div className="col-span-2 text-right text-sm tabular-nums text-primary">{fmtH(u.active)}</div>
+                          <div className="col-span-2 text-right text-sm tabular-nums">{u.tasks}</div>
+                          <div className="col-span-2 text-right">
+                            <span className={`inline-flex items-center justify-center w-12 h-7 rounded text-xs font-bold tabular-nums ${
+                              u.avg_score >= 70 ? "bg-primary/20 text-primary"
+                              : u.avg_score >= 40 ? "bg-warning/20 text-warning"
+                              : "bg-muted text-muted-foreground"
+                            }`}>
+                              {u.avg_score}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </Card>
+              </TabsContent>
+
+              {/* Heatmap */}
+              <TabsContent value="heatmap">
+                <Card className="p-4 overflow-x-auto">
+                  <div className="text-xs text-muted-foreground mb-3">
+                    Atividade por hora do dia (UTC). Mais escuro = mais ativo.
+                  </div>
+                  <div className="inline-block">
+                    <div className="grid grid-cols-[60px_repeat(24,minmax(20px,1fr))] gap-[2px] text-[10px]">
+                      <div></div>
+                      {Array.from({ length: 24 }).map((_, h) => (
+                        <div key={h} className="text-center text-muted-foreground">{h}</div>
+                      ))}
+                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d, dow) => (
+                        <>
+                          <div key={`l${dow}`} className="text-muted-foreground py-1">{d}</div>
+                          {heatmap.grid[dow].map((sec, h) => {
+                            const intensity = sec / heatmap.max;
+                            return (
+                              <div
+                                key={`${dow}-${h}`}
+                                className="aspect-square rounded-sm border border-border/40"
+                                style={{
+                                  backgroundColor: intensity > 0
+                                    ? `hsl(var(--primary) / ${0.15 + intensity * 0.85})`
+                                    : "hsl(var(--muted) / 0.4)",
+                                }}
+                                title={`${d} ${h}h: ${fmtH(sec)}`}
+                              />
+                            );
+                          })}
+                        </>
+                      ))}
+                    </div>
+                  </div>
+                </Card>
+              </TabsContent>
+
+              {/* Daily */}
+              <TabsContent value="daily">
+                <Card className="p-0 overflow-hidden">
+                  <div className="grid grid-cols-12 px-4 py-3 text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
+                    <div className="col-span-2">Dia</div>
+                    <div className="col-span-3">Colaborador</div>
+                    <div className="col-span-2 text-right">Online</div>
+                    <div className="col-span-2 text-right">Ativo</div>
+                    <div className="col-span-1 text-right">Tarefas</div>
+                    <div className="col-span-2 text-right">Score</div>
+                  </div>
+                  {filtered.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">Sem dados.</div>
+                  ) : (
+                    filtered.map((r) => {
+                      const m = memberById(r.user_id);
+                      return (
+                        <div key={`${r.user_id}-${r.day}`} className="grid grid-cols-12 items-center px-4 py-2.5 border-b border-border last:border-0 text-sm">
+                          <div className="col-span-2 text-muted-foreground tabular-nums">
+                            {new Date(r.day).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+                          </div>
+                          <div className="col-span-3 flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              {m?.avatar_url && <AvatarImage src={m.avatar_url} />}
+                              <AvatarFallback className="text-[10px]">{initials(m?.display_name || null)}</AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">{m?.display_name || r.user_id.slice(0, 8)}</span>
+                          </div>
+                          <div className="col-span-2 text-right tabular-nums">{fmtH(r.online_seconds)}</div>
+                          <div className="col-span-2 text-right tabular-nums text-primary">{fmtH(r.active_seconds)}</div>
+                          <div className="col-span-1 text-right tabular-nums">{r.tasks_completed}</div>
+                          <div className="col-span-2 text-right">
+                            <span className={`inline-flex items-center justify-center w-12 h-6 rounded text-xs font-bold tabular-nums ${
+                              r.activity_score >= 70 ? "bg-primary/20 text-primary"
+                              : r.activity_score >= 40 ? "bg-warning/20 text-warning"
+                              : "bg-muted text-muted-foreground"
+                            }`}>{r.activity_score}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

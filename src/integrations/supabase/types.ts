@@ -14,6 +14,75 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_heartbeats: {
+        Row: {
+          id: string
+          interactions: number
+          is_active: boolean
+          is_focused: boolean
+          route: string | null
+          session_id: string
+          ts: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          id?: string
+          interactions?: number
+          is_active?: boolean
+          is_focused?: boolean
+          route?: string | null
+          session_id: string
+          ts?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          id?: string
+          interactions?: number
+          is_active?: boolean
+          is_focused?: boolean
+          route?: string | null
+          session_id?: string
+          ts?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
+      activity_idle_periods: {
+        Row: {
+          created_at: string
+          duration_seconds: number | null
+          ended_at: string | null
+          id: string
+          session_id: string
+          started_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          session_id: string
+          started_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_seconds?: number | null
+          ended_at?: string | null
+          id?: string
+          session_id?: string
+          started_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       activity_log: {
         Row: {
           action: string
@@ -41,6 +110,48 @@ export type Database = {
           id?: string
           payload?: Json | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      activity_sessions: {
+        Row: {
+          active_seconds: number
+          created_at: string
+          ended_at: string | null
+          id: string
+          idle_seconds: number
+          ip: string | null
+          last_seen_at: string
+          started_at: string
+          user_agent: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          active_seconds?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          idle_seconds?: number
+          ip?: string | null
+          last_seen_at?: string
+          started_at?: string
+          user_agent?: string | null
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          active_seconds?: number
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          idle_seconds?: number
+          ip?: string | null
+          last_seen_at?: string
+          started_at?: string
+          user_agent?: string | null
+          user_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
@@ -234,6 +345,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_activity_stats: {
+        Row: {
+          active_seconds: number
+          activity_score: number
+          by_project: Json
+          computed_at: string
+          day: string
+          first_seen_at: string | null
+          hourly_buckets: Json
+          id: string
+          idle_seconds: number
+          last_seen_at: string | null
+          online_seconds: number
+          sessions_count: number
+          tasks_completed: number
+          tasks_completed_inbox: number
+          tasks_completed_with_project: number
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          active_seconds?: number
+          activity_score?: number
+          by_project?: Json
+          computed_at?: string
+          day: string
+          first_seen_at?: string | null
+          hourly_buckets?: Json
+          id?: string
+          idle_seconds?: number
+          last_seen_at?: string | null
+          online_seconds?: number
+          sessions_count?: number
+          tasks_completed?: number
+          tasks_completed_inbox?: number
+          tasks_completed_with_project?: number
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          active_seconds?: number
+          activity_score?: number
+          by_project?: Json
+          computed_at?: string
+          day?: string
+          first_seen_at?: string | null
+          hourly_buckets?: Json
+          id?: string
+          idle_seconds?: number
+          last_seen_at?: string | null
+          online_seconds?: number
+          sessions_count?: number
+          tasks_completed?: number
+          tasks_completed_inbox?: number
+          tasks_completed_with_project?: number
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: []
       }
       email_send_log: {
         Row: {
@@ -1959,6 +2130,33 @@ export type Database = {
           },
         ]
       }
+      workspace_tracking_settings: {
+        Row: {
+          enable_team_visibility: boolean
+          heartbeat_seconds: number
+          idle_threshold_minutes: number
+          updated_at: string
+          updated_by: string | null
+          workspace_id: string
+        }
+        Insert: {
+          enable_team_visibility?: boolean
+          heartbeat_seconds?: number
+          idle_threshold_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id: string
+        }
+        Update: {
+          enable_team_visibility?: boolean
+          heartbeat_seconds?: number
+          idle_threshold_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+          workspace_id?: string
+        }
+        Relationships: []
+      }
       workspace_webhooks: {
         Row: {
           created_at: string
@@ -2035,6 +2233,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_view_activity: {
+        Args: { _target_user: string; _viewer: string; _workspace_id: string }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -2060,6 +2262,10 @@ export type Database = {
         Returns: boolean
       }
       is_workspace_member: {
+        Args: { _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
+      is_workspace_owner: {
         Args: { _user_id: string; _workspace_id: string }
         Returns: boolean
       }
