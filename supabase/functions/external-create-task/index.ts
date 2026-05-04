@@ -222,6 +222,36 @@ Deno.serve(async (req) => {
     }).select();
   }
 
+  const subtasks = normalizeSubtasks(body);
+  for (const [index, item] of subtasks.entries()) {
+    const subTitle = readSubtaskTitle(item);
+    if (!subTitle) continue;
+    const subExternalRef = readSubtaskExternalRef(externalRef, item, index);
+    const subDueAt = parseDueAt(item?.due_at || item?.dueAt || item?.date || dueAt);
+    const split = splitDueAt(subDueAt);
+    const subPayload = {
+      user_id: keyRow.created_by,
+      created_by: keyRow.created_by,
+      workspace_id: keyRow.workspace_id,
+      project_id: projectId,
+      parent_id: task.id,
+      title: subTitle,
+      description: typeof item === 'object' && item?.notes ? String(item.notes) : null,
+      priority: parsePriority(item?.priority, priority),
+      due_at: subDueAt,
+      due_date: split.due_date,
+      due_time: split.due_time,
+      external_ref: subExternalRef,
+      external_source: externalSource,
+      assignee: typeof item === 'object' && item?.assignee ? String(item.assignee) : assignee,
+      last_sync_source: syncSource,
+    };
+    const query = subExternalRef
+      ? admin.from('tasks').upsert(subPayload, { onConflict: 'external_ref' })
+      : admin.from('tasks').insert(subPayload);
+    await query.select('id').single();
+  }
+
   // Atualiza last_used
   await admin
     .from('external_api_keys')
