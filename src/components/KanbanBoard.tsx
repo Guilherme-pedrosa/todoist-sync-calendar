@@ -81,22 +81,36 @@ interface ManualKanbanState {
 }
 
 const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+const RECURRING_COLUMN_ID = 'manual-recurring';
+const RECURRING_COLUMN: Pick<Column, 'id' | 'title'> = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
+
+function isRecurringTask(t: Task): boolean {
+  return Boolean((t as any).recurrenceRule || (t as any).recurrence);
+}
+
+function ensureRecurringColumn(cols: Pick<Column, 'id' | 'title'>[]): Pick<Column, 'id' | 'title'>[] {
+  if (cols.some((c) => c.id === RECURRING_COLUMN_ID)) return cols;
+  return [...cols, RECURRING_COLUMN];
+}
 
 function getKanbanStorageKey(boardKey?: string) {
   return `taskflow.kanban.manual.${boardKey || 'default'}`;
 }
 
 function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageKey'> {
-  if (typeof window === 'undefined') return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+  if (typeof window === 'undefined') return { columns: ensureRecurringColumn([DEFAULT_COLUMN]), taskColumns: {} };
   try {
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
-    const columns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    const rawColumns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
+    const columns = ensureRecurringColumn(
+      rawColumns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') }))
+    );
     return {
-      columns: columns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') })),
+      columns,
       taskColumns: parsed.taskColumns && typeof parsed.taskColumns === 'object' ? parsed.taskColumns : {},
     };
   } catch {
-    return { columns: [DEFAULT_COLUMN], taskColumns: {} };
+    return { columns: ensureRecurringColumn([DEFAULT_COLUMN]), taskColumns: {} };
   }
 }
 
