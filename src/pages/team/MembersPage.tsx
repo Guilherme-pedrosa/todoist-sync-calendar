@@ -40,6 +40,12 @@ export default function MembersPage() {
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({ email: '', password: '', display_name: '', role: 'member' });
+  const [lookup, setLookup] = useState<{
+    state: 'idle' | 'searching' | 'new' | 'existing' | 'already_member';
+    user_id?: string;
+    display_name?: string | null;
+    current_role?: string | null;
+  }>({ state: 'idle' });
 
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<{ userId: string; displayName: string; email: string } | null>(null);
@@ -47,7 +53,6 @@ export default function MembersPage() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
 
-  // fetchWorkspaces é chamado uma vez no boot (AppLayout). Aqui só garantimos members frescos.
   useEffect(() => {
     if (currentWorkspaceId && membersWorkspaceId !== currentWorkspaceId) {
       fetchMembers(currentWorkspaceId);
@@ -80,18 +85,74 @@ export default function MembersPage() {
     return json;
   };
 
+  // Debounced email lookup: detecta se já existe usuário com esse e-mail.
+  useEffect(() => {
+    if (!open || !currentWorkspaceId) return;
+    const email = form.email.trim();
+    if (!email || !/.+@.+\..+/.test(email)) {
+      setLookup({ state: 'idle' });
+      return;
+    }
+    setLookup({ state: 'searching' });
+    const t = setTimeout(async () => {
+      try {
+        const data = await callAdminFn({ action: 'lookup_email', workspace_id: currentWorkspaceId, email });
+        if (!data.exists) {
+          setLookup({ state: 'new' });
+        } else if (data.already_member) {
+          setLookup({
+            state: 'already_member',
+            user_id: data.user_id,
+            display_name: data.display_name,
+            current_role: data.current_role,
+          });
+        } else {
+          setLookup({
+            state: 'existing',
+            user_id: data.user_id,
+            display_name: data.display_name,
+          });
+          if (data.display_name) {
+            setForm((f) => (f.display_name ? f : { ...f, display_name: data.display_name }));
+          }
+        }
+      } catch {
+        setLookup({ state: 'idle' });
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [form.email, open, currentWorkspaceId]);
+
   const handleCreate = async () => {
     if (!currentWorkspaceId) return;
-    if (!form.email || !form.password) {
-      toast.error('Preencha email e senha');
+    if (!form.email) {
+      toast.error('Informe o e-mail');
       return;
     }
     setSubmitting(true);
     try {
-      await callAdminFn({ action: 'create', workspace_id: currentWorkspaceId, ...form });
-      toast.success('Membro adicionado');
+      if (lookup.state === 'existing' && lookup.user_id) {
+        await callAdminFn({
+          action: 'add_existing',
+          workspace_id: currentWorkspaceId,
+          user_id: lookup.user_id,
+          role: form.role,
+        });
+        toast.success('Pessoa vinculada ao workspace');
+      } else if (lookup.state === 'already_member') {
+        toast.error('Essa pessoa já é membro do workspace');
+        return;
+      } else {
+        if (!form.password) {
+          toast.error('Defina uma senha inicial');
+          return;
+        }
+        await callAdminFn({ action: 'create', workspace_id: currentWorkspaceId, ...form });
+        toast.success('Membro adicionado');
+      }
       setOpen(false);
       setForm({ email: '', password: '', display_name: '', role: 'member' });
+      setLookup({ state: 'idle' });
       fetchMembers(currentWorkspaceId);
     } catch (e: any) {
       toast.error(e.message);
