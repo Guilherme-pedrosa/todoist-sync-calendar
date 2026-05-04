@@ -133,7 +133,7 @@ async function sendHeartbeat() {
     route,
     interactions: cfg.interactions || 0,
     seconds: HEARTBEAT_SECONDS,
-  }).catch(() => {});
+  });
   await setCfg({ interactions: 0 });
 }
 
