@@ -991,6 +991,7 @@ function DayColumn({
             <EventBlock
               key={task.id}
               task={task}
+                dayKey={dayKey}
               top={top}
               height={height}
               startMin={startMin}
@@ -1040,6 +1041,7 @@ function DayColumn({
 
 function EventBlock({
   task,
+  dayKey,
   top,
   height,
   startMin,
@@ -1052,6 +1054,7 @@ function EventBlock({
   onClick,
 }: {
   task: Task;
+  dayKey: string;
   top: number;
   height: number;
   startMin: number;
@@ -1068,18 +1071,7 @@ function EventBlock({
   const isRecurring = !!task.recurrenceRule;
   const isDone = task.completed;
   const isHistoricalCompletion = !!task.isRecurringCompletion;
-  const isOverdue = (() => {
-    if (isDone || !task.dueDate) return false;
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    if (task.dueDate < todayStr) return true;
-    if (task.dueDate > todayStr) return false;
-    if (!task.dueTime) return false;
-    const [h, m] = task.dueTime.split(':').map(Number);
-    const end = new Date(today);
-    end.setHours(h, m + (task.durationMinutes ?? 0), 0, 0);
-    return end.getTime() < Date.now();
-  })();
+  const isOverdue = isTaskOverdue(task, dayKey, startMin + durationMin);
 
   // Variant styles: completed wins, overdue next, then recurring, then default (priority border).
   const priorityBorder: Record<number, string> = {
