@@ -296,6 +296,7 @@ function KanbanColumn({
   onRename,
   onDelete,
   canDelete,
+  isRecurringColumn,
 }: {
   column: Column;
   tasks: Task[];
@@ -304,8 +305,17 @@ function KanbanColumn({
   onRename?: (title: string) => void;
   onDelete?: () => void;
   canDelete?: boolean;
+  isRecurringColumn?: boolean;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: column.id });
+  const { isOver, setNodeRef: setDropRef } = useDroppable({ id: column.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setSortRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `col:${column.id}` });
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(column.title);
 
@@ -320,10 +330,29 @@ function KanbanColumn({
     setIsRenaming(false);
   };
 
+  const sortStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  } as React.CSSProperties;
+
   return (
-    <div className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full">
+    <div
+      ref={setSortRef}
+      style={sortStyle}
+      className="w-[280px] flex-shrink-0 flex flex-col bg-muted/30 rounded-lg border border-border/50 max-h-full"
+    >
       <div className="flex items-center justify-between px-3 py-2 border-b border-border/40 gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-0.5 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none"
+            aria-label="Arrastar coluna"
+            title="Arrastar para reordenar"
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
           {column.color && (
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: column.color }} />
           )}
