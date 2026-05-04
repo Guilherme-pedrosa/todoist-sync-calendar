@@ -538,7 +538,7 @@ export function AppSidebar() {
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Carga de trabalho</span>
         </NavLink>
-        {isAnyWorkspaceOwner && (
+        {isProductivityAdmin && (
           <>
             <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
               <Activity className="h-4 w-4 shrink-0" />
