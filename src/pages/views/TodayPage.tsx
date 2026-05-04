@@ -15,11 +15,13 @@ import { ViewModeToolbar } from '@/components/ViewModeToolbar';
 import { useViewPref } from '@/hooks/useViewPref';
 import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+  const { user } = useAuth();
   const [overdueOpen, setOverdueOpen] = useState(true);
   const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
   const [showCompleted, setShowCompleted] = useShowCompleted('today');
