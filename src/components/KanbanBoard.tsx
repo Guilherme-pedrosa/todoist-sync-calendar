@@ -32,8 +32,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { User as UserIcon, UserMinus } from 'lucide-react';
 import { format, isToday, isPast, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useWorkspaceStore } from '@/store/workspaceStore';
@@ -69,6 +72,9 @@ interface Column {
   color?: string;
   /** Defaults para nova tarefa criada nesta coluna */
   newTaskDefaults?: Record<string, any>;
+  /** Membro vinculado: tarefas que caem aqui serão atribuídas a ele */
+  assigneeUserId?: string | null;
+  assigneeName?: string | null;
 }
 
 const PRIORITY_COLORS: Record<Priority, string> = {
@@ -78,21 +84,28 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   4: 'hsl(var(--muted-foreground))',
 };
 
+interface ManualColumn {
+  id: string;
+  title: string;
+  /** Se setado, tarefas que caem nessa coluna são reatribuídas a esse usuário */
+  assigneeUserId?: string | null;
+}
+
 interface ManualKanbanState {
   storageKey: string;
-  columns: Pick<Column, 'id' | 'title'>[];
+  columns: ManualColumn[];
   taskColumns: Record<string, string>;
 }
 
-const DEFAULT_COLUMN: Pick<Column, 'id' | 'title'> = { id: 'manual-default', title: 'Kanban' };
+const DEFAULT_COLUMN: ManualColumn = { id: 'manual-default', title: 'Kanban' };
 const RECURRING_COLUMN_ID = 'manual-recurring';
-const RECURRING_COLUMN: Pick<Column, 'id' | 'title'> = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
+const RECURRING_COLUMN: ManualColumn = { id: RECURRING_COLUMN_ID, title: 'Recorrentes' };
 
 function isRecurringTask(t: Task): boolean {
   return Boolean((t as any).recurrenceRule || (t as any).recurrence);
 }
 
-function ensureRecurringColumn(cols: Pick<Column, 'id' | 'title'>[]): Pick<Column, 'id' | 'title'>[] {
+function ensureRecurringColumn(cols: ManualColumn[]): ManualColumn[] {
   if (cols.some((c) => c.id === RECURRING_COLUMN_ID)) return cols;
   return [...cols, RECURRING_COLUMN];
 }
@@ -107,7 +120,11 @@ function readManualKanban(storageKey: string): Omit<ManualKanbanState, 'storageK
     const parsed = JSON.parse(window.localStorage.getItem(storageKey) || '{}');
     const rawColumns = Array.isArray(parsed.columns) && parsed.columns.length > 0 ? parsed.columns : [DEFAULT_COLUMN];
     const columns = ensureRecurringColumn(
-      rawColumns.map((c: any) => ({ id: String(c.id), title: String(c.title || 'Kanban') }))
+      rawColumns.map((c: any) => ({
+        id: String(c.id),
+        title: String(c.title || 'Kanban'),
+        assigneeUserId: c.assigneeUserId ?? null,
+      }))
     );
     return {
       columns,
@@ -133,6 +150,8 @@ export function KanbanBoard({ tasks, boardKey, newTaskDefaults, groupBy, project
 function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const members = useWorkspaceStore((s) => s.members);
+  const { user } = useAuth();
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -152,8 +171,19 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
   }, [board, storageKey]);
 
   const columns = useMemo<Column[]>(
-    () => board.columns.map((col) => ({ ...col, newTaskDefaults: { ...(newTaskDefaults || {}) } })),
-    [board.columns, newTaskDefaults]
+    () =>
+      board.columns.map((col) => {
+        const member = col.assigneeUserId ? members.find((m) => m.userId === col.assigneeUserId) : null;
+        return {
+          ...col,
+          assigneeName: member ? (member.displayName || member.email || 'Membro') : null,
+          newTaskDefaults: {
+            ...(newTaskDefaults || {}),
+            ...(col.assigneeUserId ? { assigneeIds: [col.assigneeUserId] } : {}),
+          },
+        };
+      }),
+    [board.columns, newTaskDefaults, members]
   );
 
   const tasksByColumn = useMemo(() => {
@@ -211,11 +241,45 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
     // Block dropping non-recurring tasks into the recurring column (and vice versa)
     if (colId === RECURRING_COLUMN_ID && !isRecurringTask(task)) return;
     if (colId !== RECURRING_COLUMN_ID && isRecurringTask(task)) return;
-    if (board.taskColumns[taskId] === colId) return;
-    setBoard((current) => ({
-      ...current,
-      taskColumns: { ...current.taskColumns, [taskId]: colId },
+    if (board.taskColumns[taskId] === colId) {
+      // mesma coluna, nada a fazer
+    } else {
+      setBoard((current) => ({
+        ...current,
+        taskColumns: { ...current.taskColumns, [taskId]: colId },
+      }));
+    }
+
+    // Se a coluna está vinculada a um responsável, reatribuir a tarefa
+    if (col.assigneeUserId) {
+      void reassignTaskToUser(taskId, col.assigneeUserId);
+    }
+  };
+
+  const reassignTaskToUser = async (taskId: string, targetUserId: string) => {
+    const t = useTaskStore.getState().tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    const current = t.assigneeIds || [];
+    if (current.length === 1 && current[0] === targetUserId) return;
+    const prev = current;
+    const next = [targetUserId];
+    useTaskStore.setState((state: any) => ({
+      tasks: state.tasks.map((x: Task) => (x.id === taskId ? { ...x, assigneeIds: next } : x)),
     }));
+    try {
+      await supabase.from('task_assignees').delete().eq('task_id', taskId);
+      if (user) {
+        await supabase
+          .from('task_assignees')
+          .insert([{ task_id: taskId, user_id: targetUserId, assigned_by: user.id }]);
+      }
+    } catch (err) {
+      console.error('Falha ao reatribuir tarefa', err);
+      toast.error('Não foi possível reatribuir a tarefa');
+      useTaskStore.setState((state: any) => ({
+        tasks: state.tasks.map((x: Task) => (x.id === taskId ? { ...x, assigneeIds: prev } : x)),
+      }));
+    }
   };
 
   const addColumn = (title: string) => {
@@ -234,6 +298,23 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
       ...current,
       columns: current.columns.map((c) => (c.id === colId ? { ...c, title: cleanTitle } : c)),
     }));
+  };
+
+  const setColumnAssignee = (colId: string, userId: string | null) => {
+    setBoard((current) => ({
+      ...current,
+      columns: current.columns.map((c) => (c.id === colId ? { ...c, assigneeUserId: userId } : c)),
+    }));
+    if (userId) {
+      // Reatribuir todas as tarefas atualmente nessa coluna
+      const taskIds = Object.entries(board.taskColumns)
+        .filter(([, cid]) => cid === colId)
+        .map(([tid]) => tid);
+      // incluir também as tarefas que caem aqui por fallback (primeira coluna)
+      const tasksInCol = (tasksByColumn.get(colId) || []).map((t) => t.id);
+      const allIds = Array.from(new Set([...taskIds, ...tasksInCol]));
+      for (const tid of allIds) void reassignTaskToUser(tid, userId);
+    }
   };
 
   const deleteColumn = (colId: string) => {
@@ -279,6 +360,8 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
                 onOpenTask={(id) => openTaskDetail(id)}
                 onRename={(title) => renameColumn(col.id, title)}
                 onDelete={() => deleteColumn(col.id)}
+                members={col.id === RECURRING_COLUMN_ID ? [] : members}
+                onSetAssignee={col.id === RECURRING_COLUMN_ID ? undefined : (uid) => setColumnAssignee(col.id, uid)}
               />
             ))}
           </SortableContext>
@@ -484,6 +567,8 @@ function KanbanColumn({
   onDelete,
   canDelete,
   isRecurringColumn,
+  members,
+  onSetAssignee,
 }: {
   column: Column;
   tasks: Task[];
@@ -493,6 +578,8 @@ function KanbanColumn({
   onDelete?: () => void;
   canDelete?: boolean;
   isRecurringColumn?: boolean;
+  members?: { userId: string; displayName: string | null; email: string | null }[];
+  onSetAssignee?: (userId: string | null) => void;
 }) {
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: column.id });
   const {
@@ -568,6 +655,15 @@ function KanbanColumn({
             </h3>
           )}
           <span className="text-[10px] text-muted-foreground">{tasks.length}</span>
+          {column.assigneeUserId && column.assigneeName && (
+            <span
+              className="ml-1 inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-1.5 py-0.5 text-[10px] font-medium max-w-[110px] truncate"
+              title={`Vinculada a ${column.assigneeName}`}
+            >
+              <UserIcon className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{column.assigneeName}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-0.5">
           <button
@@ -577,7 +673,7 @@ function KanbanColumn({
           >
             <Plus className="h-3.5 w-3.5" />
           </button>
-          {(onRename || onDelete) && (
+          {(onRename || onDelete || onSetAssignee) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -606,6 +702,36 @@ function KanbanColumn({
                     <Trash2 className="h-3.5 w-3.5 mr-2" />
                     Excluir
                   </DropdownMenuItem>
+                )}
+                {onSetAssignee && members && members.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      Vincular a responsável
+                    </DropdownMenuLabel>
+                    <div className="max-h-56 overflow-y-auto">
+                      {members.map((m) => {
+                        const isSelected = column.assigneeUserId === m.userId;
+                        const label = m.displayName || m.email || 'Membro';
+                        return (
+                          <DropdownMenuItem
+                            key={m.userId}
+                            onClick={() => onSetAssignee(isSelected ? null : m.userId)}
+                          >
+                            <UserIcon className="h-3.5 w-3.5 mr-2" />
+                            <span className="truncate">{label}</span>
+                            {isSelected && <span className="ml-auto text-primary text-xs">✓</span>}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </div>
+                    {column.assigneeUserId && (
+                      <DropdownMenuItem onClick={() => onSetAssignee(null)}>
+                        <UserMinus className="h-3.5 w-3.5 mr-2" />
+                        Remover vínculo
+                      </DropdownMenuItem>
+                    )}
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
