@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useAIAssistantStore } from '@/store/aiAssistantStore';
+import { useAIAssistantStore, type ChatMsg } from '@/store/aiAssistantStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useTaskStore } from '@/store/taskStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { supabase } from '@/integrations/supabase/client';
