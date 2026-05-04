@@ -123,10 +123,32 @@ export default function MembersPage() {
     }
   };
 
-  const openEdit = (m: { userId: string; displayName: string | null }) => {
-    setEditing({ userId: m.userId, displayName: m.displayName || '' });
+  const openEdit = async (m: { userId: string; displayName: string | null }) => {
+    setEditing({ userId: m.userId, displayName: m.displayName || '', email: '' });
     setEditForm({ display_name: m.displayName || '', email: '', password: '' });
     setEditOpen(true);
+    setEditLoading(true);
+    try {
+      const data = await callAdminFn({
+        action: 'get_member',
+        workspace_id: currentWorkspaceId,
+        user_id: m.userId,
+      });
+      setEditing({
+        userId: m.userId,
+        displayName: data.display_name || m.displayName || '',
+        email: data.email || '',
+      });
+      setEditForm({
+        display_name: data.display_name || m.displayName || '',
+        email: data.email || '',
+        password: '',
+      });
+    } catch (e: any) {
+      toast.error('Não foi possível carregar dados do membro');
+    } finally {
+      setEditLoading(false);
+    }
   };
 
   const handleEdit = async () => {
