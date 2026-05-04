@@ -11,6 +11,14 @@ import {
   closestCorners,
 } from '@dnd-kit/core';
 import { useDraggable } from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { Task, Priority } from '@/types/task';
 import { useTaskStore } from '@/store/taskStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
