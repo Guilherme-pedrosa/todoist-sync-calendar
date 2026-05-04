@@ -82,6 +82,7 @@ const TAB_ITEMS = [
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
   { value: 'calendars', icon: CalendarDays, label: 'Calendários' },
+  { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
 
