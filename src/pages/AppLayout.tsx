@@ -33,6 +33,8 @@ export default function AppLayout() {
   const [processingCalendarOauth, setProcessingCalendarOauth] = useState(false);
 
   useGlobalShortcuts();
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  useActivityTracker(user ? currentWorkspaceId : null);
 
   const location = useLocation();
   // Close mobile sidebar on route change
