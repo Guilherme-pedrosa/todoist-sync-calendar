@@ -29,7 +29,43 @@ const PRIORITY_MAP: Record<string, number> = {
 
 function normalizeSubtasks(body: any): any[] {
   const raw = body.subtasks || body.subtarefas || body.sub_tarefas || body.children || body.items || body.checklist;
-  return Array.isArray(raw) ? raw : [];
+  if (Array.isArray(raw) && raw.length > 0) return raw;
+
+  return extractProblemItemsFromDescription(
+    body.description || body.notes || body.observations || body.observacoes || body.message || body.text,
+  );
+}
+
+function extractProblemItemsFromDescription(raw: unknown): any[] {
+  if (!raw) return [];
+
+  const lines = String(raw).replace(/\r/g, '').split('\n');
+  const items: { title: string }[] = [];
+  let inProblemSection = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const normalized = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+    if (/^itens?\s+com\s+problemas?\s*:/.test(normalized)) {
+      inProblemSection = true;
+      continue;
+    }
+
+    if (!inProblemSection) continue;
+
+    if (!trimmed) continue;
+
+    if (!/^[•*-]\s+/.test(trimmed)) {
+      if (/^[\p{L}\s]+:/u.test(trimmed)) break;
+      continue;
+    }
+
+    const title = trimmed.replace(/^[•*-]\s+/, '').trim();
+    if (title) items.push({ title });
+  }
+
+  return items;
 }
 
 function readSubtaskTitle(item: any): string {
