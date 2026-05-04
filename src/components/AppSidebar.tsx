@@ -32,6 +32,7 @@ import {
   FolderKanban,
   BarChart3,
   FileText,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
