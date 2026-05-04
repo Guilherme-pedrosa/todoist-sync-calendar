@@ -179,6 +179,7 @@ export type AssistantAction =
         priority?: number;
         projectId?: string;
         recurrenceRule?: string;
+        assigneeUserIds?: string[];
       };
     }
   | {
