@@ -73,7 +73,6 @@ function formatDueDate(dateStr: string) {
 export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const navigate = useNavigate();
   const deleteTask = useTaskStore((s) => s.deleteTask);
-  const updateTask = useTaskStore((s) => s.updateTask);
   const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
