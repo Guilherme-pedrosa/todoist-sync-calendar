@@ -216,6 +216,41 @@ export default function ProductivityPage() {
     );
   }, [filtered]);
 
+  // Aggregate top domains across the filtered range
+  const topDomains = useMemo(() => {
+    const m = new Map<string, { seconds: number; category: string }>();
+    for (const r of filtered) {
+      for (const d of r.top_domains || []) {
+        const cur = m.get(d.domain) || { seconds: 0, category: d.category || "neutral" };
+        cur.seconds += d.seconds;
+        if (d.category) cur.category = d.category;
+        m.set(d.domain, cur);
+      }
+    }
+    return [...m.entries()]
+      .map(([domain, v]) => ({ domain, ...v }))
+      .sort((a, b) => b.seconds - a.seconds)
+      .slice(0, 30);
+  }, [filtered]);
+
+  const siteTotals = useMemo(() => filtered.reduce(
+    (a, r) => ({
+      productive: a.productive + (r.productive_seconds || 0),
+      neutral: a.neutral + (r.neutral_seconds || 0),
+      distracting: a.distracting + (r.distracting_seconds || 0),
+    }),
+    { productive: 0, neutral: 0, distracting: 0 },
+  ), [filtered]);
+
+  const setCategory = async (domain: string, category: "productive" | "neutral" | "distracting") => {
+    if (!currentWorkspaceId) return;
+    const { error } = await supabase
+      .from("domain_categories")
+      .upsert({ workspace_id: currentWorkspaceId, domain, category }, { onConflict: "workspace_id,domain" });
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${domain} marcado como ${category === "productive" ? "produtivo" : category === "distracting" ? "improdutivo" : "neutro"}`);
+  };
+
   const memberById = (id: string) => members.find((m) => m.user_id === id);
 
   if (!isOwner) {
