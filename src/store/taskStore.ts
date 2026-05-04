@@ -911,6 +911,13 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       },
     });
 
+    // Notify FleetDesk (fire-and-forget) so corrective tickets move to "Concluído"
+    supabase.functions
+      .invoke('fleetdesk-notify-status', {
+        body: { task_id: id, completed, completed_at: completedAt },
+      })
+      .catch((err) => console.warn('FleetDesk sync falhou:', err));
+
     if (task.googleCalendarEventId) {
       try {
         const { data: sessionData } = await supabase.auth.getSession();
