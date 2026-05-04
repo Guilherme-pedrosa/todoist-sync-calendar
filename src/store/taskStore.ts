@@ -964,7 +964,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       .from('projects')
       .insert({
         user_id: userId,
-        workspace_id: ws.id,
+        workspace_id: workspaceId,
         owner_id: userId,
         visibility: 'private',
         name: projectData.name,
