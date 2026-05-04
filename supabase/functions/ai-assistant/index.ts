@@ -75,7 +75,7 @@ interface BasePayload {
   // Catálogo de tarefas com id (chat usa para tool calling com id real)
   taskCatalog?: { id: string; title: string; date?: string | null; time?: string | null; priority?: number; project?: string | null; completed?: boolean; assignees?: string[] }[];
   // Projetos disponíveis (para create_task escolher projeto por nome)
-  projectCatalog?: { id: string; name: string }[];
+  projectCatalog?: { id: string; name: string; isInbox?: boolean }[];
   // Membros do workspace (para assign_task referenciar usuários por id real)
   memberCatalog?: { userId: string; name: string; email?: string | null }[];
   // Eventos do Google Calendar (para gerenciar eventos do calendário)
@@ -216,6 +216,7 @@ REGRAS DE FERRAMENTAS:
 - Para qualquer ação que precise de id (task/usuário/evento), OBRIGATÓRIO usar o id real do CATÁLOGO. Se não souber qual, NÃO chame ferramenta — pergunte qual.
 - assign_task / unassign_task: use o userId do CATÁLOGO DE MEMBROS. Match por nome ou email (case-insensitive, parcial).
 - DELEGAÇÃO AO CRIAR ("cria/lança uma tarefa pro Filipe", "marca pro João", "atribui ao time X"): SEMPRE preencha o campo assigneeUserIds do create_task com o(s) userId do CATÁLOGO DE MEMBROS. NUNCA omita esse campo quando o usuário mencionar uma pessoa. NUNCA use create_task + assign_task separados — use o assigneeUserIds direto.
+- ⚠️ PROJETO OBRIGATÓRIO AO DELEGAR: se a tarefa tem assigneeUserIds (ou seja, é pra outra pessoa), o campo projectId é OBRIGATÓRIO e DEVE ser um id real do CATÁLOGO DE PROJETOS. NUNCA delegue uma tarefa para a Caixa de Entrada (projetos com nome "Caixa de Entrada" / "Inbox" são pessoais e privados — outras pessoas não veem). Se o usuário não disse o projeto, NÃO chame a ferramenta: pergunte "Em qual projeto eu lanço essa tarefa para o {nome}?" e liste 3-5 projetos do CATÁLOGO DE PROJETOS que NÃO sejam Caixa de Entrada como sugestão.
 - Se o nome mencionado NÃO existir no CATÁLOGO DE MEMBROS, NÃO crie a tarefa para você mesmo: pergunte ao usuário "Não encontrei {nome} no workspace atual. Quer que eu crie sem responsável, ou troque de workspace?".
 - Se houver mais de um membro com nome parecido, pergunte qual antes de chamar a ferramenta.
 - bulk_reschedule: pode receber muitos taskIds; use uma única chamada com a lista.
@@ -261,7 +262,7 @@ function buildContextBlock(p: BasePayload): string {
     .join("\n");
   const projectsBlock = (p.projectCatalog ?? [])
     .slice(0, 50)
-    .map((pr) => `- id=${pr.id} | ${pr.name}`)
+    .map((pr) => `- id=${pr.id} | ${pr.name}${pr.isInbox ? " | ⚠️ CAIXA DE ENTRADA (PRIVADA — NUNCA usar para delegar a outra pessoa)" : ""}`)
     .join("\n");
   const membersBlock = (p.memberCatalog ?? [])
     .slice(0, 100)
@@ -560,7 +561,7 @@ Deno.serve(async (req) => {
                   time: { type: "string", description: "HH:mm 24h; opcional" },
                   durationMinutes: { type: "number" },
                   priority: { type: "number", description: "1=baixa, 4=urgente" },
-                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS); opcional" },
+                  projectId: { type: "string", description: "id do projeto (do CATÁLOGO DE PROJETOS). OBRIGATÓRIO quando assigneeUserIds estiver preenchido (delegação). NUNCA use o projeto marcado como CAIXA DE ENTRADA para delegar — ele é privado." },
                   recurrenceRule: { type: "string", description: "RRULE iCal; opcional. Ex: FREQ=WEEKLY;BYDAY=MO,WE,FR" },
                   assigneeUserIds: {
                     type: "array",

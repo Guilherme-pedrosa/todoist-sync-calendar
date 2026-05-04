@@ -253,7 +253,7 @@ export async function chatWithAssistant(opts: {
       completed: t.completed,
       assignees: t.assigneeIds ?? [],
     }));
-  const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name }));
+  const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name, isInbox: !!(p as any).isInbox }));
   const memberCatalog = opts.extras?.members ?? [];
   const calendarEvents = opts.extras?.calendarEvents ?? [];
 
