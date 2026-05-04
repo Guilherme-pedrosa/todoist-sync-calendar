@@ -954,6 +954,7 @@ function VehicleKanban({
   const { columns, tasksByColumn } = useMemo(() => {
     const map = new Map<string, { id: string; title: string; plate: string | null; tasks: Task[] }>();
     for (const t of tasks) {
+      if (t.completed) continue;
       const v = extractVehicle(t);
       const id = v ? `vehicle:${v.plate}` : VEHICLE_UNKNOWN_ID;
       const title = v ? v.label : 'Sem veículo';
