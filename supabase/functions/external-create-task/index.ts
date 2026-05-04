@@ -68,11 +68,18 @@ function parseCompleted(raw: unknown): boolean | null {
   if (typeof raw === 'boolean') return raw;
   if (typeof raw === 'number') return raw === 1;
 
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    return parseCompleted(obj.completed ?? obj.done ?? obj.value ?? obj.code ?? obj.name ?? obj.title ?? obj.label ?? obj.status);
+  }
+
   const value = String(raw).trim().toLowerCase();
   if (!value) return null;
 
-  if (['true', '1', 'yes', 'sim', 'done', 'completed', 'complete', 'concluido', 'concluida', 'finalizado', 'finalizada'].includes(value)) return true;
-  if (['false', '0', 'no', 'nao', 'não', 'open', 'opened', 'pending', 'pendente', 'em aberto', 'aberto', 'aberta'].includes(value)) return false;
+  const normalized = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (['true', '1', 'yes', 'sim', 'done', 'completed', 'complete', 'closed', 'resolved', 'finished', 'concluido', 'concluida', 'concluidos', 'concluidas', 'finalizado', 'finalizada', 'finalizados', 'finalizadas', 'fechado', 'fechada', 'fechados', 'fechadas', 'encerrado', 'encerrada', 'resolvido', 'resolvida', 'solucionado', 'solucionada'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'nao', 'open', 'opened', 'pending', 'pendente', 'em aberto', 'aberto', 'aberta', 'abertos', 'abertas', 'ativo', 'ativa', 'andamento', 'em andamento'].includes(normalized)) return false;
 
   return null;
 }
