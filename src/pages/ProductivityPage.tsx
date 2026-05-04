@@ -436,6 +436,52 @@ export default function ProductivityPage() {
                 </Card>
               </TabsContent>
 
+              {/* Sites */}
+              <TabsContent value="sites" className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <Card className="p-4">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Produtivo</div>
+                    <div className="text-2xl font-display font-bold mt-2 text-primary">{fmtH(siteTotals.productive)}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Neutro</div>
+                    <div className="text-2xl font-display font-bold mt-2">{fmtH(siteTotals.neutral)}</div>
+                  </Card>
+                  <Card className="p-4">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Improdutivo</div>
+                    <div className="text-2xl font-display font-bold mt-2 text-destructive">{fmtH(siteTotals.distracting)}</div>
+                  </Card>
+                </div>
+
+                <Card className="p-0 overflow-hidden">
+                  <div className="grid grid-cols-12 px-4 py-3 text-xs text-muted-foreground uppercase tracking-wide border-b border-border">
+                    <div className="col-span-5">Domínio</div>
+                    <div className="col-span-2 text-right">Tempo</div>
+                    <div className="col-span-5 text-right">Categoria</div>
+                  </div>
+                  {topDomains.length === 0 ? (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      Nenhum site capturado ainda. Instale a extensão e aguarde alguns minutos.
+                    </div>
+                  ) : (
+                    topDomains.map((d) => (
+                      <div key={d.domain} className="grid grid-cols-12 items-center px-4 py-3 border-b border-border last:border-0 hover:bg-muted/30">
+                        <div className="col-span-5 font-mono text-sm truncate">{d.domain}</div>
+                        <div className="col-span-2 text-right text-sm tabular-nums">{fmtH(d.seconds)}</div>
+                        <div className="col-span-5 flex justify-end gap-1">
+                          <Button size="sm" variant={d.category === "productive" ? "default" : "outline"} onClick={() => setCategory(d.domain, "productive")} className="h-7 text-xs">Produtivo</Button>
+                          <Button size="sm" variant={d.category === "neutral" ? "default" : "outline"} onClick={() => setCategory(d.domain, "neutral")} className="h-7 text-xs">Neutro</Button>
+                          <Button size="sm" variant={d.category === "distracting" ? "destructive" : "outline"} onClick={() => setCategory(d.domain, "distracting")} className="h-7 text-xs">Improdutivo</Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </Card>
+                <p className="text-xs text-muted-foreground">
+                  Categorias afetam o score a partir do próximo agregado. Clique no <RefreshCw className="inline h-3 w-3" /> para recalcular agora.
+                </p>
+              </TabsContent>
+
               {/* Daily */}
               <TabsContent value="daily">
                 <Card className="p-0 overflow-hidden">
