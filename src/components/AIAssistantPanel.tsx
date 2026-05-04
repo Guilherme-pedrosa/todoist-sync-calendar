@@ -590,7 +590,9 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     if (!msg?.actions?.length) return;
     let ok = 0;
     let fail = 0;
+    const createdTaskIds: (string | null)[] = [];
     for (const action of msg.actions) {
+      let createdId: string | null = null;
       try {
         if (action.type === 'create_task') {
           const created = await addTask({
@@ -604,6 +606,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             recurrenceRule: action.args.recurrenceRule ?? null,
             assigneeIds: action.args.assigneeUserIds ?? [],
           } as any);
+          createdId = created?.id ?? null;
           // Fallback de segurança: se por algum motivo o store não inseriu
           // os assignees, garantimos aqui.
           const ids = action.args.assigneeUserIds ?? [];
@@ -681,9 +684,10 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
         console.error('Falha ao aplicar ação', action, err);
         fail++;
       }
+      createdTaskIds.push(createdId);
     }
     setMessages((prev) =>
-      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'applied' } : m)),
+      prev.map((m, i) => (i === msgIndex ? { ...m, actionsState: 'applied', createdTaskIds } : m)),
     );
     if (fail === 0) toast.success(`${ok} ação(ões) aplicada(s).`);
     else toast.warning(`${ok} aplicada(s), ${fail} falharam.`);
