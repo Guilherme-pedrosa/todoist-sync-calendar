@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS reminder_offsets_minutes jsonb NOT NULL DEFAULT '[15]'::jsonb;

@@ -1754,6 +1754,7 @@ export type Database = {
           quick_add_chips: Json
           reminder_channels: Json
           reminder_offsets: Json
+          reminder_offsets_minutes: Json
           show_calendar_status: boolean
           show_sidebar_counts: boolean
           show_task_description: boolean
@@ -1792,6 +1793,7 @@ export type Database = {
           quick_add_chips?: Json
           reminder_channels?: Json
           reminder_offsets?: Json
+          reminder_offsets_minutes?: Json
           show_calendar_status?: boolean
           show_sidebar_counts?: boolean
           show_task_description?: boolean
@@ -1830,6 +1832,7 @@ export type Database = {
           quick_add_chips?: Json
           reminder_channels?: Json
           reminder_offsets?: Json
+          reminder_offsets_minutes?: Json
           show_calendar_status?: boolean
           show_sidebar_counts?: boolean
           show_task_description?: boolean
