@@ -148,6 +148,7 @@ export function TaskDetailPanel() {
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [meetingOpen, setMeetingOpen] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
