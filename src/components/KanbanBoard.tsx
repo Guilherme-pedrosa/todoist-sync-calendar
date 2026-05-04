@@ -238,11 +238,45 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
     // Block dropping non-recurring tasks into the recurring column (and vice versa)
     if (colId === RECURRING_COLUMN_ID && !isRecurringTask(task)) return;
     if (colId !== RECURRING_COLUMN_ID && isRecurringTask(task)) return;
-    if (board.taskColumns[taskId] === colId) return;
-    setBoard((current) => ({
-      ...current,
-      taskColumns: { ...current.taskColumns, [taskId]: colId },
+    if (board.taskColumns[taskId] === colId) {
+      // mesma coluna, nada a fazer
+    } else {
+      setBoard((current) => ({
+        ...current,
+        taskColumns: { ...current.taskColumns, [taskId]: colId },
+      }));
+    }
+
+    // Se a coluna está vinculada a um responsável, reatribuir a tarefa
+    if (col.assigneeUserId) {
+      void reassignTaskToUser(taskId, col.assigneeUserId);
+    }
+  };
+
+  const reassignTaskToUser = async (taskId: string, targetUserId: string) => {
+    const t = useTaskStore.getState().tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    const current = t.assigneeIds || [];
+    if (current.length === 1 && current[0] === targetUserId) return;
+    const prev = current;
+    const next = [targetUserId];
+    useTaskStore.setState((state: any) => ({
+      tasks: state.tasks.map((x: Task) => (x.id === taskId ? { ...x, assigneeIds: next } : x)),
     }));
+    try {
+      await supabase.from('task_assignees').delete().eq('task_id', taskId);
+      if (user) {
+        await supabase
+          .from('task_assignees')
+          .insert([{ task_id: taskId, user_id: targetUserId, assigned_by: user.id }]);
+      }
+    } catch (err) {
+      console.error('Falha ao reatribuir tarefa', err);
+      toast.error('Não foi possível reatribuir a tarefa');
+      useTaskStore.setState((state: any) => ({
+        tasks: state.tasks.map((x: Task) => (x.id === taskId ? { ...x, assigneeIds: prev } : x)),
+      }));
+    }
   };
 
   const addColumn = (title: string) => {
@@ -261,6 +295,23 @@ function ManualKanban({ tasks, boardKey, newTaskDefaults }: KanbanBoardProps) {
       ...current,
       columns: current.columns.map((c) => (c.id === colId ? { ...c, title: cleanTitle } : c)),
     }));
+  };
+
+  const setColumnAssignee = (colId: string, userId: string | null) => {
+    setBoard((current) => ({
+      ...current,
+      columns: current.columns.map((c) => (c.id === colId ? { ...c, assigneeUserId: userId } : c)),
+    }));
+    if (userId) {
+      // Reatribuir todas as tarefas atualmente nessa coluna
+      const taskIds = Object.entries(board.taskColumns)
+        .filter(([, cid]) => cid === colId)
+        .map(([tid]) => tid);
+      // incluir também as tarefas que caem aqui por fallback (primeira coluna)
+      const tasksInCol = (tasksByColumn.get(colId) || []).map((t) => t.id);
+      const allIds = Array.from(new Set([...taskIds, ...tasksInCol]));
+      for (const tid of allIds) void reassignTaskToUser(tid, userId);
+    }
   };
 
   const deleteColumn = (colId: string) => {
