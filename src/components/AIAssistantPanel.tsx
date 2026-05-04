@@ -587,7 +587,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     for (const action of msg.actions) {
       try {
         if (action.type === 'create_task') {
-          await addTask({
+          const created = await addTask({
             title: action.args.title,
             description: action.args.description,
             priority: (action.args.priority as any) ?? 4,
@@ -596,7 +596,20 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             durationMinutes: action.args.durationMinutes ?? null,
             projectId: action.args.projectId,
             recurrenceRule: action.args.recurrenceRule ?? null,
+            assigneeIds: action.args.assigneeUserIds ?? [],
           } as any);
+          // Fallback de segurança: se por algum motivo o store não inseriu
+          // os assignees, garantimos aqui.
+          const ids = action.args.assigneeUserIds ?? [];
+          if (created?.id && ids.length > 0) {
+            const { data: userData } = await supabase.auth.getUser();
+            const me = userData.user?.id;
+            await supabase.from('task_assignees').upsert(
+              ids.map((uid) => ({ task_id: created.id, user_id: uid, assigned_by: me })),
+              { onConflict: 'task_id,user_id' },
+            );
+          }
+        }
         } else if (action.type === 'update_task') {
           const updates: Record<string, any> = {};
           if (action.args.title !== undefined) updates.title = action.args.title;
