@@ -941,16 +941,22 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const maxPosition = Math.max(0, ...get().projects.map((p) => p.position ?? 0));
 
-    // Find user's personal workspace
-    const { data: ws } = await supabase
-      .from('workspaces')
-      .select('id')
-      .eq('owner_id', userId)
-      .eq('is_personal', true)
-      .maybeSingle();
+    // Use the currently selected workspace (falls back to personal one)
+    const { useWorkspaceStore } = await import('./workspaceStore');
+    let workspaceId = useWorkspaceStore.getState().currentWorkspaceId;
 
-    if (!ws) {
-      console.error('Workspace pessoal não encontrado para o usuário');
+    if (!workspaceId) {
+      const { data: ws } = await supabase
+        .from('workspaces')
+        .select('id')
+        .eq('owner_id', userId)
+        .eq('is_personal', true)
+        .maybeSingle();
+      workspaceId = ws?.id ?? null;
+    }
+
+    if (!workspaceId) {
+      console.error('Nenhum workspace disponível para criar o projeto');
       return null;
     }
 
