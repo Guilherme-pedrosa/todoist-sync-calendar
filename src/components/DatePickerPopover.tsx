@@ -92,6 +92,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
   const [recurrenceMenuOpen, setRecurrenceMenuOpen] = useState(false);
   const [durationMenuOpen, setDurationMenuOpen] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
+  const contentHeight = 'min(var(--radix-popover-content-available-height, 92dvh), 720px)';
 
   // When commitOnClose is enabled, edits go to a local buffer and are only
   // pushed to the parent on close (OK button or outside click). This avoids
@@ -204,13 +205,9 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
         </PopoverTrigger>
         <PopoverContent
           className={cn(
-            "p-0 flex flex-col overflow-hidden",
-            // Mobile: bottom-sheet ocupando largura total e até 92vh de altura
-            "max-sm:fixed max-sm:left-2 max-sm:right-2 max-sm:bottom-2 max-sm:top-auto max-sm:w-auto max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-xl max-sm:shadow-2xl",
-            // Desktop: comportamento original
-            "sm:w-[320px]"
+            "p-0 flex flex-col overflow-hidden w-[min(92vw,320px)] max-w-[calc(100vw-1rem)] sm:w-[320px]"
           )}
-          style={{ maxHeight: 'min(92vh, 720px)' }}
+          style={{ height: contentHeight, maxHeight: contentHeight }}
           align={align}
           side="bottom"
           sideOffset={8}
@@ -222,7 +219,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
             e.preventDefault();
           }}
         >
-          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
           {/* Free-text NLP input */}
           <div className="p-2 border-b border-border">
             <Input
@@ -439,7 +436,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
             </Popover>
           </div>
           </div>
-          <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0 sticky bottom-0">
+          <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0">
             {hasCurrentValue && (
               <Button
                 size="sm"
