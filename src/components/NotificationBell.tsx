@@ -129,7 +129,7 @@ export function NotificationBell() {
               Nenhuma notificação ainda.
             </div>
           ) : (
-            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} />)
+            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
           )}
         </div>
       </PopoverContent>
@@ -137,7 +137,10 @@ export function NotificationBell() {
   );
 }
 
-function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
+function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void; onClose: () => void }) {
+  const navigate = useNavigate();
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const markRead = useNotificationStore((s) => s.markRead);
   const isMention = n.type === 'chat_mention';
   const isAssigned = n.type === 'task_assigned';
   const isReminder = n.type === 'task_reminder';
@@ -212,7 +215,22 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
         .update({ status, proposed_date: null, proposed_time: null, proposed_message: null } as any)
         .eq('id', n.payload.invitation_id);
       if (error) throw error;
+      markRead(n.id);
       toast.success(status === 'accepted' ? 'Convite aceito' : 'Convite recusado');
+      if (status === 'accepted') {
+        onClose();
+        // Vai para o calendário no dia da reunião e abre a tarefa
+        const dueAt = n.payload?.due_at as string | undefined;
+        if (dueAt) {
+          const day = format(parseISO(dueAt), 'yyyy-MM-dd');
+          navigate(`/upcoming?date=${day}`);
+        } else {
+          navigate('/upcoming');
+        }
+        if (n.payload?.task_id) {
+          setTimeout(() => openTaskDetail(n.payload!.task_id as string), 150);
+        }
+      }
     } catch (e: any) {
       toast.error('Falha ao responder', { description: e?.message });
     } finally {
