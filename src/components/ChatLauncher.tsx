@@ -62,9 +62,15 @@ export function ChatLauncher() {
   }, [tasks]);
 
   const workspaceConvs = conversations.filter((c) => c.type === 'workspace');
-  const taskConvs = conversations.filter(
-    (c) => c.type === 'task' && (!c.taskId || !completedTaskIds.has(c.taskId)),
-  );
+  const taskConvs = conversations.filter((c) => {
+    if (c.type !== 'task') return false;
+    // Esconde tarefas já concluídas
+    if (c.taskId && completedTaskIds.has(c.taskId)) return false;
+    // Só mostra se houve atividade (alguém mandou mensagem) — trigger toca updated_at
+    const hasActivity =
+      new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000;
+    return hasActivity || (unread[c.id] || 0) > 0;
+  });
 
   return (
     <>
