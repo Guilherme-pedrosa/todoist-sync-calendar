@@ -86,6 +86,25 @@ interface CommentRow {
   created_at: string;
 }
 
+interface CommentAuthor {
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+interface ProfileRow {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+function initials(value?: string | null) {
+  const clean = (value || '').trim();
+  if (!clean) return '?';
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 // Converte uma RRULE simples em texto pt-BR legível
 function formatRecurrence(rule?: string | null): string | null {
   if (!rule) return null;
@@ -147,6 +166,7 @@ export function TaskDetailPanel() {
   const [titleDraft, setTitleDraft] = useState('');
   const [descDraft, setDescDraft] = useState('');
   const [comments, setComments] = useState<CommentRow[]>([]);
+  const [commentAuthors, setCommentAuthors] = useState<Record<string, CommentAuthor>>({});
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
@@ -215,6 +235,44 @@ export function TaskDetailPanel() {
       supabase.removeChannel(channel);
     };
   }, [task?.id]);
+
+  const missingCommentAuthorIds = useMemo(
+    () => Array.from(new Set(comments.map((c) => c.user_id))).filter((id) => !commentAuthors[id]),
+    [comments, commentAuthors]
+  );
+
+  useEffect(() => {
+    if (missingCommentAuthorIds.length === 0) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, avatar_url')
+        .in('user_id', missingCommentAuthorIds);
+
+      if (!active) return;
+      const profiles = (data || []) as ProfileRow[];
+      const found = new Set(profiles.map((p) => p.user_id));
+      setCommentAuthors((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          profiles.map((p) => [
+            p.user_id,
+            { displayName: p.display_name, avatarUrl: p.avatar_url },
+          ])
+        ),
+        ...Object.fromEntries(
+          missingCommentAuthorIds
+            .filter((id) => !found.has(id))
+            .map((id) => [id, { displayName: id.slice(0, 8), avatarUrl: null }])
+        ),
+      }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [missingCommentAuthorIds]);
 
   // Load task assignees + realtime
   useEffect(() => {
@@ -734,20 +792,31 @@ export function TaskDetailPanel() {
                 {comments.length === 0 && (
                   <p className="text-xs text-muted-foreground/70">Sem comentários ainda</p>
                 )}
-                {comments.map((c) => (
-                  <div key={c.id} className="flex gap-2">
-                    <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">
-                      {c.user_id === user?.id ? (user?.email?.[0] ?? '?').toUpperCase() : '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs font-medium">
-                          {c.user_id === user?.id ? 'Você' : 'Usuário'}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatDistanceToNow(parseISO(c.created_at), { locale: ptBR, addSuffix: true })}
-                        </span>
+                {comments.map((c) => {
+                  const author = commentAuthors[c.user_id];
+                  const authorName =
+                    c.user_id === user?.id
+                      ? 'Você'
+                      : author?.displayName || c.user_id.slice(0, 8);
+
+                  return (
+                    <div key={c.id} className="flex gap-2">
+                      <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center overflow-hidden">
+                        {author?.avatarUrl ? (
+                          <img src={author.avatarUrl} alt={authorName} className="h-full w-full object-cover" />
+                        ) : (
+                          initials(c.user_id === user?.id ? user?.email : authorName)
+                        )}
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-medium truncate">
+                            {authorName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {formatDistanceToNow(parseISO(c.created_at), { locale: ptBR, addSuffix: true })}
+                          </span>
+                        </div>
                       {editingComment?.id === c.id ? (
                         <div className="mt-1 space-y-1">
                           <Textarea
@@ -784,9 +853,10 @@ export function TaskDetailPanel() {
                           </button>
                         </div>
                       )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Composer */}
