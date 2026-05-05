@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
-import { addExdateToRecurrence, addWeekdayExdatesToRecurrence, removeWeekdayFromRecurrence } from '@/lib/recurrence';
+import { addExdateToRecurrence, addWeekdayExdatesToRecurrence, nextOccurrence, removeWeekdayFromRecurrence } from '@/lib/recurrence';
+import type { Task } from '@/types/task';
 import { toast } from 'sonner';
 
 /**
@@ -82,7 +83,24 @@ export function useDeleteTaskWithRecurrencePrompt() {
           await deleteTask(taskId);
           return 'deleted';
         }
-        await updateTask(taskId, { recurrenceRule: newRule });
+        const updates: Partial<Task> = { recurrenceRule: newRule };
+
+        // Se o evento removido é a ocorrência atualmente ancorada na tarefa,
+        // só adicionar EXDATE não basta: a linha continua com dueDate daquele
+        // dia e o evento espelhado no Google Calendar fica parado ali. Avança
+        // a série para a próxima ocorrência real, fazendo ela sumir da agenda
+        // imediatamente sem matar as próximas repetições.
+        if (task.dueDate === occurrenceDate) {
+          const next = nextOccurrence(newRule, occurrenceDate, task.dueTime);
+          if (!next) {
+            await deleteTask(taskId);
+            return 'deleted';
+          }
+          updates.dueDate = next.dueDate;
+          if (next.dueTime !== undefined) updates.dueTime = next.dueTime;
+        }
+
+        await updateTask(taskId, updates);
         toast.success(mode === 'weekday' ? 'Ocorrências deste dia removidas' : 'Ocorrência removida', {
           description: mode === 'weekday'
             ? 'A série continua ativa nos outros dias visíveis.'
