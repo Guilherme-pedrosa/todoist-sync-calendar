@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useNotificationStore, type AppNotification } from '@/store/notificationStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   getNotificationPermission,
   requestNotificationPermission,
