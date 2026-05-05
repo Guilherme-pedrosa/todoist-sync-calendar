@@ -57,7 +57,7 @@ export function MentionNotifier() {
         if (n.type === 'chat_mention' && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
         } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
-          navigate(`/?task=${n.payload.task_id}`);
+          openTaskDetail(n.payload.task_id as string);
         }
       };
 
