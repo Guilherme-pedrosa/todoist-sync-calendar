@@ -51,6 +51,8 @@ function actionTitle(row: ActivityRow): string {
 export function TaskActivityLog({ taskId }: { taskId: string }) {
   const [rows, setRows] = useState<ActivityRow[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ProfileLite>>({});
+  const [projectNames, setProjectNames] = useState<Record<string, string>>({});
+  const [sectionNames, setSectionNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,6 +89,46 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
           setProfiles(map);
         }
       }
+
+      // Coleta IDs de projetos/seções referenciados pra mostrar nomes
+      const projectIds = new Set<string>();
+      const sectionIds = new Set<string>();
+      for (const r of (data || []) as any[]) {
+        const ch = r.action === 'updated' ? r.payload?.changes : null;
+        if (ch?.project_id) {
+          if (ch.project_id.from) projectIds.add(ch.project_id.from);
+          if (ch.project_id.to) projectIds.add(ch.project_id.to);
+        }
+        if (ch?.section_id) {
+          if (ch.section_id.from) sectionIds.add(ch.section_id.from);
+          if (ch.section_id.to) sectionIds.add(ch.section_id.to);
+        }
+        if (r.action === 'created' && r.payload?.project_id) projectIds.add(r.payload.project_id);
+      }
+
+      if (projectIds.size > 0) {
+        const { data: projs } = await supabase
+          .from('projects')
+          .select('id, name')
+          .in('id', Array.from(projectIds));
+        if (!cancelled && projs) {
+          const map: Record<string, string> = {};
+          for (const p of projs as any[]) map[p.id] = p.name;
+          setProjectNames(map);
+        }
+      }
+      if (sectionIds.size > 0) {
+        const { data: secs } = await supabase
+          .from('sections')
+          .select('id, name')
+          .in('id', Array.from(sectionIds));
+        if (!cancelled && secs) {
+          const map: Record<string, string> = {};
+          for (const s of secs as any[]) map[s.id] = s.name;
+          setSectionNames(map);
+        }
+      }
+
       setLoading(false);
     };
     void load();
@@ -110,6 +152,13 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
     if (!uid) return 'Sistema';
     const p = profiles[uid];
     return p?.display_name || p?.email || 'Usuário';
+  };
+
+  const formatFieldValue = (field: string, value: any): string => {
+    if (value === null || value === undefined || value === '') return '—';
+    if (field === 'project_id') return projectNames[value] || 'Projeto removido';
+    if (field === 'section_id') return sectionNames[value] || 'Seção removida';
+    return formatValue(field, value);
   };
 
   return (
@@ -149,9 +198,9 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
                       <span className="font-medium text-foreground">
                         {FIELD_LABELS[field] || field}:
                       </span>{' '}
-                      <span className="line-through opacity-70">{formatValue(field, val.from)}</span>
+                      <span className="line-through opacity-70">{formatFieldValue(field, val.from)}</span>
                       <span className="mx-1">→</span>
-                      <span className="text-foreground">{formatValue(field, val.to)}</span>
+                      <span className="text-foreground">{formatFieldValue(field, val.to)}</span>
                     </li>
                   ))}
                 </ul>
