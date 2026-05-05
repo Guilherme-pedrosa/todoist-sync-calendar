@@ -575,9 +575,9 @@ export function TaskDetailPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className={cn('flex flex-col lg:flex-row', !isMobile && 'lg:flex-row')}>
+        <div className="flex flex-col lg:flex-row">
           {/* Main */}
-          <div className="flex-1 px-5 py-4 space-y-4 min-w-0">
+          <div className="flex-1 px-6 lg:px-10 py-6 space-y-5 min-w-0">
             <div className="flex items-start gap-3">
               <div className="mt-1 flex items-center gap-1 shrink-0">
                 <button
