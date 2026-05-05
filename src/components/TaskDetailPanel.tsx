@@ -855,17 +855,37 @@ export function TaskDetailPanel() {
                         key={p.id}
                         onClick={async () => {
                           try {
+                            // Coleta IDs de toda a árvore (tarefa + subtarefas recursivas)
+                            const collectIds = (rootId: string): string[] => {
+                              const acc: string[] = [rootId];
+                              const queue = [rootId];
+                              while (queue.length) {
+                                const cur = queue.shift()!;
+                                for (const t of useTaskStore.getState().tasks) {
+                                  if (t.parentId === cur) {
+                                    acc.push(t.id);
+                                    queue.push(t.id);
+                                  }
+                                }
+                              }
+                              return acc;
+                            };
+                            const ids = collectIds(task.id);
                             const { error } = await supabase
                               .from('tasks')
                               .update({ project_id: p.id, section_id: null })
-                              .eq('id', task.id);
+                              .in('id', ids);
                             if (error) throw error;
                             useTaskStore.setState((state) => ({
                               tasks: state.tasks.map((t) =>
-                                t.id === task.id ? { ...t, projectId: p.id, sectionId: null } : t
+                                ids.includes(t.id) ? { ...t, projectId: p.id, sectionId: null } : t
                               ),
                             }));
-                            toast.success(`Movido para ${p.name}`);
+                            toast.success(
+                              ids.length > 1
+                                ? `Movido para ${p.name} (com ${ids.length - 1} subtarefa${ids.length - 1 > 1 ? 's' : ''})`
+                                : `Movido para ${p.name}`
+                            );
                           } catch (e: any) {
                             toast.error('Falha ao mover tarefa', { description: e?.message });
                           }
