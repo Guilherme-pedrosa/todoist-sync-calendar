@@ -4,6 +4,7 @@ import { MessageSquare, AtSign, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   maybeAutoRequestPermission,
   playChime,
