@@ -42,7 +42,8 @@ export function NotificationBell() {
         n.type === 'task_reminder' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
-        n.type === 'meeting_declined') &&
+        n.type === 'meeting_declined' ||
+        n.type === 'meeting_proposed') &&
       n.payload?.task_id
     ) {
       navigate(`/?task=${n.payload.task_id}`);
