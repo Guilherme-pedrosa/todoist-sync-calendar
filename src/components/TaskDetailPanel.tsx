@@ -845,11 +845,57 @@ export function TaskDetailPanel() {
             </DetailRow>
 
             <DetailRow icon={Users} label="Responsável">
-              <AssigneeChip
-                projectId={task.projectId ?? null}
-                value={assigneeIds}
-                onChange={handleAssigneesChange}
-              />
+              <div className="space-y-2">
+                <AssigneeChip
+                  projectId={task.projectId ?? null}
+                  value={assigneeIds}
+                  onChange={handleAssigneesChange}
+                />
+                {user && assigneeIds.includes(user.id) && !returnOpen && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setReturnOpen(true)}
+                    className="h-7 text-xs gap-1.5"
+                  >
+                    <Undo2 className="h-3 w-3" />
+                    Devolver tarefa
+                  </Button>
+                )}
+                {returnOpen && (
+                  <div className="space-y-1.5 p-2 rounded-md border border-border bg-muted/30">
+                    <Textarea
+                      placeholder="Motivo da devolução (obrigatório)"
+                      value={returnReason}
+                      onChange={(e) => setReturnReason(e.target.value)}
+                      className="min-h-[60px] text-xs"
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={returnBusy}
+                        onClick={() => {
+                          setReturnOpen(false);
+                          setReturnReason('');
+                        }}
+                        className="h-7 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={returnBusy || !returnReason.trim()}
+                        onClick={handleReturnTask}
+                        className="h-7 text-xs"
+                      >
+                        Devolver
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </DetailRow>
 
             <DetailRow icon={Flag} label="Prioridade">
