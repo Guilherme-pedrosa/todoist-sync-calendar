@@ -137,7 +137,10 @@ export function NotificationBell() {
   );
 }
 
-function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
+function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void; onClose: () => void }) {
+  const navigate = useNavigate();
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const markRead = useNotificationStore((s) => s.markRead);
   const isMention = n.type === 'chat_mention';
   const isAssigned = n.type === 'task_assigned';
   const isReminder = n.type === 'task_reminder';
