@@ -86,6 +86,19 @@ interface CommentRow {
   created_at: string;
 }
 
+interface CommentAuthor {
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+function initials(value?: string | null) {
+  const clean = (value || '').trim();
+  if (!clean) return '?';
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 // Converte uma RRULE simples em texto pt-BR legível
 function formatRecurrence(rule?: string | null): string | null {
   if (!rule) return null;
@@ -147,6 +160,7 @@ export function TaskDetailPanel() {
   const [titleDraft, setTitleDraft] = useState('');
   const [descDraft, setDescDraft] = useState('');
   const [comments, setComments] = useState<CommentRow[]>([]);
+  const [commentAuthors, setCommentAuthors] = useState<Record<string, CommentAuthor>>({});
   const [commentText, setCommentText] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
@@ -215,6 +229,43 @@ export function TaskDetailPanel() {
       supabase.removeChannel(channel);
     };
   }, [task?.id]);
+
+  const missingCommentAuthorIds = useMemo(
+    () => Array.from(new Set(comments.map((c) => c.user_id))).filter((id) => !commentAuthors[id]),
+    [comments, commentAuthors]
+  );
+
+  useEffect(() => {
+    if (missingCommentAuthorIds.length === 0) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, avatar_url')
+        .in('user_id', missingCommentAuthorIds);
+
+      if (!active) return;
+      const found = new Set((data || []).map((p: any) => p.user_id));
+      setCommentAuthors((prev) => ({
+        ...prev,
+        ...Object.fromEntries(
+          (data || []).map((p: any) => [
+            p.user_id,
+            { displayName: p.display_name, avatarUrl: p.avatar_url },
+          ])
+        ),
+        ...Object.fromEntries(
+          missingCommentAuthorIds
+            .filter((id) => !found.has(id))
+            .map((id) => [id, { displayName: id.slice(0, 8), avatarUrl: null }])
+        ),
+      }));
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [missingCommentAuthorIds]);
 
   // Load task assignees + realtime
   useEffect(() => {
