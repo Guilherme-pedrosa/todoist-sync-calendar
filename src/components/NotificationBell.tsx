@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/popover';
 import { useNotificationStore, type AppNotification } from '@/store/notificationStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
+import { useTaskStore } from '@/store/taskStore';
 import {
   getNotificationPermission,
   requestNotificationPermission,
@@ -140,6 +141,7 @@ export function NotificationBell() {
 function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void; onClose: () => void }) {
   const navigate = useNavigate();
   const openTaskDetail = useTaskDetailStore((s) => s.open);
+  const fetchData = useTaskStore((s) => s.fetchData);
   const markRead = useNotificationStore((s) => s.markRead);
   const isMention = n.type === 'chat_mention';
   const isAssigned = n.type === 'task_assigned';
@@ -218,7 +220,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
       // Ao aceitar, vira responsável da reunião (aí sim entra no "Em breve")
       if (status === 'accepted' && n.payload?.task_id && user) {
-        await supabase
+        const { error: assigneeError } = await supabase
           .from('task_assignees' as any)
           .upsert(
             {
@@ -228,8 +230,10 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
               assignment_status: 'accepted',
             } as any,
             { onConflict: 'task_id,user_id' }
-          )
-          .then(() => null, () => null);
+          );
+        if (assigneeError) throw assigneeError;
+
+        await fetchData();
       }
 
       markRead(n.id);
