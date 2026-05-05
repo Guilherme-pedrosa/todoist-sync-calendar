@@ -650,7 +650,7 @@ export function TaskDetailPanel() {
                 onChange={(e) => setDescDraft(e.target.value)}
                 onBlur={persistDesc}
                 placeholder="≡ Descrição"
-                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 min-h-[60px]"
+                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 min-h-[120px] leading-relaxed"
               />
 
               <button
