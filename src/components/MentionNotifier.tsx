@@ -4,6 +4,7 @@ import { MessageSquare, AtSign, BellRing } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   maybeAutoRequestPermission,
   playChime,
@@ -20,6 +21,7 @@ export function MentionNotifier() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const subscribe = useNotificationStore((s) => s.subscribe);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
   const unsubscribe = useNotificationStore((s) => s.unsubscribe);
   const fetchAll = useNotificationStore((s) => s.fetch);
   const markRead = useNotificationStore((s) => s.markRead);
@@ -55,7 +57,7 @@ export function MentionNotifier() {
         if (n.type === 'chat_mention' && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
         } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
-          navigate(`/?task=${n.payload.task_id}`);
+          openTaskDetail(n.payload.task_id as string);
         }
       };
 
@@ -136,7 +138,7 @@ export function MentionNotifier() {
         playChime();
       }
     }
-  }, [items, user, navigate, markRead]);
+  }, [items, user, navigate, markRead, openTaskDetail]);
 
   return null;
 }

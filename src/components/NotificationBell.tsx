@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useNotificationStore, type AppNotification } from '@/store/notificationStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   getNotificationPermission,
   requestNotificationPermission,
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
   const items = useNotificationStore((s) => s.items);
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
@@ -51,7 +53,7 @@ export function NotificationBell() {
         n.type === 'meeting_proposed') &&
       n.payload?.task_id
     ) {
-      navigate(`/?task=${n.payload.task_id}`);
+      openTaskDetail(n.payload.task_id);
     }
   };
 
