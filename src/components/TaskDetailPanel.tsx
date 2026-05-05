@@ -785,20 +785,31 @@ export function TaskDetailPanel() {
                 {comments.length === 0 && (
                   <p className="text-xs text-muted-foreground/70">Sem comentários ainda</p>
                 )}
-                {comments.map((c) => (
-                  <div key={c.id} className="flex gap-2">
-                    <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">
-                      {c.user_id === user?.id ? (user?.email?.[0] ?? '?').toUpperCase() : '?'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-xs font-medium">
-                          {c.user_id === user?.id ? 'Você' : 'Usuário'}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {formatDistanceToNow(parseISO(c.created_at), { locale: ptBR, addSuffix: true })}
-                        </span>
+                {comments.map((c) => {
+                  const author = commentAuthors[c.user_id];
+                  const authorName =
+                    c.user_id === user?.id
+                      ? 'Você'
+                      : author?.displayName || c.user_id.slice(0, 8);
+
+                  return (
+                    <div key={c.id} className="flex gap-2">
+                      <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center overflow-hidden">
+                        {author?.avatarUrl ? (
+                          <img src={author.avatarUrl} alt={authorName} className="h-full w-full object-cover" />
+                        ) : (
+                          initials(c.user_id === user?.id ? user?.email : authorName)
+                        )}
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xs font-medium truncate">
+                            {authorName}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">
+                            {formatDistanceToNow(parseISO(c.created_at), { locale: ptBR, addSuffix: true })}
+                          </span>
+                        </div>
                       {editingComment?.id === c.id ? (
                         <div className="mt-1 space-y-1">
                           <Textarea
@@ -835,9 +846,10 @@ export function TaskDetailPanel() {
                           </button>
                         </div>
                       )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Composer */}
