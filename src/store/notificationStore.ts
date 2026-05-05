@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { useTaskStore } from '@/store/taskStore';
 
 export interface AppNotification {
   id: string;
@@ -89,7 +90,12 @@ export const useNotificationStore = create<State>((set, get) => ({
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          get().pushLocal(mapRow(payload.new));
+          const notification = mapRow(payload.new);
+          get().pushLocal(notification);
+
+          if (notification.type === 'meeting_invite' && notification.payload?.task_id) {
+            void useTaskStore.getState().fetchData();
+          }
         }
       )
       .subscribe();
