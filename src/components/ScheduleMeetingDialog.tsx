@@ -238,16 +238,9 @@ export function ScheduleMeetingDialog({
         .insert({ task_id: taskId, user_id: user.id, assigned_by: user.id })
         .then(() => null, () => null);
 
-      // 4) Adiciona os convidados internos como assignees também
-      const internalIds = invitees
-        .filter((i): i is Extract<Invitee, { kind: 'user' }> => i.kind === 'user')
-        .map((i) => i.userId);
-      if (internalIds.length > 0) {
-        await supabase
-          .from('task_assignees' as any)
-          .insert(internalIds.map((uid) => ({ task_id: taskId, user_id: uid, assigned_by: user.id })))
-          .then(() => null, () => null);
-      }
+      // 4) NÃO adiciona convidados internos como assignees aqui:
+      //    eles só viram responsáveis (e a reunião aparece no "Em breve" deles)
+      //    quando aceitam o convite via NotificationBell.
 
       // 5) Cria evento no Google Calendar (se conectado)
       try {
