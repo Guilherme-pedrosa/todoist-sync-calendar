@@ -1469,18 +1469,27 @@ export type Database = {
         Row: {
           assigned_at: string
           assigned_by: string | null
+          assignment_status: string
+          responded_at: string | null
+          response_reason: string | null
           task_id: string
           user_id: string
         }
         Insert: {
           assigned_at?: string
           assigned_by?: string | null
+          assignment_status?: string
+          responded_at?: string | null
+          response_reason?: string | null
           task_id: string
           user_id: string
         }
         Update: {
           assigned_at?: string
           assigned_by?: string | null
+          assignment_status?: string
+          responded_at?: string | null
+          response_reason?: string | null
           task_id?: string
           user_id?: string
         }
