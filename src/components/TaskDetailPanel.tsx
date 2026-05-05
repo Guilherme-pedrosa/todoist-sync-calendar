@@ -575,9 +575,9 @@ export function TaskDetailPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <div className={cn('flex flex-col lg:flex-row', !isMobile && 'lg:flex-row')}>
+        <div className="flex flex-col lg:flex-row">
           {/* Main */}
-          <div className="flex-1 px-5 py-4 space-y-4 min-w-0">
+          <div className="flex-1 px-6 lg:px-10 py-6 space-y-5 min-w-0">
             <div className="flex items-start gap-3">
               <div className="mt-1 flex items-center gap-1 shrink-0">
                 <button
@@ -650,7 +650,7 @@ export function TaskDetailPanel() {
                 onChange={(e) => setDescDraft(e.target.value)}
                 onBlur={persistDesc}
                 placeholder="≡ Descrição"
-                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 min-h-[60px]"
+                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 min-h-[120px] leading-relaxed"
               />
 
               <button
@@ -803,7 +803,7 @@ export function TaskDetailPanel() {
           </div>
 
           {/* Sidebar */}
-          <aside className="w-full lg:w-[260px] lg:border-l border-border bg-muted/20 px-4 py-4 space-y-4 lg:shrink-0">
+          <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
             <DetailRow icon={CalendarIcon} label="Data">
               <DatePickerPopover
                 commitOnClose
@@ -1120,7 +1120,7 @@ export function TaskDetailPanel() {
           transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           className={cn(
             'bg-background shadow-2xl border-l border-border flex flex-col',
-            isMobile ? 'w-full' : 'w-[480px]'
+            isMobile ? 'w-full' : 'w-full max-w-[1080px] lg:min-w-[860px]'
           )}
         >
           {content}
