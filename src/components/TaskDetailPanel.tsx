@@ -1120,7 +1120,7 @@ export function TaskDetailPanel() {
           transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           className={cn(
             'bg-background shadow-2xl border-l border-border flex flex-col',
-            isMobile ? 'w-full' : 'w-[480px]'
+            isMobile ? 'w-full' : 'w-full max-w-[1080px] lg:min-w-[860px]'
           )}
         >
           {content}
