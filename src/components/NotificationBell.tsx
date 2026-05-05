@@ -215,7 +215,22 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
         .update({ status, proposed_date: null, proposed_time: null, proposed_message: null } as any)
         .eq('id', n.payload.invitation_id);
       if (error) throw error;
+      markRead(n.id);
       toast.success(status === 'accepted' ? 'Convite aceito' : 'Convite recusado');
+      if (status === 'accepted') {
+        onClose();
+        // Vai para o calendário no dia da reunião e abre a tarefa
+        const dueAt = n.payload?.due_at as string | undefined;
+        if (dueAt) {
+          const day = format(parseISO(dueAt), 'yyyy-MM-dd');
+          navigate(`/upcoming?date=${day}`);
+        } else {
+          navigate('/upcoming');
+        }
+        if (n.payload?.task_id) {
+          setTimeout(() => openTaskDetail(n.payload!.task_id as string), 150);
+        }
+      }
     } catch (e: any) {
       toast.error('Falha ao responder', { description: e?.message });
     } finally {
