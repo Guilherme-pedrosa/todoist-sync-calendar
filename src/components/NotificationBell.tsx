@@ -303,6 +303,18 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
     }
     setBusy(true);
     try {
+      // Descobre quem atribuiu (para devolver)
+      let assigner: string | undefined;
+      if (status === 'returned') {
+        const { data: row } = await supabase
+          .from('task_assignees')
+          .select('assigned_by')
+          .eq('task_id', n.payload.task_id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        assigner = (row as any)?.assigned_by as string | undefined;
+      }
+
       const { error } = await supabase
         .from('task_assignees')
         .update({
@@ -312,6 +324,21 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
         .eq('task_id', n.payload.task_id)
         .eq('user_id', user.id);
       if (error) throw error;
+
+      if (status === 'returned' && assigner && assigner !== user.id) {
+        await supabase
+          .from('task_assignees')
+          .upsert(
+            {
+              task_id: n.payload.task_id,
+              user_id: assigner,
+              assigned_by: user.id,
+              assignment_status: 'pending',
+            } as any,
+            { onConflict: 'task_id,user_id' }
+          );
+      }
+
       if (status === 'declined' || status === 'returned') {
         await supabase
           .from('task_assignees')
@@ -324,7 +351,7 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
           ? 'Tarefa aceita'
           : status === 'declined'
             ? 'Tarefa rejeitada'
-            : 'Tarefa devolvida'
+            : 'Tarefa devolvida ao remetente'
       );
       setReasonMode(null);
       setReason('');
