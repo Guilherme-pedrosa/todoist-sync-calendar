@@ -143,8 +143,14 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
   const isAccepted = n.type === 'meeting_accepted';
   const isDeclined = n.type === 'meeting_declined';
   const isProposed = n.type === 'meeting_proposed';
+  const isAssignAccepted = n.type === 'task_assignment_accepted';
+  const isAssignDeclined = n.type === 'task_assignment_declined';
+  const isAssignReturned = n.type === 'task_assignment_returned';
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [reasonMode, setReasonMode] = useState<null | 'declined' | 'returned'>(null);
+  const [reason, setReason] = useState('');
   const [propDate, setPropDate] = useState<string>(
     n.payload?.due_at ? format(parseISO(n.payload.due_at), 'yyyy-MM-dd') : ''
   );
@@ -163,12 +169,18 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
           ? CalendarX
           : isProposed
             ? CalendarClock
-            : MessageSquare;
+            : isAssignAccepted
+              ? UserCheck
+              : isAssignDeclined
+                ? UserX
+                : isAssignReturned
+                  ? Undo2
+                  : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
     : isAssigned
-      ? 'Você é o responsável'
+      ? 'Nova atividade atribuída a você'
       : isReminder
         ? 'Lembrete de tarefa'
         : isInvite
@@ -179,7 +191,13 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
               ? `${n.payload?.invitee_name || 'Convidado'} recusou`
               : isProposed
                 ? `${n.payload?.invitee_name || 'Convidado'} propôs novo horário`
-                : 'Notificação';
+                : isAssignAccepted
+                  ? `${n.payload?.responder_name || 'Responsável'} aceitou a tarefa`
+                  : isAssignDeclined
+                    ? `${n.payload?.responder_name || 'Responsável'} rejeitou a tarefa`
+                    : isAssignReturned
+                      ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
+                      : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
