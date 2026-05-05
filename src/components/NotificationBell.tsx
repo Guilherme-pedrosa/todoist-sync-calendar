@@ -129,7 +129,7 @@ export function NotificationBell() {
               Nenhuma notificação ainda.
             </div>
           ) : (
-            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} />)
+            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
           )}
         </div>
       </PopoverContent>
