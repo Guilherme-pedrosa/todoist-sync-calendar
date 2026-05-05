@@ -41,6 +41,9 @@ export function NotificationBell() {
       navigate(`/conversations/${n.payload.conversation_id}`);
     } else if (
       (n.type === 'task_assigned' ||
+        n.type === 'task_assignment_accepted' ||
+        n.type === 'task_assignment_declined' ||
+        n.type === 'task_assignment_returned' ||
         n.type === 'task_reminder' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
