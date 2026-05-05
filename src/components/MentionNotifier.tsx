@@ -21,6 +21,7 @@ export function MentionNotifier() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const subscribe = useNotificationStore((s) => s.subscribe);
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
   const unsubscribe = useNotificationStore((s) => s.unsubscribe);
   const fetchAll = useNotificationStore((s) => s.fetch);
   const markRead = useNotificationStore((s) => s.markRead);
