@@ -219,7 +219,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
             e.preventDefault();
           }}
         >
-          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin">
           {/* Free-text NLP input */}
           <div className="p-2 border-b border-border">
             <Input
@@ -436,7 +436,7 @@ export function DatePickerPopover({ value, onChange, trigger, align = 'start', c
             </Popover>
           </div>
           </div>
-          <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0 sticky bottom-0">
+          <div className="flex gap-2 p-2 border-t border-border bg-popover shrink-0">
             {hasCurrentValue && (
               <Button
                 size="sm"
