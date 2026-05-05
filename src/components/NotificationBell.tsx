@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -39,6 +41,9 @@ export function NotificationBell() {
       navigate(`/conversations/${n.payload.conversation_id}`);
     } else if (
       (n.type === 'task_assigned' ||
+        n.type === 'task_assignment_accepted' ||
+        n.type === 'task_assignment_declined' ||
+        n.type === 'task_assignment_returned' ||
         n.type === 'task_reminder' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
@@ -138,8 +143,14 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
   const isAccepted = n.type === 'meeting_accepted';
   const isDeclined = n.type === 'meeting_declined';
   const isProposed = n.type === 'meeting_proposed';
+  const isAssignAccepted = n.type === 'task_assignment_accepted';
+  const isAssignDeclined = n.type === 'task_assignment_declined';
+  const isAssignReturned = n.type === 'task_assignment_returned';
+  const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
+  const [reasonMode, setReasonMode] = useState<null | 'declined' | 'returned'>(null);
+  const [reason, setReason] = useState('');
   const [propDate, setPropDate] = useState<string>(
     n.payload?.due_at ? format(parseISO(n.payload.due_at), 'yyyy-MM-dd') : ''
   );
@@ -158,12 +169,18 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
           ? CalendarX
           : isProposed
             ? CalendarClock
-            : MessageSquare;
+            : isAssignAccepted
+              ? UserCheck
+              : isAssignDeclined
+                ? UserX
+                : isAssignReturned
+                  ? Undo2
+                  : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
     : isAssigned
-      ? 'Você é o responsável'
+      ? 'Nova atividade atribuída a você'
       : isReminder
         ? 'Lembrete de tarefa'
         : isInvite
@@ -174,7 +191,13 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
               ? `${n.payload?.invitee_name || 'Convidado'} recusou`
               : isProposed
                 ? `${n.payload?.invitee_name || 'Convidado'} propôs novo horário`
-                : 'Notificação';
+                : isAssignAccepted
+                  ? `${n.payload?.responder_name || 'Responsável'} aceitou a tarefa`
+                  : isAssignDeclined
+                    ? `${n.payload?.responder_name || 'Responsável'} rejeitou a tarefa`
+                    : isAssignReturned
+                      ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
+                      : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
@@ -266,6 +289,47 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
       }
     } catch (e: any) {
       toast.error('Falha', { description: e?.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Responder a uma atribuição de tarefa (aceitar / rejeitar / devolver)
+  const respondAssignment = async (status: 'accepted' | 'declined' | 'returned') => {
+    if (!n.payload?.task_id || !user) return;
+    if ((status === 'declined' || status === 'returned') && !reason.trim()) {
+      toast.error('Informe o motivo');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('task_assignees')
+        .update({
+          assignment_status: status,
+          response_reason: status === 'accepted' ? null : reason.trim(),
+        } as any)
+        .eq('task_id', n.payload.task_id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      if (status === 'declined' || status === 'returned') {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', n.payload.task_id)
+          .eq('user_id', user.id);
+      }
+      toast.success(
+        status === 'accepted'
+          ? 'Tarefa aceita'
+          : status === 'declined'
+            ? 'Tarefa rejeitada'
+            : 'Tarefa devolvida'
+      );
+      setReasonMode(null);
+      setReason('');
+    } catch (e: any) {
+      toast.error('Falha ao responder', { description: e?.message });
     } finally {
       setBusy(false);
     }
@@ -411,6 +475,86 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
             <X className="h-3 w-3" />
             Rejeitar
           </Button>
+        </div>
+      )}
+
+      {isAssigned && !reasonMode && (
+        <div className="flex flex-wrap gap-1.5 pl-9">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={busy}
+            onClick={() => respondAssignment('accepted')}
+            className="h-7 text-xs gap-1"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            Aceitar
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setReasonMode('returned')}
+            className="h-7 text-xs gap-1"
+          >
+            <Undo2 className="h-3 w-3" />
+            Devolver
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => setReasonMode('declined')}
+            className="h-7 text-xs gap-1"
+          >
+            <X className="h-3 w-3" />
+            Rejeitar
+          </Button>
+        </div>
+      )}
+
+      {isAssigned && reasonMode && (
+        <div className="pl-9 space-y-1.5">
+          <Textarea
+            placeholder={
+              reasonMode === 'declined'
+                ? 'Motivo da rejeição (obrigatório)'
+                : 'Motivo da devolução (obrigatório)'
+            }
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="min-h-[60px] text-xs"
+            autoFocus
+          />
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              disabled={busy || !reason.trim()}
+              onClick={() => respondAssignment(reasonMode)}
+              className="h-7 text-xs gap-1"
+            >
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Confirmar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => {
+                setReasonMode(null);
+                setReason('');
+              }}
+              className="h-7 text-xs"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {(isAssignDeclined || isAssignReturned) && n.payload?.reason && (
+        <div className="pl-9 text-[11px] text-muted-foreground italic">
+          Motivo: "{n.payload.reason}"
         </div>
       )}
     </div>
