@@ -294,6 +294,47 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
     }
   };
 
+  // Responder a uma atribuição de tarefa (aceitar / rejeitar / devolver)
+  const respondAssignment = async (status: 'accepted' | 'declined' | 'returned') => {
+    if (!n.payload?.task_id || !user) return;
+    if ((status === 'declined' || status === 'returned') && !reason.trim()) {
+      toast.error('Informe o motivo');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('task_assignees')
+        .update({
+          assignment_status: status,
+          response_reason: status === 'accepted' ? null : reason.trim(),
+        } as any)
+        .eq('task_id', n.payload.task_id)
+        .eq('user_id', user.id);
+      if (error) throw error;
+      if (status === 'declined' || status === 'returned') {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', n.payload.task_id)
+          .eq('user_id', user.id);
+      }
+      toast.success(
+        status === 'accepted'
+          ? 'Tarefa aceita'
+          : status === 'declined'
+            ? 'Tarefa rejeitada'
+            : 'Tarefa devolvida'
+      );
+      setReasonMode(null);
+      setReason('');
+    } catch (e: any) {
+      toast.error('Falha ao responder', { description: e?.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div
       className={cn(
