@@ -198,9 +198,9 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
                       <span className="font-medium text-foreground">
                         {FIELD_LABELS[field] || field}:
                       </span>{' '}
-                      <span className="line-through opacity-70">{formatValue(field, val.from)}</span>
+                      <span className="line-through opacity-70">{formatFieldValue(field, val.from)}</span>
                       <span className="mx-1">→</span>
-                      <span className="text-foreground">{formatValue(field, val.to)}</span>
+                      <span className="text-foreground">{formatFieldValue(field, val.to)}</span>
                     </li>
                   ))}
                 </ul>
