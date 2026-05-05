@@ -858,6 +858,9 @@ export type Database = {
           invitee_email: string | null
           invitee_name: string | null
           invitee_user_id: string | null
+          proposed_date: string | null
+          proposed_message: string | null
+          proposed_time: string | null
           responded_at: string | null
           status: string
           task_id: string
@@ -869,6 +872,9 @@ export type Database = {
           invitee_email?: string | null
           invitee_name?: string | null
           invitee_user_id?: string | null
+          proposed_date?: string | null
+          proposed_message?: string | null
+          proposed_time?: string | null
           responded_at?: string | null
           status?: string
           task_id: string
@@ -880,6 +886,9 @@ export type Database = {
           invitee_email?: string | null
           invitee_name?: string | null
           invitee_user_id?: string | null
+          proposed_date?: string | null
+          proposed_message?: string | null
+          proposed_time?: string | null
           responded_at?: string | null
           status?: string
           task_id?: string
