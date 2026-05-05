@@ -54,6 +54,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { TaskActivityLog } from '@/components/TaskActivityLog';
 import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { AssigneeChip } from '@/components/AssigneeChip';
 import { supabase } from '@/integrations/supabase/client';
