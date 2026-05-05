@@ -91,6 +91,12 @@ interface CommentAuthor {
   avatarUrl: string | null;
 }
 
+interface ProfileRow {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
 function initials(value?: string | null) {
   const clean = (value || '').trim();
   if (!clean) return '?';
@@ -245,11 +251,12 @@ export function TaskDetailPanel() {
         .in('user_id', missingCommentAuthorIds);
 
       if (!active) return;
-      const found = new Set((data || []).map((p: any) => p.user_id));
+      const profiles = (data || []) as ProfileRow[];
+      const found = new Set(profiles.map((p) => p.user_id));
       setCommentAuthors((prev) => ({
         ...prev,
         ...Object.fromEntries(
-          (data || []).map((p: any) => [
+          profiles.map((p) => [
             p.user_id,
             { displayName: p.display_name, avatarUrl: p.avatar_url },
           ])
