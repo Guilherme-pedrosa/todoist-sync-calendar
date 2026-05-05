@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const openTaskDetail = useTaskDetailStore((s) => s.open);
   const items = useNotificationStore((s) => s.items);
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
