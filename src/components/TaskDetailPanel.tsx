@@ -251,9 +251,28 @@ export function TaskDetailPanel() {
     if (!task) return;
     const prev = assigneeIds;
     setAssigneeIds(next);
+
+    // Coleta tarefa + subtarefas recursivas
+    const collectIds = (rootId: string): string[] => {
+      const acc: string[] = [rootId];
+      const queue = [rootId];
+      const all = useTaskStore.getState().tasks;
+      while (queue.length) {
+        const cur = queue.shift()!;
+        for (const t of all) {
+          if (t.parentId === cur) {
+            acc.push(t.id);
+            queue.push(t.id);
+          }
+        }
+      }
+      return acc;
+    };
+    const ids = collectIds(task.id);
+
     // Sync into store so views (calendar) react immediately
     useTaskStore.setState((state) => ({
-      tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: next } : t)),
+      tasks: state.tasks.map((t) => (ids.includes(t.id) ? { ...t, assigneeIds: next } : t)),
     }));
     const toAdd = next.filter((id) => !prev.includes(id));
     const toRemove = prev.filter((id) => !next.includes(id));
@@ -262,24 +281,26 @@ export function TaskDetailPanel() {
         await supabase
           .from('task_assignees')
           .delete()
-          .eq('task_id', task.id)
+          .in('task_id', ids)
           .in('user_id', toRemove);
       }
       if (toAdd.length > 0) {
-        await supabase.from('task_assignees').insert(
-          toAdd.map((uid) => ({
-            task_id: task.id,
-            user_id: uid,
-            assigned_by: user?.id,
-          }))
-        );
+        const rows: any[] = [];
+        for (const tid of ids) {
+          for (const uid of toAdd) {
+            rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id });
+          }
+        }
+        await supabase
+          .from('task_assignees')
+          .upsert(rows, { onConflict: 'task_id,user_id' });
       }
     } catch (err) {
       console.error('Failed to update assignees', err);
       toast.error('Falha ao atualizar responsáveis');
       setAssigneeIds(prev);
       useTaskStore.setState((state) => ({
-        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: prev } : t)),
+        tasks: state.tasks.map((t) => (ids.includes(t.id) ? { ...t, assigneeIds: prev } : t)),
       }));
     }
   };
@@ -855,17 +876,37 @@ export function TaskDetailPanel() {
                         key={p.id}
                         onClick={async () => {
                           try {
+                            // Coleta IDs de toda a árvore (tarefa + subtarefas recursivas)
+                            const collectIds = (rootId: string): string[] => {
+                              const acc: string[] = [rootId];
+                              const queue = [rootId];
+                              while (queue.length) {
+                                const cur = queue.shift()!;
+                                for (const t of useTaskStore.getState().tasks) {
+                                  if (t.parentId === cur) {
+                                    acc.push(t.id);
+                                    queue.push(t.id);
+                                  }
+                                }
+                              }
+                              return acc;
+                            };
+                            const ids = collectIds(task.id);
                             const { error } = await supabase
                               .from('tasks')
                               .update({ project_id: p.id, section_id: null })
-                              .eq('id', task.id);
+                              .in('id', ids);
                             if (error) throw error;
                             useTaskStore.setState((state) => ({
                               tasks: state.tasks.map((t) =>
-                                t.id === task.id ? { ...t, projectId: p.id, sectionId: null } : t
+                                ids.includes(t.id) ? { ...t, projectId: p.id, sectionId: null } : t
                               ),
                             }));
-                            toast.success(`Movido para ${p.name}`);
+                            toast.success(
+                              ids.length > 1
+                                ? `Movido para ${p.name} (com ${ids.length - 1} subtarefa${ids.length - 1 > 1 ? 's' : ''})`
+                                : `Movido para ${p.name}`
+                            );
                           } catch (e: any) {
                             toast.error('Falha ao mover tarefa', { description: e?.message });
                           }
