@@ -139,6 +139,20 @@ export default function AppLayout() {
     return () => unsubscribeFromTaskRealtime();
   }, [user]);
 
+  // Refetch ao voltar para a aba/janela — garante que mudanças feitas em outros
+  // dispositivos (ex.: nova atribuição) apareçam mesmo se o realtime cair.
+  useEffect(() => {
+    if (!user) return;
+    const refetch = () => { void fetchData(); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') refetch(); };
+    window.addEventListener('focus', refetch);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', refetch);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [user, fetchData]);
+
   if (loading || processingCalendarOauth) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
