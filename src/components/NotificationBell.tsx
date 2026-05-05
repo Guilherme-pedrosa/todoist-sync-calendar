@@ -53,7 +53,7 @@ export function NotificationBell() {
         n.type === 'meeting_proposed') &&
       n.payload?.task_id
     ) {
-      navigate(`/?task=${n.payload.task_id}`);
+      openTaskDetail(n.payload.task_id);
     }
   };
 
