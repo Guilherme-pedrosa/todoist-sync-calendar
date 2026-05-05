@@ -2463,6 +2463,52 @@ export type Database = {
           ws_member: boolean
         }[]
       }
+      _debug_filipe_tasks: {
+        Args: never
+        Returns: {
+          assignee: string | null
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          description: string | null
+          due_at: string | null
+          due_date: string | null
+          due_datetime: string | null
+          due_string: string | null
+          due_time: string | null
+          duration_minutes: number | null
+          external_ref: string | null
+          external_source: string | null
+          gcal_event_id: string | null
+          google_calendar_event_id: string | null
+          id: string
+          is_meeting: boolean
+          last_sync_source: string | null
+          meeting_url: string | null
+          parent_id: string | null
+          position: number
+          priority: number
+          project_id: string | null
+          recurrence_interval: number | null
+          recurrence_rule: string | null
+          recurrence_type: string | null
+          section_id: string | null
+          status_id: string | null
+          task_number: number | null
+          title: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tasks"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       can_view_activity: {
         Args: { _target_user: string; _viewer: string; _workspace_id: string }
         Returns: boolean
