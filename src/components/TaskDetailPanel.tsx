@@ -803,7 +803,7 @@ export function TaskDetailPanel() {
           </div>
 
           {/* Sidebar */}
-          <aside className="w-full lg:w-[260px] lg:border-l border-border bg-muted/20 px-4 py-4 space-y-4 lg:shrink-0">
+          <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
             <DetailRow icon={CalendarIcon} label="Data">
               <DatePickerPopover
                 commitOnClose
