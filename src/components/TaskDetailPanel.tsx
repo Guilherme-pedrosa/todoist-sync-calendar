@@ -284,6 +284,46 @@ export function TaskDetailPanel() {
     }
   };
 
+  const handleReturnTask = async () => {
+    if (!task || !user) return;
+    if (!returnReason.trim()) {
+      toast.error('Informe o motivo da devolução');
+      return;
+    }
+    setReturnBusy(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('task_assignees')
+        .update({
+          assignment_status: 'returned',
+          response_reason: returnReason.trim(),
+        } as any)
+        .eq('task_id', task.id)
+        .eq('user_id', user.id);
+      if (updErr) throw updErr;
+
+      await supabase
+        .from('task_assignees')
+        .delete()
+        .eq('task_id', task.id)
+        .eq('user_id', user.id);
+
+      const next = assigneeIds.filter((id) => id !== user.id);
+      setAssigneeIds(next);
+      useTaskStore.setState((state) => ({
+        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: next } : t)),
+      }));
+
+      toast.success('Tarefa devolvida');
+      setReturnOpen(false);
+      setReturnReason('');
+    } catch (e: any) {
+      toast.error('Falha ao devolver', { description: e?.message });
+    } finally {
+      setReturnBusy(false);
+    }
+  };
+
   // Keyboard shortcuts within panel
   useEffect(() => {
     if (!task) return;
