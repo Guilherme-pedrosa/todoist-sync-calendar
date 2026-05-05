@@ -27,6 +27,7 @@ import {
   isSameDay,
   parseISO,
   startOfWeek,
+  differenceInCalendarDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -72,6 +73,16 @@ export default function UpcomingPage() {
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
   );
   const [weekOffset, setWeekOffset] = useState(0);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const dateParam = params.get('date');
+    if (!dateParam) return;
+    const target = parseISO(`${dateParam}T12:00:00`);
+    if (Number.isNaN(target.getTime())) return;
+    setMode('day');
+    setWeekOffset(differenceInCalendarDays(target, new Date()));
+  }, []);
 
   // Mostra somente tarefas atribuídas ao usuário atual.
   // Se ainda não há lista de responsáveis carregada (legado), mantemos a tarefa visível para não esconder dados.
