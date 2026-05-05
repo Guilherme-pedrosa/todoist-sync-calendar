@@ -2454,6 +2454,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _debug_filipe_sees_rio: {
+        Args: never
+        Returns: {
+          has_proj: boolean
+          has_task: boolean
+          proj_visibility: string
+          ws_member: boolean
+        }[]
+      }
       can_view_activity: {
         Args: { _target_user: string; _viewer: string; _workspace_id: string }
         Returns: boolean
