@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Users,
   Video,
+  Undo2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -151,6 +152,9 @@ export function TaskDetailPanel() {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnBusy, setReturnBusy] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
@@ -277,6 +281,46 @@ export function TaskDetailPanel() {
       useTaskStore.setState((state) => ({
         tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: prev } : t)),
       }));
+    }
+  };
+
+  const handleReturnTask = async () => {
+    if (!task || !user) return;
+    if (!returnReason.trim()) {
+      toast.error('Informe o motivo da devolução');
+      return;
+    }
+    setReturnBusy(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('task_assignees')
+        .update({
+          assignment_status: 'returned',
+          response_reason: returnReason.trim(),
+        } as any)
+        .eq('task_id', task.id)
+        .eq('user_id', user.id);
+      if (updErr) throw updErr;
+
+      await supabase
+        .from('task_assignees')
+        .delete()
+        .eq('task_id', task.id)
+        .eq('user_id', user.id);
+
+      const next = assigneeIds.filter((id) => id !== user.id);
+      setAssigneeIds(next);
+      useTaskStore.setState((state) => ({
+        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: next } : t)),
+      }));
+
+      toast.success('Tarefa devolvida');
+      setReturnOpen(false);
+      setReturnReason('');
+    } catch (e: any) {
+      toast.error('Falha ao devolver', { description: e?.message });
+    } finally {
+      setReturnBusy(false);
     }
   };
 
@@ -801,11 +845,57 @@ export function TaskDetailPanel() {
             </DetailRow>
 
             <DetailRow icon={Users} label="Responsável">
-              <AssigneeChip
-                projectId={task.projectId ?? null}
-                value={assigneeIds}
-                onChange={handleAssigneesChange}
-              />
+              <div className="space-y-2">
+                <AssigneeChip
+                  projectId={task.projectId ?? null}
+                  value={assigneeIds}
+                  onChange={handleAssigneesChange}
+                />
+                {user && assigneeIds.includes(user.id) && !returnOpen && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setReturnOpen(true)}
+                    className="h-7 text-xs gap-1.5"
+                  >
+                    <Undo2 className="h-3 w-3" />
+                    Devolver tarefa
+                  </Button>
+                )}
+                {returnOpen && (
+                  <div className="space-y-1.5 p-2 rounded-md border border-border bg-muted/30">
+                    <Textarea
+                      placeholder="Motivo da devolução (obrigatório)"
+                      value={returnReason}
+                      onChange={(e) => setReturnReason(e.target.value)}
+                      className="min-h-[60px] text-xs"
+                      autoFocus
+                    />
+                    <div className="flex gap-1.5 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={returnBusy}
+                        onClick={() => {
+                          setReturnOpen(false);
+                          setReturnReason('');
+                        }}
+                        className="h-7 text-xs"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={returnBusy || !returnReason.trim()}
+                        onClick={handleReturnTask}
+                        className="h-7 text-xs"
+                      >
+                        Devolver
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </DetailRow>
 
             <DetailRow icon={Flag} label="Prioridade">
