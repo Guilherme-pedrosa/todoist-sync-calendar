@@ -285,7 +285,11 @@ export function ScheduleMeetingDialog({
             null;
           await supabase
             .from('tasks')
-            .update({ gcal_event_id: gcalData.id, meeting_url: meetUrl } as any)
+            .update({
+              gcal_event_id: gcalData.id,
+              google_calendar_event_id: gcalData.id,
+              meeting_url: meetUrl,
+            } as any)
             .eq('id', taskId);
         }
       } catch (e) {
