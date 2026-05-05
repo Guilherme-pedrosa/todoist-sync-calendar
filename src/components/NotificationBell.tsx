@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2 } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -41,7 +42,8 @@ export function NotificationBell() {
         n.type === 'task_reminder' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
-        n.type === 'meeting_declined') &&
+        n.type === 'meeting_declined' ||
+        n.type === 'meeting_proposed') &&
       n.payload?.task_id
     ) {
       navigate(`/?task=${n.payload.task_id}`);
@@ -135,7 +137,16 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
   const isInvite = n.type === 'meeting_invite';
   const isAccepted = n.type === 'meeting_accepted';
   const isDeclined = n.type === 'meeting_declined';
+  const isProposed = n.type === 'meeting_proposed';
   const [busy, setBusy] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [propDate, setPropDate] = useState<string>(
+    n.payload?.due_at ? format(parseISO(n.payload.due_at), 'yyyy-MM-dd') : ''
+  );
+  const [propTime, setPropTime] = useState<string>(
+    n.payload?.due_at ? format(parseISO(n.payload.due_at), 'HH:mm') : ''
+  );
+  const [propMsg, setPropMsg] = useState('');
 
   const Icon = isMention
     ? AtSign
@@ -145,7 +156,9 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
         ? CalendarCheck
         : isDeclined
           ? CalendarX
-          : MessageSquare;
+          : isProposed
+            ? CalendarClock
+            : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
@@ -159,7 +172,9 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
             ? `${n.payload?.invitee_name || 'Convidado'} aceitou`
             : isDeclined
               ? `${n.payload?.invitee_name || 'Convidado'} recusou`
-              : 'Notificação';
+              : isProposed
+                ? `${n.payload?.invitee_name || 'Convidado'} propôs novo horário`
+                : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
@@ -169,12 +184,88 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
     try {
       const { error } = await supabase
         .from('meeting_invitations')
-        .update({ status })
+        .update({ status, proposed_date: null, proposed_time: null, proposed_message: null } as any)
         .eq('id', n.payload.invitation_id);
       if (error) throw error;
       toast.success(status === 'accepted' ? 'Convite aceito' : 'Convite recusado');
     } catch (e: any) {
       toast.error('Falha ao responder', { description: e?.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sendProposal = async () => {
+    if (!n.payload?.invitation_id) return;
+    if (!propDate || !propTime) {
+      toast.error('Informe data e horário');
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase
+        .from('meeting_invitations')
+        .update({
+          status: 'proposed',
+          proposed_date: propDate,
+          proposed_time: propTime,
+          proposed_message: propMsg || null,
+        } as any)
+        .eq('id', n.payload.invitation_id);
+      if (error) throw error;
+      toast.success('Nova proposta enviada ao organizador');
+      setProposeOpen(false);
+    } catch (e: any) {
+      toast.error('Falha ao propor horário', { description: e?.message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Organizador respondendo a uma proposta de novo horário
+  const handleProposal = async (accept: boolean) => {
+    if (!n.payload?.invitation_id || !n.payload?.task_id) return;
+    setBusy(true);
+    try {
+      if (accept) {
+        // Atualiza horário da reunião
+        const updates: any = {};
+        if (n.payload.proposed_date) updates.due_date = n.payload.proposed_date;
+        if (n.payload.proposed_time) updates.due_time = n.payload.proposed_time;
+        if (Object.keys(updates).length > 0) {
+          const { error: tErr } = await supabase
+            .from('tasks')
+            .update(updates)
+            .eq('id', n.payload.task_id);
+          if (tErr) throw tErr;
+        }
+        const { error } = await supabase
+          .from('meeting_invitations')
+          .update({
+            status: 'accepted',
+            proposed_date: null,
+            proposed_time: null,
+            proposed_message: null,
+          } as any)
+          .eq('id', n.payload.invitation_id);
+        if (error) throw error;
+        toast.success('Novo horário aceito — reunião atualizada');
+      } else {
+        // Rejeita a proposta — volta a pendente
+        const { error } = await supabase
+          .from('meeting_invitations')
+          .update({
+            status: 'pending',
+            proposed_date: null,
+            proposed_time: null,
+            proposed_message: null,
+          } as any)
+          .eq('id', n.payload.invitation_id);
+        if (error) throw error;
+        toast.success('Proposta rejeitada');
+      }
+    } catch (e: any) {
+      toast.error('Falha', { description: e?.message });
     } finally {
       setBusy(false);
     }
@@ -209,12 +300,22 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
               {format(parseISO(n.payload.due_at), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}
             </div>
           )}
+          {isProposed && n.payload?.proposed_date && (
+            <div className="text-[11px] text-primary mt-0.5">
+              Proposta: {format(parseISO(`${n.payload.proposed_date}T${n.payload.proposed_time || '00:00'}`), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}
+            </div>
+          )}
+          {isProposed && n.payload?.proposed_message && (
+            <div className="text-[11px] text-muted-foreground mt-0.5 italic">
+              "{n.payload.proposed_message}"
+            </div>
+          )}
         </div>
         {!n.readAt && <span className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />}
       </button>
 
-      {isInvite && (
-        <div className="flex gap-1.5 pl-9">
+      {isInvite && !proposeOpen && (
+        <div className="flex flex-wrap gap-1.5 pl-9">
           <Button
             size="sm"
             variant="default"
@@ -227,6 +328,16 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
           </Button>
           <Button
             size="sm"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => setProposeOpen(true)}
+            className="h-7 text-xs gap-1"
+          >
+            <CalendarClock className="h-3 w-3" />
+            Propor novo horário
+          </Button>
+          <Button
+            size="sm"
             variant="outline"
             disabled={busy}
             onClick={() => respond('declined')}
@@ -234,6 +345,71 @@ function Item({ n, onClick }: { n: AppNotification; onClick: () => void }) {
           >
             <X className="h-3 w-3" />
             Recusar
+          </Button>
+        </div>
+      )}
+
+      {isInvite && proposeOpen && (
+        <div className="pl-9 space-y-1.5">
+          <div className="flex gap-1.5">
+            <Input
+              type="date"
+              value={propDate}
+              onChange={(e) => setPropDate(e.target.value)}
+              className="h-7 text-xs"
+            />
+            <Input
+              type="time"
+              value={propTime}
+              onChange={(e) => setPropTime(e.target.value)}
+              className="h-7 text-xs"
+            />
+          </div>
+          <Input
+            placeholder="Mensagem (opcional)"
+            value={propMsg}
+            onChange={(e) => setPropMsg(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <div className="flex gap-1.5">
+            <Button size="sm" disabled={busy} onClick={sendProposal} className="h-7 text-xs gap-1">
+              {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              Enviar proposta
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => setProposeOpen(false)}
+              className="h-7 text-xs"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isProposed && (
+        <div className="flex gap-1.5 pl-9">
+          <Button
+            size="sm"
+            variant="default"
+            disabled={busy}
+            onClick={() => handleProposal(true)}
+            className="h-7 text-xs gap-1"
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            Aceitar novo horário
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => handleProposal(false)}
+            className="h-7 text-xs gap-1"
+          >
+            <X className="h-3 w-3" />
+            Rejeitar
           </Button>
         </div>
       )}
