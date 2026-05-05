@@ -138,7 +138,7 @@ export function MentionNotifier() {
         playChime();
       }
     }
-  }, [items, user, navigate, markRead]);
+  }, [items, user, navigate, markRead, openTaskDetail]);
 
   return null;
 }
