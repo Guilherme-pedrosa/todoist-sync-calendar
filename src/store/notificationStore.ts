@@ -38,6 +38,11 @@ function mapRow(row: any): AppNotification {
   };
 }
 
+const TASK_SYNC_NOTIFICATION_TYPES = new Set([
+  'meeting_invite',
+  'task_assigned',
+]);
+
 export const useNotificationStore = create<State>((set, get) => ({
   items: [],
   loading: false,
@@ -93,7 +98,7 @@ export const useNotificationStore = create<State>((set, get) => ({
           const notification = mapRow(payload.new);
           get().pushLocal(notification);
 
-          if (notification.type === 'meeting_invite' && notification.payload?.task_id) {
+          if (TASK_SYNC_NOTIFICATION_TYPES.has(notification.type) && notification.payload?.task_id) {
             void useTaskStore.getState().fetchData();
           }
         }
