@@ -853,7 +853,23 @@ export function TaskDetailPanel() {
                     .map((p) => (
                       <button
                         key={p.id}
-                        onClick={() => updateTask(task.id, { projectId: p.id })}
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('tasks')
+                              .update({ project_id: p.id, section_id: null })
+                              .eq('id', task.id);
+                            if (error) throw error;
+                            useTaskStore.setState((state) => ({
+                              tasks: state.tasks.map((t) =>
+                                t.id === task.id ? { ...t, projectId: p.id, sectionId: null } : t
+                              ),
+                            }));
+                            toast.success(`Movido para ${p.name}`);
+                          } catch (e: any) {
+                            toast.error('Falha ao mover tarefa', { description: e?.message });
+                          }
+                        }}
                         className={cn(
                           'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left',
                           p.id === task.projectId && 'bg-muted font-medium'
