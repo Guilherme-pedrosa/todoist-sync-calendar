@@ -54,6 +54,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { TaskActivityLog } from '@/components/TaskActivityLog';
 import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { AssigneeChip } from '@/components/AssigneeChip';
 import { supabase } from '@/integrations/supabase/client';
@@ -628,6 +629,9 @@ export function TaskDetailPanel() {
 
             {/* Task conversation launcher */}
             {task.id && <TaskConversationButton taskId={task.id} />}
+
+            {/* Activity log */}
+            {task.id && <TaskActivityLog taskId={task.id} />}
 
             {/* Comments */}
             <div className="pt-4 border-t border-border space-y-3">
