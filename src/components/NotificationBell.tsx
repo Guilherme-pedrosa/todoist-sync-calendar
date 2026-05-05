@@ -215,6 +215,23 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
         .update({ status, proposed_date: null, proposed_time: null, proposed_message: null } as any)
         .eq('id', n.payload.invitation_id);
       if (error) throw error;
+
+      // Ao aceitar, vira responsável da reunião (aí sim entra no "Em breve")
+      if (status === 'accepted' && n.payload?.task_id && user) {
+        await supabase
+          .from('task_assignees' as any)
+          .upsert(
+            {
+              task_id: n.payload.task_id,
+              user_id: user.id,
+              assigned_by: n.payload?.invited_by || user.id,
+              assignment_status: 'accepted',
+            } as any,
+            { onConflict: 'task_id,user_id' }
+          )
+          .then(() => null, () => null);
+      }
+
       markRead(n.id);
       toast.success(status === 'accepted' ? 'Convite aceito' : 'Convite recusado');
       if (status === 'accepted') {
