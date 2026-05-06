@@ -199,8 +199,8 @@ export function ScheduleMeetingDialog({
         const { data: created, error: insertError } = await supabase
           .from('tasks')
           .insert({
-            user_id: user.id,
-            created_by: user.id,
+            user_id: currentUserId,
+            created_by: currentUserId,
             project_id: inboxId!,
             title: title.trim(),
             description: description.trim() || null,
@@ -226,12 +226,12 @@ export function ScheduleMeetingDialog({
               invitee_user_id: i.userId,
               invitee_email: i.email,
               invitee_name: i.name,
-              invited_by: user.id,
+              invited_by: currentUserId,
             }
           : {
               task_id: taskId,
               invitee_email: i.email,
-              invited_by: user.id,
+              invited_by: currentUserId,
             }
       );
 
@@ -241,7 +241,7 @@ export function ScheduleMeetingDialog({
       // 3) Garante o próprio criador como assignee da reunião
       await supabase
         .from('task_assignees' as any)
-        .insert({ task_id: taskId, user_id: user.id, assigned_by: user.id })
+        .insert({ task_id: taskId, user_id: currentUserId, assigned_by: currentUserId })
         .then(() => null, () => null);
 
       // 4) NÃO adiciona convidados internos como assignees aqui:
