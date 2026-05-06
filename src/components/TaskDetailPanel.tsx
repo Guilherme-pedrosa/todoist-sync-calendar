@@ -1130,6 +1130,20 @@ export function TaskDetailPanel() {
                   value={assigneeIds}
                   onChange={handleAssigneesChange}
                 />
+                {user && assignedByMap[user.id]?.byUserId && assignedByMap[user.id]?.byUserId !== user.id && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Delegado por{' '}
+                    <span className="font-medium text-foreground">
+                      {userDisplayName(
+                        assignerProfiles[assignedByMap[user.id]!.byUserId!]?.display_name,
+                        assignerProfiles[assignedByMap[user.id]!.byUserId!]?.email,
+                      )}
+                    </span>
+                    {assignedByMap[user.id]?.at && (
+                      <> · {format(parseISO(assignedByMap[user.id]!.at!), "d MMM, HH:mm", { locale: ptBR })}</>
+                    )}
+                  </p>
+                )}
                 {user && assigneeIds.includes(user.id) && !returnOpen && (
                   <Button
                     size="sm"
