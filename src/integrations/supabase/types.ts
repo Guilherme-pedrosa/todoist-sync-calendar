@@ -2499,6 +2499,67 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_task_secure: {
+        Args: {
+          p_deadline?: string
+          p_description?: string
+          p_due_date?: string
+          p_due_string?: string
+          p_due_time?: string
+          p_duration_minutes?: number
+          p_google_calendar_event_id?: string
+          p_parent_id?: string
+          p_priority?: number
+          p_project_id: string
+          p_recurrence_rule?: string
+          p_section_id?: string
+          p_title: string
+          p_workspace_id: string
+        }
+        Returns: {
+          assignee: string | null
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          deadline: string | null
+          description: string | null
+          due_at: string | null
+          due_date: string | null
+          due_datetime: string | null
+          due_string: string | null
+          due_time: string | null
+          duration_minutes: number | null
+          external_ref: string | null
+          external_source: string | null
+          gcal_event_id: string | null
+          google_calendar_event_id: string | null
+          id: string
+          is_meeting: boolean
+          last_sync_source: string | null
+          meeting_url: string | null
+          parent_id: string | null
+          position: number
+          priority: number
+          project_id: string | null
+          recurrence_interval: number | null
+          recurrence_rule: string | null
+          recurrence_type: string | null
+          section_id: string | null
+          status_id: string | null
+          task_number: number | null
+          title: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       debug_try_insert_task: { Args: { _project_id: string }; Returns: Json }
       debug_whoami: { Args: never; Returns: Json }
       delete_email: {
