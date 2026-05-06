@@ -47,8 +47,8 @@ export default function ConversationsPage() {
     const ua = (unread[a.id] || 0) > 0 ? 1 : 0;
     const ub = (unread[b.id] || 0) > 0 ? 1 : 0;
     if (ua !== ub) return ub - ua;
-    const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-    const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    const ta = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const tb = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
     return tb - ta;
   };
 
