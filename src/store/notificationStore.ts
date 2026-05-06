@@ -42,6 +42,7 @@ function mapRow(row: any): AppNotification {
 const TASK_SYNC_NOTIFICATION_TYPES = new Set([
   'meeting_invite',
   'task_assigned',
+  'task_completed',
 ]);
 
 export const useNotificationStore = create<State>((set, get) => ({
