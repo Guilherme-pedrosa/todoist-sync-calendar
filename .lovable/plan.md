@@ -1,35 +1,47 @@
-# Plano — Etapa 0 do Prompt de Correção Total: Instrumentação
+# Fix: remover `auth.role()` da policy `tasks_insert`
 
-Vou aplicar **APENAS instrumentação** (logs estruturados). Nenhuma lógica é alterada. Sem correção, sem mudança de RLS, sem mexer em recurrence/WeekGrid/EventBlock/types/task.
+## Diagnóstico
+A policy `tasks_insert` no banco contém `auth.role() = 'authenticated'` que não existe no repo (migration aplicada manualmente no SQL Editor). Essa cláusula bloqueia todos os INSERTs do navegador. Q3 do diagnóstico anterior provou que o INSERT funciona quando o JWT claim é setado manualmente — confirmando que `auth.role()` em PostgREST retorna valores inconsistentes.
 
-## Arquivos tocados (4)
+A cláusula é redundante: `TO authenticated` no header já garante a proteção de role.
 
-### 1. `src/store/taskStore.ts` — função `addTask` + `ensureFreshSession`
-- Em `ensureFreshSession`: log `[addTask] step=session-check` no início; warn em cada caminho de retorno null (`reason=session-null`, `reason=refresh-failed`).
-- Em `addTask`:
-  - `console.info('[addTask] step=resolve-workspace', { workspaceId, targetProjectId })`
-  - `console.info('[addTask] step=resolve-project', { projectId: targetProjectId })`
-  - `console.info('[addTask] step=insert-payload', insertPayload)`
-  - `console.info('[addTask] step=insert-response', { data, error })`
-  - `console.info('[addTask] step=local-insert', { id: data?.id })`
-  - `console.warn('[addTask] aborted reason=...')` em qualquer return null/throw.
+## Mudança única
 
-### 2. `src/components/QuickAddDialog.tsx` — handler `submit`
-- `console.info('[QuickAdd] submit-start', { title, date, projectId, assigneeIds })` no início.
-- `console.info('[QuickAdd] submit-end', { created: !!created, id: created?.id })` após resolver.
-- `console.error('[QuickAdd] submit-error', err)` no catch (já tem console.error, troco prefixo).
+Criar uma migration **`fix_tasks_insert_remove_role_check`** com:
 
-### 3. `src/lib/realtimeTasks.ts` — handler de eventos
-- Trocar `scheduleRefetch` por wrapper: `(payload) => { console.info('[realtime] event', { table: payload.table, eventType: payload.eventType, newId: payload.new?.id }); console.info('[realtime] triggering fetchData reason=postgres_changes'); scheduleRefetch(); }`.
+```sql
+DROP POLICY IF EXISTS tasks_insert ON public.tasks;
 
-### 4. `src/pages/views/UpcomingPage.tsx` — useMemo `visibleTasks`
-- Após o `tasks.filter(...)`, log throttled (com `useRef` de timestamp para max 1x/2s):
-  `console.info('[UpcomingPage] visible-count', visibleTasks.length, 'total-count', tasks.length)`.
+CREATE POLICY tasks_insert ON public.tasks
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND user_id = auth.uid()
+    AND (created_by IS NULL OR created_by = auth.uid())
+    AND project_id IS NOT NULL
+    AND workspace_id IS NOT NULL
+    AND public.can_insert_task(project_id, workspace_id, auth.uid())
+  );
 
-## Regras seguidas
-- Sem tocar em: `recurrence.ts`, `WeekGrid*`, `EventBlock*`, `types/task.ts`, RLS, Google Calendar.
-- Logs ficam até o bug ser fechado.
-- Nenhuma mudança comportamental — só `console.info/warn/error`.
+NOTIFY pgrst, 'reload schema';
+```
 
-## Próximo passo (após você validar logs)
-Você reproduz o bug uma vez no preview com console aberto, me cola a sequência de logs `[QuickAdd]`, `[addTask]`, `[realtime]`, `[UpcomingPage]` e a aba Network filtrada por `tasks`. Aí eu identifico o caso (A/B/C/D) e aplico **só** a correção da Etapa 3.
+## Validação pós-migration
+
+1. Rodar:
+   ```sql
+   SELECT with_check::text
+   FROM pg_policies
+   WHERE schemaname='public' AND tablename='tasks' AND policyname='tasks_insert';
+   ```
+   Confirmar que o resultado **NÃO contém** `auth.role()`.
+
+2. Pedir ao Guilherme para criar uma tarefa via drag no calendário e capturar o status do POST `/rest/v1/tasks` no Network tab. Esperado: **201 Created**. Se 403, capturar o response body literal.
+
+## Restrições estritas
+- ZERO outra alteração além desta migration
+- NÃO mexer em `can_insert_task`, `has_project_access`, triggers, código TS/TSX, ou outras policies
+- Se a migration falhar, devolver erro literal e parar
+
+Após aplicar e validar com sucesso, responder: **"Fix tasks_insert aplicado e validado."**
