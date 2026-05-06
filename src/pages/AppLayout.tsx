@@ -171,7 +171,12 @@ export default function AppLayout() {
     );
   }
 
-  const closeSidebar = () => useTaskStore.setState({ sidebarOpen: false });
+  const closeSidebar = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    useTaskStore.setState({ sidebarOpen: false });
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -186,27 +191,18 @@ export default function AppLayout() {
       </div>
 
       {/* Mobile sidebar: overlay drawer with backdrop */}
-      <div
-        className={cn(
-          'lg:hidden fixed inset-0 z-50 transition-opacity duration-200',
-          sidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        )}
-        aria-hidden={!sidebarOpen}
-      >
-        <button
-          aria-label="Fechar menu"
-          onClick={closeSidebar}
-          className="absolute inset-0 bg-black/60"
-        />
-        <div
-          className={cn(
-            'absolute inset-y-0 left-0 w-[85vw] max-w-[320px] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out flex flex-col pt-safe pb-safe',
-            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          )}
-        >
-          <AppSidebar />
+      {sidebarOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 opacity-100 pointer-events-auto transition-opacity duration-200">
+          <button
+            aria-label="Fechar menu"
+            onClick={closeSidebar}
+            className="absolute inset-0 bg-black/60"
+          />
+          <div className="absolute inset-y-0 left-0 w-[85vw] max-w-[320px] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out flex flex-col pt-safe pb-safe translate-x-0">
+            <AppSidebar />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
         <MobileTopBar />
