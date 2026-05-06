@@ -1141,6 +1141,14 @@ export function TaskDetailPanel() {
               </Popover>
             </DetailRow>
 
+            {creator && (
+              <DetailRow icon={Users} label="Aberto por">
+                <p className="text-sm">
+                  {userDisplayName(creator.display_name, creator.email)}
+                </p>
+              </DetailRow>
+            )}
+
             <DetailRow icon={Users} label="Responsável">
               <div className="space-y-2">
                 <AssigneeChip
