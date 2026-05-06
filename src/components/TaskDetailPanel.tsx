@@ -27,6 +27,7 @@ import {
   Users,
   Video,
   Undo2,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
