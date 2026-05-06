@@ -594,6 +594,9 @@ serve(async (req) => {
         totalFromTodoist: tdTasks.length,
         createdTasks,
         createdTaskLabels,
+        skippedDeleted,
+        skippedExisting,
+        adoptedLegacy,
       });
     } catch (e) {
       console.error("[todoist-proxy] import-inbox error:", e);
