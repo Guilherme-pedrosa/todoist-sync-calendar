@@ -158,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const callDisconnect = async () => {
+    if (!ENABLE_GOOGLE_CALENDAR) return;
     const {
       data: { session: currentSession },
     } = await supabase.auth.getSession();
