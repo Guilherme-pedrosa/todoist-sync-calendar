@@ -2553,6 +2553,19 @@ export type Database = {
           read_ct: number
         }[]
       }
+      reschedule_single_occurrence: {
+        Args: {
+          p_new_date: string
+          p_new_duration: number
+          p_new_time: string
+          p_occurrence_date: string
+          p_series_due_date: string
+          p_series_due_time: string
+          p_series_recurrence_rule: string
+          p_task_id: string
+        }
+        Returns: string
+      }
       touch_last_seen: { Args: never; Returns: undefined }
       workspace_role: {
         Args: { _user_id: string; _workspace_id: string }
