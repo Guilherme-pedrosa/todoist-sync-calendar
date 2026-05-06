@@ -183,6 +183,12 @@ export function TaskDetailPanel() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const ensureTaskConversation = useChatStore((s) => s.ensureTaskConversation);
+  const conversations = useChatStore((s) => s.conversations);
+  const unreadByConversation = useChatStore((s) => s.unreadByConversation);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
