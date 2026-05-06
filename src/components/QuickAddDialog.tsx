@@ -267,6 +267,10 @@ export function QuickAddDialog() {
           );
         }
       }
+      if (!created) {
+        toast.error('Não foi possível criar a tarefa');
+        return;
+      }
       toast.success('Tarefa adicionada');
       // Reset for next entry (Todoist behavior)
       setTitle('');
