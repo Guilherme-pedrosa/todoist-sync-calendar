@@ -25,6 +25,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/realtimeTasks';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
