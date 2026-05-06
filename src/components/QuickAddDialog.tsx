@@ -95,8 +95,10 @@ export function QuickAddDialog() {
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLInputElement>(null);
+  const attachInputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; duration?: boolean; rec?: boolean; prio?: boolean }>({});
 
   const handleAiSuggest = async () => {
