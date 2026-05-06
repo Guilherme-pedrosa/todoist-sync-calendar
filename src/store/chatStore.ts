@@ -263,6 +263,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         p.conversationId === conversationId && p.userId === uid ? { ...p, lastReadAt: now } : p
       ),
     }));
+    // Also mark related chat notifications as read so the bell badge clears.
+    try {
+      const { useNotificationStore } = await import('@/store/notificationStore');
+      useNotificationStore.getState().markReadForConversation(conversationId);
+    } catch {
+      /* noop */
+    }
   },
 
   setActiveConversation: (id) => set({ activeConversationId: id }),

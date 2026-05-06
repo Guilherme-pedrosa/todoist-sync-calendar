@@ -21,6 +21,7 @@ interface State {
   fetch: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  markReadForConversation: (conversationId: string) => Promise<void>;
   subscribe: (userId: string) => void;
   unsubscribe: () => void;
   pushLocal: (n: AppNotification) => void;
@@ -73,6 +74,21 @@ export const useNotificationStore = create<State>((set, get) => ({
     if (ids.length === 0) return;
     set({
       items: get().items.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+    });
+    await supabase.from('notifications').update({ read_at: now }).in('id', ids);
+  },
+
+  markReadForConversation: async (conversationId) => {
+    const now = new Date().toISOString();
+    const matching = get().items.filter(
+      (n) => !n.readAt && n.payload?.conversation_id === conversationId
+    );
+    if (matching.length === 0) return;
+    const ids = matching.map((n) => n.id);
+    set({
+      items: get().items.map((n) =>
+        ids.includes(n.id) ? { ...n, readAt: now } : n
+      ),
     });
     await supabase.from('notifications').update({ read_at: now }).in('id', ids);
   },
