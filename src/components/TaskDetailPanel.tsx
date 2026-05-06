@@ -65,6 +65,7 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'P1 — Urgente',
