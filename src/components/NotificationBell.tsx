@@ -211,7 +211,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                     ? `${n.payload?.responder_name || 'Responsável'} rejeitou a tarefa`
                     : isAssignReturned
                       ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
-                      : 'Notificação';
+                      : isCompleted
+                        ? `${n.payload?.completed_by_name || 'Alguém'} concluiu a tarefa`
+                        : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
