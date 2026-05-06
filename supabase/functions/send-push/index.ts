@@ -149,6 +149,11 @@ Deno.serve(async (req) => {
         title = "📅 Novo convite de reunião";
         bodyText = p.task_title || "Você foi convidado para uma reunião";
         if (p.task_id) urlPath = `/upcoming?task=${p.task_id}`;
+      } else if (notif.type === "task_completed") {
+        title = "✅ Tarefa concluída";
+        const who = p.completed_by_name || "Alguém";
+        bodyText = `${who} finalizou: ${p.task_title || "tarefa"}`;
+        if (p.task_id) urlPath = `/today?task=${p.task_id}`;
       } else if (p.title) {
         title = p.title;
         bodyText = p.body || p.message || bodyText;

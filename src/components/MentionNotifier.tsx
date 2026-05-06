@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { MessageSquare, AtSign, BellRing } from 'lucide-react';
+import { MessageSquare, AtSign, BellRing, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -56,7 +56,7 @@ export function MentionNotifier() {
         markRead(n.id);
         if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
-        } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
+        } else if ((n.type === 'task_assigned' || n.type === 'task_reminder' || n.type === 'task_completed') && n.payload?.task_id) {
           openTaskDetail(n.payload.task_id as string);
         }
       };
@@ -157,6 +157,31 @@ export function MentionNotifier() {
           title: 'Lembrete de tarefa',
           body: title,
           tag: `reminder-${n.id}`,
+          onClick: handleOpen,
+        });
+        playChime();
+      } else if (n.type === 'task_completed') {
+        const title: string = n.payload?.task_title || 'uma tarefa';
+        const who: string = n.payload?.completed_by_name || 'Alguém';
+        toast(
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-500 shrink-0" />
+            <div>
+              <div className="font-semibold text-sm">Tarefa concluída</div>
+              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {who} finalizou: {title}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 8000,
+            action: { label: 'Ver', onClick: handleOpen },
+          }
+        );
+        showSystemNotification({
+          title: '✅ Tarefa concluída',
+          body: `${who} finalizou: ${title}`,
+          tag: `done-${n.id}`,
           onClick: handleOpen,
         });
         playChime();

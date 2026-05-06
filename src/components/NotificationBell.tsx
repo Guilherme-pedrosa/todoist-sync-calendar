@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +48,7 @@ export function NotificationBell() {
         n.type === 'task_assignment_declined' ||
         n.type === 'task_assignment_returned' ||
         n.type === 'task_reminder' ||
+        n.type === 'task_completed' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
         n.type === 'meeting_declined' ||
@@ -154,6 +155,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const isAssignAccepted = n.type === 'task_assignment_accepted';
   const isAssignDeclined = n.type === 'task_assignment_declined';
   const isAssignReturned = n.type === 'task_assignment_returned';
+  const isCompleted = n.type === 'task_completed';
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
@@ -183,7 +185,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                 ? UserX
                 : isAssignReturned
                   ? Undo2
-                  : MessageSquare;
+                  : isCompleted
+                    ? CheckCircle2
+                    : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
@@ -207,7 +211,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                     ? `${n.payload?.responder_name || 'Responsável'} rejeitou a tarefa`
                     : isAssignReturned
                       ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
-                      : 'Notificação';
+                      : isCompleted
+                        ? `${n.payload?.completed_by_name || 'Alguém'} concluiu a tarefa`
+                        : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
