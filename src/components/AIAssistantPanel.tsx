@@ -457,13 +457,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<
-    { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[]
-  >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // Google Calendar foi removido do runtime — eventos sempre vazios.
-
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -487,7 +481,6 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             name: m.displayName ?? '(sem nome)',
             email: m.email,
           })),
-          calendarEvents,
         },
       });
       const replyText = (r && typeof r.text === 'string' && r.text.trim())
@@ -514,9 +507,6 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     }
   };
 
-  const callCalendar = async (_action: string, _body?: Record<string, unknown>, _query?: string): Promise<any> => {
-    throw new Error('Google Calendar foi removido do app.');
-  };
 
   const applyActions = async (msgIndex: number) => {
     const msg = messages[msgIndex];
@@ -592,25 +582,6 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
             else if (item.newTime !== undefined) updates.dueTime = item.newTime;
             await updateTask(item.taskId, updates);
           }
-        } else if (action.type === 'create_calendar_event') {
-          await callCalendar('create-event', {
-            title: action.args.title,
-            description: action.args.description ?? '',
-            date: action.args.date,
-            time: action.args.time,
-            allDay: action.args.allDay ?? !action.args.time,
-            durationMinutes: action.args.durationMinutes ?? 60,
-          });
-        } else if (action.type === 'delete_calendar_event') {
-          await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(action.args.eventId)}`);
-          setCalendarEvents((prev) => prev.filter((e) => e.id !== action.args.eventId));
-        } else if (action.type === 'clear_calendar_day') {
-          const day = action.args.date;
-          const targets = calendarEvents.filter((e) => e.date === day);
-          for (const ev of targets) {
-            await callCalendar('delete-event', undefined, `eventId=${encodeURIComponent(ev.id)}`);
-          }
-          setCalendarEvents((prev) => prev.filter((e) => e.date !== day));
         }
         ok++;
       } catch (err) {
@@ -696,7 +667,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
                   tasks={tasks}
                   projects={projects}
                   members={members}
-                  calendarEvents={calendarEvents}
+                  
                   onApply={() => applyActions(i)}
                   onDiscard={() => discardActions(i)}
                   onOpenTask={(id) => {
@@ -748,7 +719,7 @@ function ActionProposalCard({
   tasks,
   projects,
   members,
-  calendarEvents,
+  
   onApply,
   onDiscard,
   onOpenTask,
@@ -759,7 +730,7 @@ function ActionProposalCard({
   tasks: any[];
   projects: any[];
   members: { userId: string; displayName: string | null; email: string | null }[];
-  calendarEvents: { id: string; title: string; date?: string | null; time?: string | null }[];
+  
   onApply: () => void;
   onDiscard: () => void;
   onOpenTask?: (taskId: string) => void;
@@ -772,8 +743,6 @@ function ActionProposalCard({
     const m = id ? members.find((mm) => mm.userId === id) : null;
     return m?.displayName ?? m?.email ?? (id ? `(user ${id.slice(0, 6)}…)` : '');
   };
-  const eventTitle = (id?: string) =>
-    id ? calendarEvents.find((e) => e.id === id)?.title ?? `(evento ${id.slice(0, 6)}…)` : '';
 
   const describe = (a: AssistantAction): { icon: string; label: string; detail?: string } => {
     if (a.type === 'create_task') {
@@ -820,14 +789,7 @@ function ActionProposalCard({
         detail: `${sample}${more}${a.args.reason ? ` · ${a.args.reason}` : ''}`,
       };
     }
-    if (a.type === 'create_calendar_event') {
-      const bits = [a.args.date, a.args.time, a.args.durationMinutes ? `${a.args.durationMinutes}min` : null].filter(Boolean);
-      return { icon: '📅', label: `Calendário: ${a.args.title}`, detail: bits.join(' · ') };
-    }
-    if (a.type === 'delete_calendar_event') {
-      return { icon: '❌', label: `Apagar evento: ${eventTitle(a.args.eventId)}` };
-    }
-    return { icon: '🧹', label: `Limpar calendário do dia ${a.args.date}` };
+    return { icon: '🔀', label: 'Ação' };
   };
 
   return (
