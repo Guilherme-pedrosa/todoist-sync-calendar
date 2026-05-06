@@ -135,30 +135,34 @@ export function useUpdateTaskWithRecurrencePrompt() {
           );
         }
 
-        // 1) Cria primeiro a tarefa standalone (sem copiar googleCalendarEventId).
-        const createdTask = await addTask({
-          title: task.title,
-          description: task.description ?? '',
-          priority: task.priority,
-          dueDate: newDueDate ?? undefined,
-          dueTime: newDueTime ?? undefined,
-          durationMinutes: newDuration ?? undefined,
-          projectId: task.projectId ?? undefined,
-          sectionId: task.sectionId ?? undefined,
-          labels: task.labels,
-          assigneeIds: task.assigneeIds,
-        } as any, { skipUndo: true });
-        if (!createdTask) {
-          throw new Error('Falha ao criar a ocorrência remanejada');
+        const session = await ensureFreshSession();
+        if (!session) return;
+
+        if (!seriesUpdates.dueDate || !seriesUpdates.recurrenceRule) {
+          throw new Error('Falha ao calcular próxima ocorrência da série');
         }
 
-        // 2) Avança a série original.
-        await updateTask(taskId, seriesUpdates);
+        // Cria a tarefa standalone e avança a série original numa única transação.
+        const { data: createdTaskId, error } = await supabase.rpc('reschedule_single_occurrence', {
+          p_task_id: taskId,
+          p_occurrence_date: occurrenceDate,
+          p_new_date: newDueDate ?? occurrenceDate,
+          p_new_time: newDueTime ? `${newDueTime}:00` : null,
+          p_new_duration: newDuration,
+          p_series_due_date: seriesUpdates.dueDate,
+          p_series_due_time: seriesUpdates.dueTime ? `${seriesUpdates.dueTime}:00` : null,
+          p_series_recurrence_rule: seriesUpdates.recurrenceRule,
+        } as any);
+        if (error || !createdTaskId) {
+          throw error ?? new Error('Falha ao remanejar ocorrência');
+        }
+
+        await fetchData();
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,
           undo: async () => {
-            await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
+            await useTaskStore.getState().deleteTask(createdTaskId, { skipUndo: true });
             await updateTask(taskId, {
               dueDate: task.dueDate,
               dueTime: task.dueTime ?? null,
@@ -168,9 +172,11 @@ export function useUpdateTaskWithRecurrencePrompt() {
         });
       } catch (e) {
         console.error('single-occurrence edit failed', e);
-        toast.error('Falha ao editar apenas esta ocorrência');
+        toast.error('Falha ao editar apenas esta ocorrência', {
+          description: e instanceof Error ? e.message : undefined,
+        });
       }
     },
-    [tasks, updateTask, addTask, ask]
+    [tasks, updateTask, fetchData, ask]
   );
 }
