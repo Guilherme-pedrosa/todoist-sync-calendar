@@ -1239,6 +1239,27 @@ export function TaskDetailPanel() {
               </button>
             </DetailRow>
           </aside>
+
+          {/* Chat side column (toggled) */}
+          {chatOpen && chatConversationId && (
+            <div className="w-full lg:w-[380px] lg:border-l border-border bg-background flex flex-col lg:shrink-0 lg:max-h-[calc(100vh-7rem)]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" /> Conversa
+                </span>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="p-1 hover:bg-muted rounded text-muted-foreground"
+                  aria-label="Fechar conversa"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-[400px] lg:min-h-0 overflow-hidden">
+                <ChatThread conversationId={chatConversationId} compact />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
