@@ -863,8 +863,6 @@ export function TaskDetailPanel() {
               </div>
             )}
 
-            {/* Activity log */}
-            {task.id && <TaskActivityLog taskId={task.id} />}
 
             {/* Attachments */}
             {task.id && (
