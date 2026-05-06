@@ -782,60 +782,64 @@ export function AppSidebar() {
             </span>
           )}
         </button>
-        <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
-          <CalendarDays className="h-3.5 w-3.5" />
-          <span>Google Calendar</span>
-          <span
-            className={cn(
-              'ml-auto px-1.5 py-0.5 rounded text-[10px]',
-              calendarConnected
-                ? 'bg-sidebar-primary/20 text-sidebar-primary'
-                : 'bg-sidebar-accent text-sidebar-foreground/50'
+        {ENABLE_GOOGLE_CALENDAR && (
+          <>
+            <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span>Google Calendar</span>
+              <span
+                className={cn(
+                  'ml-auto px-1.5 py-0.5 rounded text-[10px]',
+                  calendarConnected
+                    ? 'bg-sidebar-primary/20 text-sidebar-primary'
+                    : 'bg-sidebar-accent text-sidebar-foreground/50'
+                )}
+              >
+                {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
+              </span>
+            </div>
+
+            {!calendarConnected && (
+              <button
+                onClick={handleConnectCalendar}
+                disabled={connectingCalendar}
+                className="w-full h-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium hover:bg-sidebar-accent/80 transition-colors disabled:opacity-60"
+              >
+                {connectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}
+              </button>
             )}
-          >
-            {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
-          </span>
-        </div>
 
-        {!calendarConnected && (
-          <button
-            onClick={handleConnectCalendar}
-            disabled={connectingCalendar}
-            className="w-full h-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium hover:bg-sidebar-accent/80 transition-colors disabled:opacity-60"
-          >
-            {connectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}
-          </button>
-        )}
+            {calendarConnected && (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleReconnectCalendar}
+                  disabled={connectingCalendar}
+                  className="flex-1 h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/70 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+                >
+                  {connectingCalendar ? '...' : 'Reconectar'}
+                </button>
+                <button
+                  onClick={handleDisconnectCalendar}
+                  disabled={connectingCalendar}
+                  className="flex-1 h-8 rounded-md bg-transparent border border-sidebar-border text-sidebar-foreground/60 text-xs font-medium hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
+                >
+                  Desconectar
+                </button>
+              </div>
+            )}
 
-        {calendarConnected && (
-          <div className="flex gap-2">
-            <button
-              onClick={handleReconnectCalendar}
-              disabled={connectingCalendar}
-              className="flex-1 h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/70 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
-            >
-              {connectingCalendar ? '...' : 'Reconectar'}
-            </button>
-            <button
-              onClick={handleDisconnectCalendar}
-              disabled={connectingCalendar}
-              className="flex-1 h-8 rounded-md bg-transparent border border-sidebar-border text-sidebar-foreground/60 text-xs font-medium hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
-            >
-              Desconectar
-            </button>
-          </div>
-        )}
-
-        {calendarConnected && (
-          <button
-            onClick={handleForceSyncCalendar}
-            disabled={syncingCalendar}
-            className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
-            title="Forçar sincronização agora"
-          >
-            <RefreshCw className={cn('h-3.5 w-3.5', syncingCalendar && 'animate-spin')} />
-            {syncingCalendar ? 'Sincronizando...' : 'Sincronizar agora'}
-          </button>
+            {calendarConnected && (
+              <button
+                onClick={handleForceSyncCalendar}
+                disabled={syncingCalendar}
+                className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
+                title="Forçar sincronização agora"
+              >
+                <RefreshCw className={cn('h-3.5 w-3.5', syncingCalendar && 'animate-spin')} />
+                {syncingCalendar ? 'Sincronizando...' : 'Sincronizar agora'}
+              </button>
+            )}
+          </>
         )}
 
         <button
