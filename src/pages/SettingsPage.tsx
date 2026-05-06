@@ -508,7 +508,7 @@ export default function SettingsPage() {
                     <SelectContent>
                       <SelectItem value="inbox">Caixa de Entrada</SelectItem>
                       <SelectItem value="today">Hoje</SelectItem>
-                      <SelectItem value="upcoming">Em breve</SelectItem>
+                      <SelectItem value="upcoming">Agenda</SelectItem>
                     </SelectContent>
                   </Select>
                 </Field>

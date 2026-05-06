@@ -150,7 +150,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         break;
 
       case 'upcoming': {
-        title = 'Em breve';
+        title = 'Agenda';
         Icon = CalendarRange;
         filtered = tasks.filter((t) => !t.completed && t.dueDate);
         filtered.sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));

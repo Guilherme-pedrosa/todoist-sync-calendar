@@ -77,7 +77,7 @@ export function useCompleteTask() {
             await updateTask(taskId, { recurrenceRule: null });
             await toggleTask(taskId);
             toast.success('Concluída', {
-              description: 'A próxima ocorrência já existia e foi mantida em Em breve.',
+              description: 'A próxima ocorrência já existia e foi mantida na Agenda.',
             });
             return;
           }
