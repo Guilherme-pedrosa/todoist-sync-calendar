@@ -747,32 +747,45 @@ export function TaskDetailPanel() {
               {/* Subtasks list */}
               {subtasks.length > 0 && (
                 <div className="space-y-1 mt-2">
-                  {subtasks.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer"
-                      onClick={() => useTaskDetailStore.getState().open(sub.id)}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          complete(sub.id);
-                        }}
-                        className={cn(
-                          'h-4 w-4 mt-0.5 rounded-full border-2 shrink-0',
-                          sub.completed ? 'bg-primary border-primary' : 'border-muted-foreground/30'
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          'text-sm flex-1 break-words whitespace-normal',
-                          sub.completed && 'line-through text-muted-foreground'
-                        )}
+                  {subtasks.map((sub) => {
+                    const nested = tasks.filter((t) => t.parentId === sub.id);
+                    const nestedDone = nested.filter((n) => n.completed).length;
+                    return (
+                      <div
+                        key={sub.id}
+                        className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-muted/50 cursor-pointer"
+                        onClick={() => useTaskDetailStore.getState().open(sub.id)}
                       >
-                        {sub.title}
-                      </span>
-                    </div>
-                  ))}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            complete(sub.id);
+                          }}
+                          className={cn(
+                            'h-4 w-4 mt-0.5 rounded-full border-2 shrink-0',
+                            sub.completed ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            'text-sm flex-1 break-words whitespace-normal',
+                            sub.completed && 'line-through text-muted-foreground'
+                          )}
+                        >
+                          {sub.title}
+                        </span>
+                        {nested.length > 0 && (
+                          <span
+                            className="flex items-center gap-0.5 text-[11px] text-muted-foreground shrink-0 mt-0.5"
+                            title={`${nested.length} subtarefa${nested.length > 1 ? 's' : ''}`}
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                            {nestedDone}/{nested.length}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
