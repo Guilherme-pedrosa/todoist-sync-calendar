@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import { useTaskStore } from '@/store/taskStore';
+import { ensureFreshSession, useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
 import { useUndoStore } from '@/store/undoStore';
 import { addExdateToRecurrence, rewriteRecurrenceAnchor, nextOccurrence } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 
 /**
@@ -21,7 +22,7 @@ import { toast } from 'sonner';
 export function useUpdateTaskWithRecurrencePrompt() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
-  const addTask = useTaskStore((s) => s.addTask);
+  const fetchData = useTaskStore((s) => s.fetchData);
   const ask = useRecurringEditStore((s) => s.ask);
 
   return useCallback(
