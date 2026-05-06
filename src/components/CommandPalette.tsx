@@ -90,7 +90,7 @@ export function CommandPalette() {
             <span className="ml-auto text-[10px] text-muted-foreground">T</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/upcoming')}>
-            <CalendarRange className="h-4 w-4 mr-2" /> Em breve
+            <CalendarRange className="h-4 w-4 mr-2" /> Agenda
             <span className="ml-auto text-[10px] text-muted-foreground">U</span>
           </CommandItem>
           <CommandItem onSelect={() => go('/completed')}>

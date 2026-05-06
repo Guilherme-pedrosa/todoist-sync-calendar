@@ -216,7 +216,7 @@ export default function UpcomingPage() {
         <CalendarRange className="h-5 w-5 shrink-0" />
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">
-            {mode === 'day' ? 'Hoje' : 'Em breve'}
+            {mode === 'day' ? 'Hoje' : 'Agenda'}
           </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
             {mode === 'day'

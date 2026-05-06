@@ -502,7 +502,7 @@ export function AppSidebar() {
         </NavLink>
         <NavLink to="/upcoming" className={({ isActive }) => navLinkClass(isActive)}>
           <CalendarRange className="h-4 w-4 shrink-0" />
-          <span className="flex-1 text-left">Em breve</span>
+          <span className="flex-1 text-left">Agenda</span>
           {upcomingCount > 0 && (
             <span className="text-xs opacity-60 tabular-nums">{upcomingCount}</span>
           )}

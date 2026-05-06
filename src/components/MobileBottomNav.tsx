@@ -47,7 +47,7 @@ export function MobileBottomNav() {
         </NavLink>
         <NavLink to="/upcoming" className={({ isActive }) => itemClass(isActive)}>
           <CalendarRange className="h-5 w-5" />
-          <span>Em breve</span>
+          <span>Agenda</span>
         </NavLink>
         {/* Spacer for centered FAB */}
         <div className="w-14" aria-hidden />

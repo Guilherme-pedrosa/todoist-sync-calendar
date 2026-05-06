@@ -6,7 +6,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 const ROUTE_TITLES: Record<string, string> = {
   '/today': 'Hoje',
   '/inbox': 'Caixa de Entrada',
-  '/upcoming': 'Em breve',
+  '/upcoming': 'Agenda',
   '/completed': 'Concluídas',
   '/labels': 'Etiquetas',
   '/filters': 'Filtros',
