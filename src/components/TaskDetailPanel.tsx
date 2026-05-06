@@ -302,18 +302,41 @@ export function TaskDetailPanel() {
   }, [missingCommentAuthorIds]);
 
   // Load task assignees + realtime
+  const [assignedByMap, setAssignedByMap] = useState<Record<string, { byUserId: string | null; at: string | null }>>({});
+  const [assignerProfiles, setAssignerProfiles] = useState<Record<string, { display_name: string | null; email: string | null }>>({});
+
   useEffect(() => {
     if (!task?.id) {
       setAssigneeIds([]);
+      setAssignedByMap({});
       return;
     }
     let active = true;
     const refresh = async () => {
       const { data } = await supabase
         .from('task_assignees')
-        .select('user_id')
+        .select('user_id, assigned_by, assigned_at')
         .eq('task_id', task.id);
-      if (active && data) setAssigneeIds(data.map((r: any) => r.user_id));
+      if (!active || !data) return;
+      setAssigneeIds(data.map((r: any) => r.user_id));
+      const map: Record<string, { byUserId: string | null; at: string | null }> = {};
+      const byIds = new Set<string>();
+      for (const r of data as any[]) {
+        map[r.user_id] = { byUserId: r.assigned_by ?? null, at: r.assigned_at ?? null };
+        if (r.assigned_by) byIds.add(r.assigned_by);
+      }
+      setAssignedByMap(map);
+      if (byIds.size > 0) {
+        const { data: profs } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, email')
+          .in('user_id', Array.from(byIds));
+        if (active && profs) {
+          const pm: Record<string, { display_name: string | null; email: string | null }> = {};
+          for (const p of profs as any[]) pm[p.user_id] = { display_name: p.display_name, email: p.email };
+          setAssignerProfiles((prev) => ({ ...prev, ...pm }));
+        }
+      }
     };
     void refresh();
 
@@ -981,7 +1004,7 @@ export function TaskDetailPanel() {
               </div>
             </div>
 
-            {/* Activity log (collapsed by default, at the bottom) */}
+            {/* Activity log (collapsed by default, at the bottom of main column) */}
             {task.id && (
               <details className="pt-4 border-t border-border group">
                 <summary className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none list-none [&::-webkit-details-marker]:hidden">
@@ -993,6 +1016,7 @@ export function TaskDetailPanel() {
                 </div>
               </details>
             )}
+          </div>
 
           {/* Sidebar */}
           <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
@@ -1106,6 +1130,20 @@ export function TaskDetailPanel() {
                   value={assigneeIds}
                   onChange={handleAssigneesChange}
                 />
+                {user && assignedByMap[user.id]?.byUserId && assignedByMap[user.id]?.byUserId !== user.id && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Delegado por{' '}
+                    <span className="font-medium text-foreground">
+                      {userDisplayName(
+                        assignerProfiles[assignedByMap[user.id]!.byUserId!]?.display_name,
+                        assignerProfiles[assignedByMap[user.id]!.byUserId!]?.email,
+                      )}
+                    </span>
+                    {assignedByMap[user.id]?.at && (
+                      <> · {format(parseISO(assignedByMap[user.id]!.at!), "d MMM, HH:mm", { locale: ptBR })}</>
+                    )}
+                  </p>
+                )}
                 {user && assigneeIds.includes(user.id) && !returnOpen && (
                   <Button
                     size="sm"
