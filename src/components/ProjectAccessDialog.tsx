@@ -366,7 +366,7 @@ export function ProjectAccessDialog({
                       ) : (
                         availableUsers.map((u) => (
                           <SelectItem key={u.userId} value={u.userId}>
-                            {u.displayName || u.userId.slice(0, 8)}
+                            {userDisplayName(u.displayName, (u as any).email)}
                           </SelectItem>
                         ))
                       )}
@@ -413,7 +413,7 @@ export function ProjectAccessDialog({
                         </Avatar>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">
-                            {m.display_name || m.user_id.slice(0, 8)}
+                            {userDisplayName(m.display_name, (m as any).email)}
                           </p>
                           {isOwner && (
                             <Badge variant="secondary" className="text-[10px] mt-0.5">

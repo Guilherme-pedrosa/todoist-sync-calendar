@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { userDisplayName } from '@/lib/userDisplay';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -456,7 +457,7 @@ export default function MembersPage() {
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium truncate">
-                  {m.displayName || m.userId.slice(0, 8)}
+                  {userDisplayName(m.displayName, (m as any).email)}
                   {isMe && <Badge variant="secondary" className="ml-2 text-[10px]">você</Badge>}
                 </div>
                 <div className="text-xs text-muted-foreground">
