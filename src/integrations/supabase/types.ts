@@ -2644,6 +2644,7 @@ export type Database = {
         }
         Returns: string
       }
+      run_activity_aggregate: { Args: { p_day?: string }; Returns: Json }
       task_insert_check: {
         Args: { _project_id: string; _user_id: string; _workspace_id?: string }
         Returns: boolean
