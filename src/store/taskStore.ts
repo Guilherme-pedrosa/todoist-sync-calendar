@@ -655,11 +655,22 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     };
     console.info('[addTask] step=insert-payload', insertPayload);
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert(insertPayload as any)
-      .select()
-      .single();
+    const { data, error } = await (supabase as any).rpc('create_task_secure', {
+      p_workspace_id: insertPayload.workspace_id,
+      p_project_id: insertPayload.project_id,
+      p_title: insertPayload.title,
+      p_description: insertPayload.description,
+      p_priority: insertPayload.priority,
+      p_due_date: insertPayload.due_date,
+      p_due_time: insertPayload.due_time,
+      p_duration_minutes: insertPayload.duration_minutes,
+      p_due_string: insertPayload.due_string,
+      p_deadline: insertPayload.deadline,
+      p_recurrence_rule: insertPayload.recurrence_rule,
+      p_google_calendar_event_id: insertPayload.google_calendar_event_id,
+      p_section_id: insertPayload.section_id,
+      p_parent_id: insertPayload.parent_id,
+    });
     console.info('[addTask] step=insert-response', { id: data?.id, error });
 
     if (error || !data) {
