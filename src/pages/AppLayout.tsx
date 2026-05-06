@@ -25,6 +25,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/realtimeTasks';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
@@ -47,6 +48,15 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!user) return;
+    // Integração GCal desligada via flag — ignora qualquer callback OAuth
+    // residual e limpa a query string para não acionar a edge function.
+    if (!ENABLE_GOOGLE_CALENDAR) {
+      const sp = new URLSearchParams(window.location.search);
+      if (sp.get('code') || sp.get('error')) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      return;
+    }
 
     const searchParams = new URLSearchParams(window.location.search);
     const error = searchParams.get('error');

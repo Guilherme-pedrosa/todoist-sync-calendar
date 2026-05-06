@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { UsersManagementPanel } from '@/components/settings/UsersManagementPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
@@ -81,7 +82,9 @@ const TAB_ITEMS = [
   { value: 'notifications', icon: BellRing, label: 'Notificações' },
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
-  { value: 'calendars', icon: CalendarDays, label: 'Calendários' },
+  ...(ENABLE_GOOGLE_CALENDAR
+    ? [{ value: 'calendars', icon: CalendarDays, label: 'Calendários' }]
+    : []),
   { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
@@ -573,12 +576,14 @@ export default function SettingsPage() {
                   value={settings.show_sidebar_counts !== false}
                   onChange={(v) => update({ show_sidebar_counts: v })}
                 />
-                <ToggleRow
-                  label="Mostrar status do Google Calendar"
-                  desc="Bloco de conexão no rodapé da barra lateral"
-                  value={settings.show_calendar_status !== false}
-                  onChange={(v) => update({ show_calendar_status: v })}
-                />
+                {ENABLE_GOOGLE_CALENDAR && (
+                  <ToggleRow
+                    label="Mostrar status do Google Calendar"
+                    desc="Bloco de conexão no rodapé da barra lateral"
+                    value={settings.show_calendar_status !== false}
+                    onChange={(v) => update({ show_calendar_status: v })}
+                  />
+                )}
                 <Field label="Ordem dos itens">
                   <p className="text-xs text-muted-foreground italic">
                     Atual: {(settings.sidebar_order || []).join(' → ') || 'padrão'}
@@ -781,6 +786,7 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
+            {ENABLE_GOOGLE_CALENDAR && (
             <TabsContent value="calendars" className="space-y-6 mt-0">
               <Section title="Google Calendar">
                 <div className="rounded-xl border border-border p-4">
@@ -869,6 +875,7 @@ export default function SettingsPage() {
                 </Section>
               </Section>
             </TabsContent>
+            )}
 
             <TabsContent value="api" className="space-y-6 mt-0">
               <ApiKeysPanel />

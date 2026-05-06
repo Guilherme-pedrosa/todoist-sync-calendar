@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 import { useAIAssistantStore, type ChatMsg } from '@/store/aiAssistantStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -463,6 +464,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
   useEffect(() => {
+    if (!ENABLE_GOOGLE_CALENDAR) return;
     if (calendarConnected !== true) return;
     let cancelled = false;
     const load = async () => {
@@ -565,6 +567,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   };
 
   const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
+    if (!ENABLE_GOOGLE_CALENDAR) throw new Error('Google Calendar desativado');
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) throw new Error('Sessão expirada');

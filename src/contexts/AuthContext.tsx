@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 const getCalendarRedirectUri = () => `${window.location.origin}/calendar-callback`;
 
@@ -44,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const requestGoogleCalendarConsent = async () => {
+    if (!ENABLE_GOOGLE_CALENDAR) {
+      console.warn('[gcal] Integração desativada via featureFlags.');
+      return;
+    }
     try {
       const {
         data: { session: currentSession },
@@ -85,6 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const checkCalendarConnection = async (userId: string) => {
+    // Integração desligada via flag — UI nunca enxerga "conectado".
+    if (!ENABLE_GOOGLE_CALENDAR) {
+      setCalendarConnected(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('google_tokens')
       .select('id')
@@ -148,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const callDisconnect = async () => {
+    if (!ENABLE_GOOGLE_CALENDAR) return;
     const {
       data: { session: currentSession },
     } = await supabase.auth.getSession();
