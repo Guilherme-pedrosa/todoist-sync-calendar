@@ -208,7 +208,7 @@ export default function AppLayout() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0">
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
         <MobileTopBar />
         <Outlet />
       </div>
