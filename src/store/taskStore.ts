@@ -681,7 +681,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       );
     }
 
-    // Assignees: trigger inicial já adiciona o owner; aqui adicionamos os extras
+    // Assignees extras: o trigger trg_auto_add_task_owner_as_assignee insere o owner
+    // automaticamente no banco; aqui adicionamos APENAS assignees adicionais (delegados).
     const assigneeIds = (taskData.assigneeIds || []).filter((id) => id && id !== userId);
     if (assigneeIds.length > 0) {
       await supabase.from('task_assignees').insert(
