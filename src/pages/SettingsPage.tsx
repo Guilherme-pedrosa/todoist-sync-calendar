@@ -874,8 +874,8 @@ export default function SettingsPage() {
                   </div>
                 </Section>
               </Section>
-            </TabsContent>
-            )}
+              </TabsContent>
+            ) : null}
 
             <TabsContent value="api" className="space-y-6 mt-0">
               <ApiKeysPanel />
