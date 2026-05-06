@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Paperclip, Pencil, ExternalLink, X, Bell, FileText, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Pencil, ExternalLink, X, Bell, FileText, Image as ImageIcon, ListChecks } from 'lucide-react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { useChatStore, type Message } from '@/store/chatStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 
 interface Props {
   conversationId: string;
@@ -265,20 +266,36 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {showOpenFull && conversation && (
-        <div className="flex items-center justify-between px-3 py-2 border-b">
+      {(showOpenFull || conversation?.taskId) && conversation && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b">
           <div className="text-sm font-medium truncate">
             {conversation.title || (conversation.type === 'task' ? 'Conversa da tarefa' : 'Canal')}
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7"
-            onClick={() => navigate(`/conversations/${conversationId}`)}
-          >
-            <ExternalLink className="h-3.5 w-3.5 mr-1" />
-            Abrir
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            {conversation.taskId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7"
+                onClick={() => useTaskDetailStore.getState().open(conversation.taskId!)}
+                title="Ver tarefa"
+              >
+                <ListChecks className="h-3.5 w-3.5 mr-1" />
+                Ver tarefa
+              </Button>
+            )}
+            {showOpenFull && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7"
+                onClick={() => navigate(`/conversations/${conversationId}`)}
+              >
+                <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                Abrir
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
