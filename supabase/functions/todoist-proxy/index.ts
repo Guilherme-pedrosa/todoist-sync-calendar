@@ -453,19 +453,30 @@ serve(async (req) => {
       );
 
       const { data: existingTasks } = await supabase
-        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id").eq("user_id", user.id).eq("project_id", inboxProjectId);
+        .from("tasks").select("id, title, due_date, due_time, duration_minutes, due_string, recurrence_rule, deadline, priority, description, parent_id, todoist_id, deleted_at").eq("user_id", user.id).eq("project_id", inboxProjectId);
       const existingByKey = new Map<string, any>();
+      const existingByTodoistId = new Map<string, { id: string; deleted_at: string | null }>();
       for (const t of existingTasks || []) {
-        existingByKey.set(
-          buildTaskDedupKey({
-            title: t.title,
-            dueDate: t.due_date,
-            recurrenceRule: t.recurrence_rule,
-            parentId: t.parent_id,
-          }),
-          t,
-        );
+        if (t.todoist_id) {
+          existingByTodoistId.set(t.todoist_id, { id: t.id, deleted_at: t.deleted_at });
+        }
+        // Heurística de fallback continua válida só para linhas vivas e sem todoist_id.
+        if (!t.deleted_at && !t.todoist_id) {
+          existingByKey.set(
+            buildTaskDedupKey({
+              title: t.title,
+              dueDate: t.due_date,
+              recurrenceRule: t.recurrence_rule,
+              parentId: t.parent_id,
+            }),
+            t,
+          );
+        }
       }
+
+      let skippedDeleted = 0;
+      let skippedExisting = 0;
+      let adoptedLegacy = 0;
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
       for (const tt of tdTasks) {
@@ -476,6 +487,39 @@ serve(async (req) => {
         const recurrenceRule = dueStringToRRule(dueString || undefined, dueDate, tt.due?.is_recurring);
         const deadline = tt.deadline?.date || null;
         const durationMinutes = mapDurationMinutes(tt.duration);
+
+        // 1) Match autoritativo por todoist_id
+        const byId = existingByTodoistId.get(tt.id);
+        if (byId) {
+          if (byId.deleted_at) {
+            console.warn("[todoist-proxy] rejected: task soft-deleted", {
+              todoist_id: tt.id,
+              title: tt.content,
+              user_id: user.id,
+              scope: "import-inbox",
+            });
+            skippedDeleted++;
+            continue;
+          }
+          const patch = mergeImportedTask(
+            { description: null, priority: 0, due_date: null, due_time: null, duration_minutes: null, due_string: null, recurrence_rule: null, deadline: null },
+            {
+              description: tt.description || null,
+              priority: mapPriority(tt.priority),
+              due_date: dueDate,
+              due_time: dueTime,
+              duration_minutes: durationMinutes,
+              due_string: dueString,
+              recurrence_rule: recurrenceRule,
+              deadline,
+            },
+          );
+          if (patch) await supabase.from("tasks").update(patch).eq("id", byId.id);
+          skippedExisting++;
+          continue;
+        }
+
+        // 2) Fallback heurístico (legado sem todoist_id) — adota a linha
         const key = buildTaskDedupKey({
           title: tt.content,
           dueDate,
@@ -493,12 +537,17 @@ serve(async (req) => {
             due_string: dueString,
             recurrence_rule: recurrenceRule,
             deadline,
-          });
-          if (patch) await supabase.from("tasks").update(patch).eq("id", existing.id);
+          }) || {};
+          // Adoção do legado: marca todoist_id no mesmo update (caminho rápido nas próximas).
+          (patch as any).todoist_id = tt.id;
+          await supabase.from("tasks").update(patch).eq("id", existing.id);
+          existingByTodoistId.set(tt.id, { id: existing.id, deleted_at: null });
+          existingByKey.delete(key);
+          adoptedLegacy++;
           continue;
         }
-        existingByKey.set(key, { id: null });
 
+        // 3) Caso novo
         tasksToInsert.push({
           task: tt,
           row: {
@@ -515,6 +564,7 @@ serve(async (req) => {
             project_id: inboxProjectId,
             workspace_id: personalWorkspaceId,
             created_by: user.id,
+            todoist_id: tt.id,
           },
         });
       }
@@ -544,6 +594,9 @@ serve(async (req) => {
         totalFromTodoist: tdTasks.length,
         createdTasks,
         createdTaskLabels,
+        skippedDeleted,
+        skippedExisting,
+        adoptedLegacy,
       });
     } catch (e) {
       console.error("[todoist-proxy] import-inbox error:", e);

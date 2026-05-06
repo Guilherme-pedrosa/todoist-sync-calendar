@@ -1754,6 +1754,7 @@ export type Database = {
           status_id: string | null
           task_number: number | null
           title: string
+          todoist_id: string | null
           updated_at: string
           user_id: string
           workspace_id: string
@@ -1792,6 +1793,7 @@ export type Database = {
           status_id?: string | null
           task_number?: number | null
           title: string
+          todoist_id?: string | null
           updated_at?: string
           user_id: string
           workspace_id: string
@@ -1830,6 +1832,7 @@ export type Database = {
           status_id?: string | null
           task_number?: number | null
           title?: string
+          todoist_id?: string | null
           updated_at?: string
           user_id?: string
           workspace_id?: string
@@ -2556,6 +2559,7 @@ export type Database = {
           status_id: string | null
           task_number: number | null
           title: string
+          todoist_id: string | null
           updated_at: string
           user_id: string
           workspace_id: string
