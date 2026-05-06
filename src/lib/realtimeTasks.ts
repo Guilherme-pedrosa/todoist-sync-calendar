@@ -22,6 +22,7 @@ export function subscribeToTaskRealtime(userId: string) {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'sections' }, scheduleRefetch)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_labels' }, scheduleRefetch)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignees' }, scheduleRefetch)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_invitations' }, scheduleRefetch)
     .subscribe();
 
   return () => unsubscribeFromTaskRealtime();
