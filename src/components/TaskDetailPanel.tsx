@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
+import { useCommentsStore } from '@/store/commentsStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
@@ -199,6 +200,8 @@ export function TaskDetailPanel() {
       setComments([]);
       return;
     }
+    // Mark this task's comments as read whenever the panel is open for it.
+    useCommentsStore.getState().clearUnread(task.id);
     let active = true;
     (async () => {
       const { data } = await supabase

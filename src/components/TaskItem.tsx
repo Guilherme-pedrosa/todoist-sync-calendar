@@ -14,10 +14,12 @@ import {
   FolderInput,
   Edit3,
   Plus,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Task, Priority } from '@/types/task';
 import { useTaskStore } from '@/store/taskStore';
+import { useCommentsStore } from '@/store/commentsStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
@@ -81,6 +83,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
   const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
+  const unreadComments = useCommentsStore((s) => s.unreadByTask[task.id] || 0);
 
   const [collapsed, setCollapsed] = useState(true);
   const longPressTimer = useRef<number | null>(null);
@@ -349,6 +352,16 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <ChevronRight className="h-3 w-3" />
                 {completedSubs}/{subtasks.length}
+              </span>
+            )}
+
+            {unreadComments > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary"
+                title={`${unreadComments} novo${unreadComments > 1 ? 's' : ''} comentário${unreadComments > 1 ? 's' : ''}`}
+              >
+                <MessageSquare className="h-3 w-3" />
+                {unreadComments}
               </span>
             )}
           </div>
