@@ -1727,6 +1727,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           deadline: string | null
+          deleted_at: string | null
           description: string | null
           due_at: string | null
           due_date: string | null
@@ -1764,6 +1765,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deadline?: string | null
+          deleted_at?: string | null
           description?: string | null
           due_at?: string | null
           due_date?: string | null
@@ -1801,6 +1803,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           deadline?: string | null
+          deleted_at?: string | null
           description?: string | null
           due_at?: string | null
           due_date?: string | null
@@ -2526,6 +2529,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           deadline: string | null
+          deleted_at: string | null
           description: string | null
           due_at: string | null
           due_date: string | null
