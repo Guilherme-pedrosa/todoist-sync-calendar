@@ -529,11 +529,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
     }));
 
-    if (task?.googleCalendarEventId) {
-      await deleteGoogleCalendarEvent(task.googleCalendarEventId).catch((error) => {
-        console.error('Falha ao remover evento do Google Calendar:', error);
-      });
-    }
 
     if (task && !options?.skipUndo) {
       const userId = await getUserId();
