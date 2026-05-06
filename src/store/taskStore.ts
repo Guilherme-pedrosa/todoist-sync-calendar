@@ -56,7 +56,7 @@ interface TaskState {
   applyProjectDelete: (id: string) => void;
 }
 
-export function mapDbTaskRowToTask(t: any): Task {
+export function mapDbTaskRowToTask(t: any): Task | null {
   return mapDbTaskToTask(t);
 }
 
@@ -190,7 +190,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       supabase.from('labels').select('*').eq('user_id', userId),
       supabase
         .from('tasks')
-        .select('*, task_labels(label_id), task_assignees(user_id), meeting_invitations(invitee_user_id)'),
+        .select('*, task_labels(label_id), task_assignees(user_id), meeting_invitations(invitee_user_id)')
+        .is('deleted_at', null),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -219,7 +220,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
+    const tasks: Task[] = (tasksRes.data || [])
+      .map(mapDbTaskToTask)
+      .filter((t): t is Task => t !== null);
 
     set({ projects, labels, tasks, loading: false });
   },
@@ -374,11 +377,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
-    const newTask: Task = mapDbTaskToTask({
+    const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
       task_assignees: allAssignees.map((uid) => ({ user_id: uid })),
     });
+    if (!newTask) return null;
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
     if (!options?.skipUndo) {
@@ -525,45 +529,32 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const task = get().tasks.find((t) => t.id === id);
     const children = get().tasks.filter((t) => t.parentId === id);
+    const childIds = children.map((c) => c.id);
 
-    await supabase.from('tasks').delete().eq('id', id);
+    const now = new Date().toISOString();
+    // Soft-delete: a tarefa (e suas filhas) somem dos selects e do realtime,
+    // mas continuam no banco para impedir ressurreição via integrações externas
+    // e para permitir undo restaurando deleted_at = null.
+    const idsToDelete = [id, ...childIds];
+    await supabase
+      .from('tasks')
+      .update({ deleted_at: now })
+      .in('id', idsToDelete);
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
     }));
 
 
     if (task && !options?.skipUndo) {
-      const userId = await getUserId();
       const snapshot = { ...task };
       const childrenSnap = children.map((c) => ({ ...c }));
       useUndoStore.getState().push({
         label: `Excluir "${task.title}"`,
         undo: async () => {
-          if (!userId) return;
-          const buildPayload = (t: Task) => ({
-            id: t.id,
-            user_id: userId,
-            title: t.title,
-            description: t.description ?? null,
-            priority: t.priority,
-            due_date: t.dueDate ?? null,
-            due_time: t.dueTime ? `${t.dueTime}:00` : null,
-            duration_minutes: t.durationMinutes ?? null,
-            due_string: t.dueString ?? null,
-            deadline: t.deadline ?? null,
-            recurrence_rule: t.recurrenceRule ?? null,
-            project_id: t.projectId ?? null,
-            section_id: t.sectionId ?? null,
-            parent_id: t.parentId ?? null,
-            completed: t.completed,
-            completed_at: t.completedAt ?? null,
-          });
-          await supabase.from('tasks').insert([buildPayload(snapshot), ...childrenSnap.map(buildPayload)] as any);
-          if (snapshot.labels.length > 0) {
-            await supabase.from('task_labels').insert(
-              snapshot.labels.map((labelId) => ({ task_id: snapshot.id, label_id: labelId }))
-            );
-          }
+          await supabase
+            .from('tasks')
+            .update({ deleted_at: null })
+            .in('id', idsToDelete);
           set((state) => ({ tasks: [snapshot, ...childrenSnap, ...state.tasks] }));
         },
       });
@@ -810,6 +801,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
           row.meeting_invitations ??
           (existing ? existing.meetingInviteeIds.map((id) => ({ invitee_user_id: id })) : []),
       });
+      // Soft-deleted: comporta-se como remoção.
+      if (!merged) {
+        return { tasks: state.tasks.filter((t) => t.id !== row.id) };
+      }
       if (existing) {
         return { tasks: state.tasks.map((t) => (t.id === row.id ? { ...t, ...merged } : t)) };
       }

@@ -23,7 +23,13 @@ function handleTaskEvent(payload: any) {
   const store = useTaskStore.getState();
   try {
     if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-      store.applyTaskUpsertFromDb(payload.new);
+      // Soft-delete: trata UPDATE com deleted_at preenchido como remoção.
+      if (payload.new?.deleted_at) {
+        const id = payload.new?.id;
+        if (id) store.applyTaskDelete(id);
+      } else {
+        store.applyTaskUpsertFromDb(payload.new);
+      }
     } else if (payload.eventType === 'DELETE') {
       const id = payload.old?.id;
       if (id) store.applyTaskDelete(id);
