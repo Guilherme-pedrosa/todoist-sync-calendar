@@ -463,6 +463,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
 
   // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
   useEffect(() => {
+    if (!ENABLE_GOOGLE_CALENDAR) return;
     if (calendarConnected !== true) return;
     let cancelled = false;
     const load = async () => {
