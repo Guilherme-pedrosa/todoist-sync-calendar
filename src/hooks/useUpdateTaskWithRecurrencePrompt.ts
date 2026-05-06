@@ -122,19 +122,9 @@ export function useUpdateTaskWithRecurrencePrompt() {
           }));
         };
 
-        // Primeiro exclui a ocorrência da série original. Antes isso acontecia
-        // depois da criação da tarefa solta; se a atualização da série falhasse,
-        // a Agenda ficava com duas ocorrências e parecia que “apenas hoje” não alterou.
-        const { error: ruleError } = await supabase
-          .from('tasks')
-          .update({ recurrence_rule: newRule })
-          .eq('id', taskId);
-        if (ruleError) throw ruleError;
-        setLocalRule(newRule);
-
-        // Cria a nova tarefa standalone SEM copiar o googleCalendarEventId
-        // (senão o mesmo evento do GCal fica linkado a duas tarefas → duplica).
-        // O addTask cria um novo evento próprio para essa nova ocorrência.
+        // 1) Cria primeiro a tarefa standalone (sem copiar googleCalendarEventId).
+        //    Isso evita que o realtime do UPDATE da série dispare antes da nova
+        //    ocorrência existir e que o usuário fique sem nenhuma das duas.
         const createdTask = await addTask({
           title: task.title,
           description: task.description ?? '',
@@ -148,10 +138,20 @@ export function useUpdateTaskWithRecurrencePrompt() {
           assigneeIds: task.assigneeIds,
         } as any, { skipUndo: true });
         if (!createdTask) {
-          await supabase.from('tasks').update({ recurrence_rule: task.recurrenceRule }).eq('id', taskId);
-          setLocalRule(task.recurrenceRule);
           throw new Error('Falha ao criar a ocorrência remanejada');
         }
+
+        // 2) Aplica o EXDATE na série original.
+        const { error: ruleError } = await supabase
+          .from('tasks')
+          .update({ recurrence_rule: newRule })
+          .eq('id', taskId);
+        if (ruleError) {
+          // Rollback: remove a tarefa avulsa que acabou de ser criada.
+          await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
+          throw ruleError;
+        }
+        setLocalRule(newRule);
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,

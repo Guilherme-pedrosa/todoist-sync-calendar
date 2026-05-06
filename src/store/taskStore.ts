@@ -230,8 +230,14 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
   );
 }
 
+// Janela de quarentena: tarefas criadas há menos de 60s nunca são tratadas como
+// duplicatas — protege itens recém-criados pela Agenda contra deleção em corrida
+// com a sincronização do Google Calendar.
+const DEDUPE_QUARANTINE_MS = 60_000;
+
 async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   const groups = new Map<string, Task[]>();
+  const now = Date.now();
   for (const task of tasks) {
     const key = getTaskDuplicateKey(task);
     if (!key) continue;
@@ -241,6 +247,12 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   const duplicateIds = new Set<string>();
   for (const group of groups.values()) {
     if (group.length <= 1) continue;
+    // Só desempata duplicatas quando AMBAS estão fora da quarentena.
+    const allOutsideQuarantine = group.every((t) => {
+      const created = Date.parse(t.createdAt);
+      return Number.isFinite(created) && now - created > DEDUPE_QUARANTINE_MS;
+    });
+    if (!allOutsideQuarantine) continue;
     group.sort((a, b) => {
       if (!!a.googleCalendarEventId !== !!b.googleCalendarEventId) return a.googleCalendarEventId ? -1 : 1;
       return a.createdAt.localeCompare(b.createdAt);
@@ -458,18 +470,22 @@ async function syncGoogleCalendarEvents(
 
     // Remove tarefas locais cujo evento do Google Calendar foi apagado/cancelado
     // dentro da janela sincronizada (evita "fantasmas" no Hoje).
+    // Quarentena: nunca apaga tarefas criadas há menos de DEDUPE_QUARANTINE_MS —
+    // o evento no GCal pode ainda não ter propagado para o list-events.
     const rangeStartStr = startOfRange.toISOString().split('T')[0];
     const rangeEndStr = endOfRange.toISOString().split('T')[0];
+    const nowMs = Date.now();
     const orphanIds = resultTasks
-      .filter(
-        (task) =>
-          !!task.googleCalendarEventId &&
-          !seenEventIds.has(task.googleCalendarEventId) &&
-          !!task.dueDate &&
-          task.dueDate >= rangeStartStr &&
-          task.dueDate <= rangeEndStr &&
-          !task.completed
-      )
+      .filter((task) => {
+        if (!task.googleCalendarEventId) return false;
+        if (seenEventIds.has(task.googleCalendarEventId)) return false;
+        if (!task.dueDate) return false;
+        if (task.dueDate < rangeStartStr || task.dueDate > rangeEndStr) return false;
+        if (task.completed) return false;
+        const created = Date.parse(task.createdAt);
+        if (Number.isFinite(created) && nowMs - created < DEDUPE_QUARANTINE_MS) return false;
+        return true;
+      })
       .map((task) => task.id);
 
     if (orphanIds.length > 0) {
