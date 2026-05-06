@@ -2566,6 +2566,10 @@ export type Database = {
         }
         Returns: string
       }
+      task_insert_check: {
+        Args: { _project_id: string; _user_id: string; _workspace_id?: string }
+        Returns: boolean
+      }
       touch_last_seen: { Args: never; Returns: undefined }
       workspace_role: {
         Args: { _user_id: string; _workspace_id: string }
