@@ -45,6 +45,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const requestGoogleCalendarConsent = async () => {
+    if (!ENABLE_GOOGLE_CALENDAR) {
+      console.warn('[gcal] Integração desativada via featureFlags.');
+      return;
+    }
     try {
       const {
         data: { session: currentSession },
