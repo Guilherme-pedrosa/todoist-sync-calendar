@@ -13,7 +13,7 @@ import {
   BellRing,
   Database,
   Plug,
-  CalendarDays,
+  
   Info,
   LogOut,
   Trash2,
@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { UsersManagementPanel } from '@/components/settings/UsersManagementPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';
@@ -82,9 +82,6 @@ const TAB_ITEMS = [
   { value: 'notifications', icon: BellRing, label: 'Notificações' },
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
-  ...(ENABLE_GOOGLE_CALENDAR
-    ? [{ value: 'calendars', icon: CalendarDays, label: 'Calendários' }]
-    : []),
   { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
@@ -123,13 +120,11 @@ const DEFAULT_SETTINGS = {
   notify_on_reminders: true,
 };
 
-const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
-const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingFlash, setSavingFlash] = useState(false);
   const [settings, setSettings] = useState<any>(null);
@@ -141,14 +136,6 @@ export default function SettingsPage() {
     const tab = new URLSearchParams(window.location.search).get('tab');
     return TAB_ITEMS.some((item) => item.value === tab) ? tab! : 'account';
   });
-  const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
-  const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
-  const [syncPaused, setSyncPaused] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged' ||
-        localStorage.getItem(GOOGLE_SYNC_PAUSED_KEY) !== 'false')
-  );
 
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
@@ -304,42 +291,6 @@ export default function SettingsPage() {
     }
   };
 
-  const setCalendarSyncPaused = (paused: boolean) => {
-    if (!paused) localStorage.setItem(GOOGLE_SYNC_SAFETY_KEY, 'acknowledged');
-    localStorage.setItem(GOOGLE_SYNC_PAUSED_KEY, paused ? 'true' : 'false');
-    setSyncPaused(paused);
-    toast.success(paused ? 'Sync pausado' : 'Sync retomado');
-  };
-
-  const cleanupCalendarDuplicates = async (dryRun: boolean) => {
-    const mode = dryRun ? 'analyze' : 'delete';
-    setCalendarMaintenanceLoading(mode);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ dryRun }),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.error) throw new Error(payload?.error || 'Falha ao limpar duplicatas');
-
-      const count = Number(payload?.duplicateCount || 0);
-      setCalendarDuplicateCount(dryRun ? count : 0);
-      toast.success(dryRun ? `${count} duplicatas encontradas` : `${count} duplicatas removidas`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao limpar duplicatas');
-    } finally {
-      setCalendarMaintenanceLoading(null);
-    }
-  };
 
   if (loading || !settings) {
     return (
@@ -576,14 +527,6 @@ export default function SettingsPage() {
                   value={settings.show_sidebar_counts !== false}
                   onChange={(v) => update({ show_sidebar_counts: v })}
                 />
-                {ENABLE_GOOGLE_CALENDAR && (
-                  <ToggleRow
-                    label="Mostrar status do Google Calendar"
-                    desc="Bloco de conexão no rodapé da barra lateral"
-                    value={settings.show_calendar_status !== false}
-                    onChange={(v) => update({ show_calendar_status: v })}
-                  />
-                )}
                 <Field label="Ordem dos itens">
                   <p className="text-xs text-muted-foreground italic">
                     Atual: {(settings.sidebar_order || []).join(' → ') || 'padrão'}
@@ -786,96 +729,6 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
-            {ENABLE_GOOGLE_CALENDAR ? (
-              <TabsContent value="calendars" className="space-y-6 mt-0">
-              <Section title="Google Calendar">
-                <div className="rounded-xl border border-border p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold">
-                        Status:{' '}
-                        <span className={calendarConnected ? 'text-success' : 'text-muted-foreground'}>
-                          {calendarConnected === null ? '…' : calendarConnected ? 'Conectado' : 'Desconectado'}
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Sincronização bidirecional dos eventos do dia
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 mt-3">
-                    {calendarConnected ? (
-                      <>
-                        <Button size="sm" variant="outline" onClick={() => reconnectCalendar()}>
-                          Reconectar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={async () => {
-                            try {
-                              await disconnectCalendar();
-                              toast.success('Desconectado');
-                            } catch (e) {
-                              toast.error(e instanceof Error ? e.message : 'Falha');
-                            }
-                          }}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Desconectar
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="sm" onClick={() => connectCalendar()}>
-                        Conectar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <ToggleRow
-                  label="Excluir evento ao concluir"
-                  desc="Apaga o evento sincronizado do Google Calendar quando a tarefa for concluída"
-                  value={settings.delete_calendar_event_on_complete}
-                  onChange={(v) => update({ delete_calendar_event_on_complete: v })}
-                />
-                <Section title="Manutenção do sync">
-                  <div className="rounded-xl border border-border p-4 space-y-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant={syncPaused ? 'default' : 'outline'}
-                        onClick={() => setCalendarSyncPaused(!syncPaused)}
-                      >
-                        {syncPaused ? '▶️ Retomar sync' : '⏸️ Pausar sync'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={calendarMaintenanceLoading !== null || !calendarConnected}
-                        onClick={() => cleanupCalendarDuplicates(true)}
-                      >
-                        {calendarMaintenanceLoading === 'analyze' ? 'Analisando…' : '🧹 Analisar duplicatas'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={calendarMaintenanceLoading !== null || !calendarConnected || !calendarDuplicateCount}
-                        onClick={() => cleanupCalendarDuplicates(false)}
-                      >
-                        {calendarMaintenanceLoading === 'delete'
-                          ? 'Deletando…'
-                          : `🗑️ Deletar ${calendarDuplicateCount || 0} duplicatas`}
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Status do sync: {syncPaused ? 'pausado' : 'ativo'}.
-                      {calendarDuplicateCount !== null ? ` Última análise: ${calendarDuplicateCount} duplicatas.` : ''}
-                    </p>
-                  </div>
-                </Section>
-              </Section>
-              </TabsContent>
-            ) : null}
 
             <TabsContent value="api" className="space-y-6 mt-0">
               <ApiKeysPanel />

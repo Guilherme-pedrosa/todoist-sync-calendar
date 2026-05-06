@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import { useAIAssistantStore, type ChatMsg } from '@/store/aiAssistantStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useTaskStore } from '@/store/taskStore';
@@ -462,60 +462,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
-  useEffect(() => {
-    if (!ENABLE_GOOGLE_CALENDAR) return;
-    if (calendarConnected !== true) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-        const timeMin = new Date().toISOString();
-        const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list-events&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
-        const r = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
-        if (cancelled) return;
-        setCalendarEvents(
-          items.slice(0, 80).map((e: any) => {
-            const startDateTime = e.start?.dateTime ?? null;
-            const endDateTime = e.end?.dateTime ?? null;
-            let date: string | null = e.start?.date ?? null;
-            let time: string | null = null;
-            let durationMinutes: number | null = null;
-            if (startDateTime) {
-              const [d, t] = startDateTime.split('T');
-              date = d;
-              time = t?.slice(0, 5) ?? null;
-              if (endDateTime) {
-                const start = new Date(startDateTime).getTime();
-                const end = new Date(endDateTime).getTime();
-                if (Number.isFinite(start) && Number.isFinite(end)) {
-                  durationMinutes = Math.max(1, Math.round((end - start) / 60000));
-                }
-              }
-            }
-            return { id: e.id, title: e.summary ?? '(sem título)', date, time, durationMinutes };
-          }),
-        );
-      } catch {
-        // silencioso — Calendar pode não estar conectado
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [calendarConnected]);
+  // Google Calendar foi removido do runtime — eventos sempre vazios.
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -566,26 +514,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     }
   };
 
-  const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
-    if (!ENABLE_GOOGLE_CALENDAR) throw new Error('Google Calendar desativado');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    if (!accessToken) throw new Error('Sessão expirada');
-    const qs = query ? `&${query}` : '';
-    const r = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=${action}${qs}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      },
-    );
-    if (!r.ok) throw new Error(`Calendar ${action} falhou`);
-    return r.json();
+  const callCalendar = async (_action: string, _body?: Record<string, unknown>, _query?: string): Promise<any> => {
+    throw new Error('Google Calendar foi removido do app.');
   };
 
   const applyActions = async (msgIndex: number) => {

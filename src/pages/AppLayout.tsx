@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -22,17 +22,13 @@ import { useActivityTracker } from '@/hooks/useActivityTracker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/realtimeTasks';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
   const loading = useTaskStore((s) => s.loading);
   const fetchData = useTaskStore((s) => s.fetchData);
-  const { user, calendarConnected } = useAuth();
-  const [processingCalendarOauth, setProcessingCalendarOauth] = useState(false);
+  const { user } = useAuth();
 
   useGlobalShortcuts();
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
@@ -48,99 +44,19 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!user) return;
-    // Integração GCal desligada via flag — ignora qualquer callback OAuth
-    // residual e limpa a query string para não acionar a edge function.
-    if (!ENABLE_GOOGLE_CALENDAR) {
-      const sp = new URLSearchParams(window.location.search);
-      if (sp.get('code') || sp.get('error')) {
-        window.history.replaceState({}, '', window.location.pathname);
-      }
-      return;
+    // Limpa qualquer query string residual de fluxo OAuth removido.
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get('code') || sp.get('error')) {
+      window.history.replaceState({}, '', window.location.pathname);
     }
-
-    const searchParams = new URLSearchParams(window.location.search);
-    const error = searchParams.get('error');
-    const errorDescription = searchParams.get('error_description');
-    const code = searchParams.get('code');
-
-    if (!error && !code) return;
-
-    let active = true;
-    const clearQuery = () => window.history.replaceState({}, '', window.location.pathname);
-
-    const runExchange = async () => {
-      setProcessingCalendarOauth(true);
-
-      if (error) {
-        toast.error(errorDescription || 'Autorização do Google Calendar cancelada');
-        clearQuery();
-        setProcessingCalendarOauth(false);
-        return;
-      }
-
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (!session?.access_token || !code) {
-          throw new Error('Sessão inválida. Faça login novamente.');
-        }
-
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=exchange-code`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              code,
-              redirectUri: `${window.location.origin}/calendar-callback`,
-            }),
-          }
-        );
-
-        const payload = await response.json().catch(() => null);
-
-        if (!response.ok) {
-          const detailedError = payload?.details?.error_description;
-          throw new Error(detailedError || payload?.error || 'Falha ao conectar Google Calendar');
-        }
-
-        if (active) {
-          toast.success('Google Calendar conectado com sucesso!');
-        }
-      } catch (exchangeError) {
-        if (active) {
-          toast.error(
-            exchangeError instanceof Error ? exchangeError.message : 'Erro ao conectar Google Calendar'
-          );
-        }
-      } finally {
-        clearQuery();
-        if (active) {
-          setProcessingCalendarOauth(false);
-        }
-      }
-    };
-
-    void runExchange();
-
-    return () => {
-      active = false;
-    };
   }, [user]);
 
   useEffect(() => {
     if (user) {
       fetchData();
-      // Boot único do workspaceStore — todas as páginas consomem do store.
       void useWorkspaceStore.getState().fetchWorkspaces();
     }
-  }, [user, calendarConnected, fetchData]);
+  }, [user, fetchData]);
 
   // Realtime: refetch tarefas/projetos quando colaboradores fazem mudanças
   useEffect(() => {
@@ -163,7 +79,7 @@ export default function AppLayout() {
     };
   }, [user, fetchData]);
 
-  if (loading || processingCalendarOauth) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

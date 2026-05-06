@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 import { useUndoStore } from '@/store/undoStore';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import type { Session } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
@@ -130,7 +130,7 @@ function mapDbTaskToTask(t: any): Task {
     recurrence: t.recurrence_type
       ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
       : undefined,
-    googleCalendarEventId: t.google_calendar_event_id || undefined,
+    
     taskNumber: t.task_number ?? null,
     assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
     meetingInviteeIds: (t.meeting_invitations || [])
@@ -278,7 +278,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       due_string: taskData.dueString || null,
       deadline: taskData.deadline || null,
       recurrence_rule: taskData.recurrenceRule || null,
-      google_calendar_event_id: taskData.googleCalendarEventId || null,
+      
       project_id: targetProjectId,
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
@@ -408,7 +408,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (updates.dueString !== undefined) dbUpdates.due_string = updates.dueString;
     if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
     if (updates.recurrenceRule !== undefined) dbUpdates.recurrence_rule = updates.recurrenceRule;
-    if ('googleCalendarEventId' in updates) dbUpdates.google_calendar_event_id = updates.googleCalendarEventId ?? null;
+    
     if (updates.projectId !== undefined) dbUpdates.project_id = updates.projectId;
     if (updates.sectionId !== undefined) dbUpdates.section_id = updates.sectionId;
     if (updates.completed !== undefined) {

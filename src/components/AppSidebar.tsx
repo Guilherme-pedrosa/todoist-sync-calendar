@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import {
   Inbox,
   CalendarDays,
@@ -27,7 +27,7 @@ import {
   Filter as FilterIcon,
   Settings,
   User as UserIcon,
-  RefreshCw,
+  
   Users,
   UsersRound,
   FolderKanban,
@@ -102,7 +102,7 @@ const FILTER_PRESETS = [
 
 export function AppSidebar() {
   const navigate = useNavigate();
-  const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
+  const { user, signOut } = useAuth();
   const tasks = useTaskStore((s) => s.tasks);
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
@@ -122,8 +122,6 @@ export function AppSidebar() {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [showNewLabel, setShowNewLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState('');
-  const [connectingCalendar, setConnectingCalendar] = useState(false);
-  const [syncingCalendar, setSyncingCalendar] = useState(false);
   const [importingTodoist, setImportingTodoist] = useState(false);
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectBeingEdited, setProjectBeingEdited] = useState<Project | null>(null);
@@ -229,43 +227,6 @@ export function AppSidebar() {
     }
   };
 
-  const handleConnectCalendar = async () => {
-    setConnectingCalendar(true);
-    try { await connectCalendar(); } finally { setConnectingCalendar(false); }
-  };
-  const handleReconnectCalendar = async () => {
-    setConnectingCalendar(true);
-    try { await reconnectCalendar(); } finally { setConnectingCalendar(false); }
-  };
-  const handleDisconnectCalendar = async () => {
-    setConnectingCalendar(true);
-    try {
-      await disconnectCalendar();
-      toast.success('Google Calendar desconectado');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao desconectar');
-    } finally {
-      setConnectingCalendar(false);
-    }
-  };
-  const handleForceSyncCalendar = async () => {
-    setSyncingCalendar(true);
-    const before = useTaskStore.getState().tasks.length;
-    try {
-      await fetchData();
-      const after = useTaskStore.getState().tasks.length;
-      const diff = after - before;
-      if (diff > 0) {
-        toast.success(`Sincronizado: ${diff} novo(s) evento(s) importado(s)`);
-      } else {
-        toast.success('Calendário sincronizado — tudo em dia');
-      }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Falha ao sincronizar');
-    } finally {
-      setSyncingCalendar(false);
-    }
-  };
 
   const handleImportTodoist = async () => {
     setImportingTodoist(true);
@@ -780,65 +741,6 @@ export function AppSidebar() {
             </span>
           )}
         </button>
-        {ENABLE_GOOGLE_CALENDAR && (
-          <>
-            <div className="flex items-center gap-2 text-xs text-sidebar-foreground/40">
-              <CalendarDays className="h-3.5 w-3.5" />
-              <span>Google Calendar</span>
-              <span
-                className={cn(
-                  'ml-auto px-1.5 py-0.5 rounded text-[10px]',
-                  calendarConnected
-                    ? 'bg-sidebar-primary/20 text-sidebar-primary'
-                    : 'bg-sidebar-accent text-sidebar-foreground/50'
-                )}
-              >
-                {calendarConnected === null ? '...' : calendarConnected ? 'Conectado' : 'Pendente'}
-              </span>
-            </div>
-
-            {!calendarConnected && (
-              <button
-                onClick={handleConnectCalendar}
-                disabled={connectingCalendar}
-                className="w-full h-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground text-xs font-medium hover:bg-sidebar-accent/80 transition-colors disabled:opacity-60"
-              >
-                {connectingCalendar ? 'Conectando...' : 'Conectar Google Calendar'}
-              </button>
-            )}
-
-            {calendarConnected && (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleReconnectCalendar}
-                  disabled={connectingCalendar}
-                  className="flex-1 h-8 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/70 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
-                >
-                  {connectingCalendar ? '...' : 'Reconectar'}
-                </button>
-                <button
-                  onClick={handleDisconnectCalendar}
-                  disabled={connectingCalendar}
-                  className="flex-1 h-8 rounded-md bg-transparent border border-sidebar-border text-sidebar-foreground/60 text-xs font-medium hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-60"
-                >
-                  Desconectar
-                </button>
-              </div>
-            )}
-
-            {calendarConnected && (
-              <button
-                onClick={handleForceSyncCalendar}
-                disabled={syncingCalendar}
-                className="w-full h-8 flex items-center justify-center gap-2 rounded-md bg-sidebar-accent/40 text-sidebar-foreground/80 text-xs font-medium hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors disabled:opacity-60"
-                title="Forçar sincronização agora"
-              >
-                <RefreshCw className={cn('h-3.5 w-3.5', syncingCalendar && 'animate-spin')} />
-                {syncingCalendar ? 'Sincronizando...' : 'Sincronizar agora'}
-              </button>
-            )}
-          </>
-        )}
 
         <button
           onClick={handleImportTodoist}
