@@ -109,7 +109,9 @@ export async function ensureFreshSession(): Promise<Session | null> {
 }
 
 
-function mapDbTaskToTask(t: any): Task {
+function mapDbTaskToTask(t: any): Task | null {
+  // Defesa em profundidade: ignorar linhas com soft-delete.
+  if (t?.deleted_at) return null;
   return {
     id: t.id,
     title: t.title,
@@ -130,7 +132,7 @@ function mapDbTaskToTask(t: any): Task {
     recurrence: t.recurrence_type
       ? { type: t.recurrence_type as RecurrenceType, interval: t.recurrence_interval || 1 }
       : undefined,
-    
+
     taskNumber: t.task_number ?? null,
     assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
     meetingInviteeIds: (t.meeting_invitations || [])
