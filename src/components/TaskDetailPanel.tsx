@@ -189,6 +189,7 @@ export function TaskDetailPanel() {
   const ensureTaskConversation = useChatStore((s) => s.ensureTaskConversation);
   const conversations = useChatStore((s) => s.conversations);
   const unreadByConversation = useChatStore((s) => s.unreadByConversation);
+  const [creator, setCreator] = useState<{ display_name: string | null; email: string | null } | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
@@ -208,6 +209,23 @@ export function TaskDetailPanel() {
     const existing = conversations.find((c) => c.taskId === task.id);
     setChatConversationId(existing?.id ?? null);
   }, [task?.id, conversations]);
+
+  // Load creator profile
+  useEffect(() => {
+    if (!task?.id) { setCreator(null); return; }
+    let active = true;
+    (async () => {
+      const { data: t } = await supabase.from('tasks').select('user_id').eq('id', task.id).maybeSingle();
+      if (!active || !t?.user_id) { setCreator(null); return; }
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('display_name, email')
+        .eq('user_id', t.user_id)
+        .maybeSingle();
+      if (active) setCreator(p ? { display_name: p.display_name, email: p.email } : null);
+    })();
+    return () => { active = false; };
+  }, [task?.id]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -1122,6 +1140,14 @@ export function TaskDetailPanel() {
                 </PopoverContent>
               </Popover>
             </DetailRow>
+
+            {creator && (
+              <DetailRow icon={Users} label="Aberto por">
+                <p className="text-sm">
+                  {userDisplayName(creator.display_name, creator.email)}
+                </p>
+              </DetailRow>
+            )}
 
             <DetailRow icon={Users} label="Responsável">
               <div className="space-y-2">
