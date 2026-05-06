@@ -83,6 +83,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
   const deleteWithPrompt = useDeleteTaskWithRecurrencePrompt();
+  const unreadComments = useCommentsStore((s) => s.unreadByTask[task.id] || 0);
 
   const [collapsed, setCollapsed] = useState(true);
   const longPressTimer = useRef<number | null>(null);
