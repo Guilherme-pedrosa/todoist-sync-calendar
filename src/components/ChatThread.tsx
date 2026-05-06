@@ -187,21 +187,45 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       const mentionedIds = extractMentionedUserIds(text);
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
-      // Cria notificações destacadas para mencionados
-      if (mentionedIds.length > 0 && user) {
-        const rows = mentionedIds
-          .filter((id) => id !== user.id)
-          .map((id) => ({
-            user_id: id,
-            type: 'chat_mention',
-            workspace_id: conversation?.workspaceId,
-            payload: {
-              conversation_id: conversationId,
-              task_id: conversation?.taskId,
-              from_user: user.id,
-              snippet: text.slice(0, 140),
-            },
-          }));
+      if (user) {
+        // Busca participantes da conversa para notificar todos (exceto o autor).
+        const { data: parts } = await supabase
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId);
+        const participantIds = (parts || [])
+          .map((p: any) => p.user_id as string)
+          .filter((id) => id !== user.id);
+        const mentionedSet = new Set(mentionedIds);
+        const rows: any[] = [];
+        for (const id of participantIds) {
+          if (id === user.id) continue;
+          if (mentionedSet.has(id)) {
+            rows.push({
+              user_id: id,
+              type: 'chat_mention',
+              workspace_id: conversation?.workspaceId,
+              payload: {
+                conversation_id: conversationId,
+                task_id: conversation?.taskId,
+                from_user: user.id,
+                snippet: text.slice(0, 140),
+              },
+            });
+          } else {
+            rows.push({
+              user_id: id,
+              type: 'chat_message',
+              workspace_id: conversation?.workspaceId,
+              payload: {
+                conversation_id: conversationId,
+                task_id: conversation?.taskId,
+                from_user: user.id,
+                snippet: text.slice(0, 140),
+              },
+            });
+          }
+        }
         if (rows.length > 0) await supabase.from('notifications').insert(rows);
       }
 

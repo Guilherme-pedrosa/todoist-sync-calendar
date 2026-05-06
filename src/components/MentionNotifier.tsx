@@ -54,7 +54,7 @@ export function MentionNotifier() {
 
       const handleOpen = () => {
         markRead(n.id);
-        if (n.type === 'chat_mention' && n.payload?.conversation_id) {
+        if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
         } else if ((n.type === 'task_assigned' || n.type === 'task_reminder') && n.payload?.task_id) {
           openTaskDetail(n.payload.task_id as string);
@@ -83,6 +83,30 @@ export function MentionNotifier() {
           title: 'Você foi mencionado',
           body: snippet,
           tag: `mention-${n.id}`,
+          onClick: handleOpen,
+        });
+        playChime();
+      } else if (n.type === 'chat_message') {
+        const snippet: string = n.payload?.snippet || 'Nova mensagem';
+        toast(
+          <div className="flex items-start gap-2">
+            <MessageSquare className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+            <div>
+              <div className="font-semibold text-sm">Nova mensagem</div>
+              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {snippet}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 6000,
+            action: { label: 'Abrir', onClick: handleOpen },
+          }
+        );
+        showSystemNotification({
+          title: 'Nova mensagem',
+          body: snippet,
+          tag: `chat-${n.id}`,
           onClick: handleOpen,
         });
         playChime();

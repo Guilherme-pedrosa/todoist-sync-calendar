@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { addDays, format, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { userDisplayName } from '@/lib/userDisplay';
 
 interface AssignedTask {
   id: string;
@@ -125,7 +126,7 @@ export default function WorkloadPage() {
                           {(m.displayName || '?').slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="truncate">{m.displayName || m.userId.slice(0, 8)}</span>
+                      <span className="truncate">{userDisplayName(m.displayName, (m as any).email)}</span>
                     </div>
                   </td>
                   {days.map((d) => {

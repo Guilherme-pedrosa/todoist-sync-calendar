@@ -119,6 +119,34 @@ export const useNotificationStore = create<State>((set, get) => ({
           }
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const updated = mapRow(payload.new);
+          set({
+            items: get().items.map((n) => (n.id === updated.id ? updated : n)),
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'notifications',
+        },
+        (payload) => {
+          const id = (payload.old as any)?.id;
+          if (!id) return;
+          set({ items: get().items.filter((n) => n.id !== id) });
+        }
+      )
       .subscribe();
     set({ channel: ch });
   },

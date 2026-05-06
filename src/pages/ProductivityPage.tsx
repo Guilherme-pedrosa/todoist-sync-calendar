@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { userDisplayName } from "@/lib/userDisplay";
 
 interface TopDomain { domain: string; seconds: number; category: string }
 interface DailyStat {
@@ -405,7 +406,7 @@ export default function ProductivityPage() {
                 <SelectItem value="all">Todos os colaboradores</SelectItem>
                 {members.map((m) => (
                   <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.display_name || m.user_id.slice(0, 8)}
+                    {userDisplayName(m.display_name, (m as any).email)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -466,7 +467,7 @@ export default function ProductivityPage() {
                       </Avatar>
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate flex items-center gap-2">
-                          {a.display_name || a.user_id.slice(0, 8)}
+                          {userDisplayName(a.display_name, (a as any).email)}
                           {a.is_super && <Crown className="h-3.5 w-3.5 text-warning" />}
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -556,7 +557,7 @@ export default function ProductivityPage() {
                               <AvatarFallback className="text-xs">{initials(m?.display_name || null)}</AvatarFallback>
                             </Avatar>
                             <div>
-                              <div className="font-medium text-sm">{m?.display_name || u.user_id.slice(0, 8)}</div>
+                              <div className="font-medium text-sm">{userDisplayName(m?.display_name, (m as any)?.email)}</div>
                               <div className="text-xs text-muted-foreground">
                                 {u.tasks_proj} c/ projeto · {u.tasks_inbox} inbox
                               </div>
@@ -690,7 +691,7 @@ export default function ProductivityPage() {
                               {m?.avatar_url && <AvatarImage src={m.avatar_url} />}
                               <AvatarFallback className="text-[10px]">{initials(m?.display_name || null)}</AvatarFallback>
                             </Avatar>
-                            <span className="truncate">{m?.display_name || r.user_id.slice(0, 8)}</span>
+                            <span className="truncate">{userDisplayName(m?.display_name, (m as any)?.email)}</span>
                           </div>
                           <div className="col-span-2 text-right tabular-nums">{fmtH(r.online_seconds)}</div>
                           <div className="col-span-2 text-right tabular-nums text-primary">{fmtH(r.active_seconds)}</div>

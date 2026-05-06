@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { userDisplayName } from '@/lib/userDisplay';
 import { supabase } from '@/integrations/supabase/client';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Button } from '@/components/ui/button';
@@ -255,7 +256,7 @@ export default function TeamsPage() {
                   <AvatarImage src={m.avatarUrl ?? undefined} />
                   <AvatarFallback>{(m.displayName || '?').slice(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
-                <span className="text-sm">{m.displayName || m.userId.slice(0, 8)}</span>
+                <span className="text-sm">{userDisplayName(m.displayName, (m as any).email)}</span>
               </label>
             ))}
           </div>
