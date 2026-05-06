@@ -84,15 +84,16 @@ export default function UpcomingPage() {
     setWeekOffset(differenceInCalendarDays(target, new Date()));
   }, []);
 
-  // Mostra somente tarefas atribuídas ao usuário atual.
-  // Se ainda não há lista de responsáveis carregada (legado), mantemos a tarefa visível para não esconder dados.
+  // Agenda deve mostrar tudo que o usuário pode ver e tem data:
+  // responsável, convidado de reunião, ou itens antigos sem responsáveis carregados.
   const visibleTasks = useMemo(
     () =>
       tasks.filter((t) => {
         if (!currentUserId) return true;
-        const ids = t.assigneeIds;
-        if (!ids || ids.length === 0) return true;
-        return ids.includes(currentUserId);
+        const assigneeIds = t.assigneeIds || [];
+        const inviteeIds = t.meetingInviteeIds || [];
+        if (assigneeIds.length === 0 && inviteeIds.length === 0) return true;
+        return assigneeIds.includes(currentUserId) || inviteeIds.includes(currentUserId);
       }),
     [tasks, currentUserId]
   );
@@ -100,7 +101,7 @@ export default function UpcomingPage() {
   const upcoming = useMemo(
     () =>
       visibleTasks.filter(
-        (t) => !t.completed && !t.parentId && t.dueDate && t.dueDate >= new Date().toISOString().slice(0, 10)
+        (t) => !t.completed && !t.parentId && t.dueDate
       ),
     [visibleTasks]
   );

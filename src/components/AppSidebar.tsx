@@ -177,7 +177,7 @@ export function AppSidebar() {
     (t) => !t.completed && t.projectId === inboxProject?.id
   ).length;
   const upcomingCount = tasks.filter(
-    (t) => !t.completed && t.dueDate && t.dueDate > today
+    (t) => !t.completed && t.dueDate
   ).length;
 
   const projectTaskCount = useMemo(() => {

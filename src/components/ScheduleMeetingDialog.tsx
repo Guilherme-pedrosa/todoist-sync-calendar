@@ -56,6 +56,7 @@ export function ScheduleMeetingDialog({
   const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const projects = useTaskStore((s) => s.projects);
+  const fetchData = useTaskStore((s) => s.fetchData);
   const inboxId = useMemo(() => projects.find((p) => p.isInbox)?.id, [projects]);
 
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
@@ -293,6 +294,7 @@ export function ScheduleMeetingDialog({
       toast.success(convertTaskId ? 'Tarefa convertida em reunião!' : 'Reunião agendada!', {
         description: `${invitees.length} convite(s) enviado(s)`,
       });
+      void fetchData();
       onOpenChange(false);
     } catch (e: any) {
       console.error('[meeting] erro', e);

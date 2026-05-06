@@ -95,6 +95,9 @@ function mapDbTaskToTask(t: any): Task {
     googleCalendarEventId: t.google_calendar_event_id || undefined,
     taskNumber: t.task_number ?? null,
     assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
+    meetingInviteeIds: (t.meeting_invitations || [])
+      .map((i: any) => i.invitee_user_id)
+      .filter(Boolean),
     createdAt: t.created_at,
   };
 }
@@ -500,7 +503,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      supabase.from('tasks').select('*, task_labels(label_id), task_assignees(user_id)'),
+      supabase
+        .from('tasks')
+        .select('*, task_labels(label_id), task_assignees(user_id), meeting_invitations(invitee_user_id)'),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
