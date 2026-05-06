@@ -354,6 +354,16 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                 {completedSubs}/{subtasks.length}
               </span>
             )}
+
+            {unreadComments > 0 && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary"
+                title={`${unreadComments} novo${unreadComments > 1 ? 's' : ''} comentário${unreadComments > 1 ? 's' : ''}`}
+              >
+                <MessageSquare className="h-3 w-3" />
+                {unreadComments}
+              </span>
+            )}
           </div>
         </div>
 
