@@ -993,7 +993,7 @@ export function TaskDetailPanel() {
                 </div>
               </details>
             )}
-
+          </div>
 
           {/* Sidebar */}
           <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
