@@ -155,6 +155,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const isAssignAccepted = n.type === 'task_assignment_accepted';
   const isAssignDeclined = n.type === 'task_assignment_declined';
   const isAssignReturned = n.type === 'task_assignment_returned';
+  const isCompleted = n.type === 'task_completed';
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
