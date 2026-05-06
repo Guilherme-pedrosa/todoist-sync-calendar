@@ -21,7 +21,7 @@ interface State {
   fetch: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
-  markReadForConversation: (conversationId: string) => Promise<void>;
+  markReadForConversation: (conversationId: string) => void;
   subscribe: (userId: string) => void;
   unsubscribe: () => void;
   pushLocal: (n: AppNotification) => void;
