@@ -48,6 +48,7 @@ export function NotificationBell() {
         n.type === 'task_assignment_declined' ||
         n.type === 'task_assignment_returned' ||
         n.type === 'task_reminder' ||
+        n.type === 'task_completed' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
         n.type === 'meeting_declined' ||
