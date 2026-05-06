@@ -200,6 +200,8 @@ export function TaskDetailPanel() {
       setComments([]);
       return;
     }
+    // Mark this task's comments as read whenever the panel is open for it.
+    useCommentsStore.getState().clearUnread(task.id);
     let active = true;
     (async () => {
       const { data } = await supabase
