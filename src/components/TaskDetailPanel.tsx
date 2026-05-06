@@ -254,7 +254,7 @@ export function TaskDetailPanel() {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, display_name, avatar_url')
+        .select('user_id, display_name, email, avatar_url')
         .in('user_id', missingCommentAuthorIds);
 
       if (!active) return;
@@ -265,13 +265,13 @@ export function TaskDetailPanel() {
         ...Object.fromEntries(
           profiles.map((p) => [
             p.user_id,
-            { displayName: p.display_name, avatarUrl: p.avatar_url },
+            { displayName: p.display_name, email: p.email, avatarUrl: p.avatar_url },
           ])
         ),
         ...Object.fromEntries(
           missingCommentAuthorIds
             .filter((id) => !found.has(id))
-            .map((id) => [id, { displayName: 'Usuário', avatarUrl: null }])
+            .map((id) => [id, { displayName: null, email: null, avatarUrl: null }])
         ),
       }));
     })();
