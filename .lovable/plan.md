@@ -1,146 +1,85 @@
+## Escopo & garantias
 
-# Diagnóstico — Agenda (/upcoming)
+- **Não toco**: `src/pages/views/UpcomingPage.tsx`, `src/components/WeekGrid*`, `src/components/EventBlock*`, `src/hooks/useUpdateTaskWithRecurrencePrompt.ts`, `src/lib/recurrence.ts`, RLS de `tasks` / `task_assignees` / `meeting_invitations`, e o shape de `src/types/task.ts`.
+- **Não mudo** o filtro do `taskStore`. Todo agrupamento/ordenação/filtro novo da view de Tarefas vive em hooks/selectors locais (`src/lib/tasks/*`).
+- **Detalhe da tarefa**: vou **compartilhar** o `TaskDetailPanel.tsx` atual sem mudanças visuais. Qualquer ajuste visual nele eu trago para sua aprovação antes.
 
-## 1. UpcomingPage.tsx
+## Estado atual do "filtro por responsável" (auditoria)
 
-**Filtro principal `visibleTasks`** (linhas 89–99):
-- Mantém a tarefa se: usuário não autenticado, OU **não há nenhum assignee nem invitee carregado** (fallback "tarefas antigas"), OU `assigneeIds.includes(currentUserId)`, OU `meetingInviteeIds.includes(currentUserId)`.
+Hoje **não existe** um filtro "mostrar só tarefas de X" como o Todoist não tem. O que existe é:
+- **Agrupamento por responsável** no Kanban (`KanbanBoard.tsx` → `GroupBy='assignee'`, `BoardGroupToolbar` em `ProjectPage.tsx` linhas 441-479, opção "Responsável").
+- Atribuição via `AssigneeChip.tsx` + tabela `task_assignees` (campo derivado `assigneeIds` no `Task`).
+- Não há persistência por view, nem multi-seleção, nem filtro real em lista.
 
-**`upcoming`** (101–107): `!completed && !parentId && t.dueDate` (sem corte por data — inclui atrasadas e hoje).
+**Como preservo + evoluo (sem remover):**
+- Mantenho `BoardGroupToolbar` e `GroupBy='assignee'` exatamente como estão.
+- Adiciono um **filtro novo e separado** (`AssigneeFilterMenu`) que coexiste com o agrupamento — filtro restringe linhas, agrupamento organiza colunas/seções.
+- Multi-seleção, avatar + contador no menu, persistência em `localStorage` por view (`taskflow:assigneeFilter:<viewKey>`), atalho `F` via listener global escopado à rota de tarefas.
 
-**`tasksByDay`** (154–205): para cada `visibleTask` sem `parentId` com `dueDate`, expande `recurrenceRule` no range visível (`expandOccurrencesInRange`), ou usa `dueDate` direto. Soma `recurringCompletions` como ocorrências "completed".
+## Mapa de arquivos
 
-Como o filtro lida com cada caso:
-- **Recém-criadas pelo próprio usuário** → o store insere a tarefa otimista incluindo o próprio `userId` em `assigneeIds` (taskStore L660–666). Então passa o filtro. **Mas** o `cleanupLocalCalendarDuplicates` (L233–256) e o `syncGoogleCalendarEvents` (L326–484) podem rodar em seguida no `fetchData()` do realtime e remover a tarefa (ver causa raiz do bug A).
-- **Sem assignee** → fallback do `||` na L95 mantém visível.
-- **Recorrentes** → expandidas via rrule.
-- **Reuniões com convidados pendentes** → invitee aparece em `meetingInviteeIds`, fica visível.
-- **Atrasadas** → visíveis (não há corte).
-- **Concluídas** → ocultas no `upcoming`/`tasksByDay`.
+**Novos** (todos fora de `/upcoming`):
+- `src/lib/tasks/quickAddParser.ts` — parser NL (datas, `#projeto`, `!p1..p4`, `@etiqueta`, `+responsável`).
+- `src/lib/tasks/grouping.ts` — agrupa por "Atrasado / Hoje / dia futuro" e gera chaves estáveis.
+- `src/lib/tasks/useTaskListView.ts` — selector da view (filtro por responsável + agrupamento + ordem manual). Lê `useTaskStore` por seletores primitivos (regra Zustand já memorizada).
+- `src/lib/tasks/useCollapsedSections.ts` — persistência `localStorage` por `viewKey`.
+- `src/lib/tasks/useAssigneeFilter.ts` — multi-seleção + persistência por `viewKey` + atalho `F`.
+- `src/components/tasks/TaskRow.tsx` — linha densa estilo Todoist (bolinha colorida por prioridade, ícones discretos: subtarefa `chevron + N/M`, recorrência, comentário, anexo, mini-avatar).
+- `src/components/tasks/TaskRowHoverActions.tsx` — datepicker inline, prioridade, atribuir, comentar, more-menu (mover/duplicar/excluir). Tap-once em touch.
+- `src/components/tasks/InlineSubtaskAdder.tsx` — "+ Adicionar subtarefa" inline (Enter cria, Esc cancela).
+- `src/components/tasks/SectionHeader.tsx` — header colapsável; no grupo "Atrasado" mostra botão "Reagendar" → datepicker → confirmação.
+- `src/components/tasks/QuickAddInput.tsx` — campo "Adicionar tarefa" com tokens reconhecidos em preview.
+- `src/components/tasks/AssigneeFilterMenu.tsx` — botão + popover com avatares e contador.
+- `src/components/tasks/RescheduleOverdueDialog.tsx` — confirmação do reagendamento em massa.
+- `src/components/tasks/TaskDndContext.tsx` — wrapper `@dnd-kit` para reorder + cross-section.
 
-## 2. taskStore.ts
+**Editados** (mínimo, só plumbing):
+- `src/components/TaskList.tsx` — substitui mapa de linhas por `TaskRow`, adiciona `SectionHeader`, integra `useTaskListView` + `useAssigneeFilter` + DnD. Mantém props, comportamento atual de "completed" e contagens.
+- `src/pages/views/InboxPage.tsx`, `TodayPage.tsx`, `ProjectPage.tsx`, `LabelPage.tsx` — passam `viewKey` ao `TaskList` e renderizam `AssigneeFilterMenu` no header. **Não altero** `BoardGroupToolbar` nem o Kanban.
+- `src/components/AddTaskForm.tsx` — internamente passa pelo `quickAddParser`; se nada for reconhecido, segue 100% como hoje (zero regressão do "Adicionar tarefa" simples).
 
-**Optimistic update no `addTask`** (L545–700):
-1. Resolve workspaceId, faz `INSERT` em `tasks` esperando o retorno (`.select().single()` → L594–603). Não é otimista no DB; é *otimista no store*.
-2. Insere `task_labels`, `task_assignees` (L605–618), `reminders` (L620–658).
-3. Monta `newTask` localmente já com `assigneeIds = [userId, ...extras]` (L660–665).
-4. **`set({ tasks: [newTask, ...state.tasks] })`** — entra no store imediatamente.
-5. Em seguida tenta `createGoogleCalendarEvent` (L668–690) e atualiza `google_calendar_event_id`.
+**Não toco** em: `UpcomingPage.tsx`, `WeekGrid*`, `EventBlock*`, `ScheduleMeetingDialog.tsx`, `useUpdateTaskWithRecurrencePrompt.ts`, `recurrence.ts`, `taskStore.ts` (filtros), `realtimeTasks.ts`.
 
-**Realtime → `fetchData()`** (L497–543):
-- Refaz SELECT completo (sem filtro de range), passa por `cleanupLocalCalendarDuplicates` (L537) e por `syncGoogleCalendarEvents` (L540), e dá `set({ tasks: syncedTasks })` substituindo o array.
-- `cleanupLocalCalendarDuplicates` agrupa por `getTaskDuplicateKey(title+date+time)` e **deleta no banco e no array** todas exceto a primeira (L233–256). A ordenação prioriza quem tem `googleCalendarEventId`. Tarefa recém-criada que ainda **não tem** `google_calendar_event_id` perde para uma sincronizada do GCal com mesmo título/horário, é deletada do banco e some da UI.
-- `syncGoogleCalendarEvents` (L459–478) ainda apaga "órfãos": qualquer tarefa local com `googleCalendarEventId` não visto na resposta do GCal e dentro da janela é DELETADA (`supabase.from('tasks').delete()`). Em corridas de eventual consistência, isso já reportadamente apagou tarefas legítimas.
+## Detalhes por item do briefing
 
-**Pontos onde uma tarefa entra no store sem assignees e some**:
-- `syncGoogleCalendarEvents` (L439–457): tarefas criadas a partir de eventos do GCal entram **sem** `task_assignees`. Como o filtro da Agenda usa o fallback "lista vazia → mostra", elas aparecem; mas se eventualmente o realtime trouxer a versão do banco com array vazio também, segue visível. Sem bug aqui.
-- O bug é o oposto: tarefa do usuário **com** assignees é APAGADA pelo cleanup/orphan logic.
+1. **Seções colapsáveis**: `SectionHeader` + `useCollapsedSections('viewKey')`. "Atrasado" em `text-destructive`, com botão "Reagendar" → `RescheduleOverdueDialog` (datepicker shadcn com `pointer-events-auto`) → atualiza em batch via `updateTask` existente do store (1 chamada por task, dentro de um `Promise.all`). Sem tocar em recorrência.
 
-## 3. realtimeTasks.ts
+2. **Hover actions**: `TaskRowHoverActions` aparece em `group-hover` no desktop e ao primeiro tap em touch (sem abrir detalhe — segundo tap abre). Reusa `DatePickerPopover.tsx`, `AssigneeChip.tsx`, e ações já existentes do store.
 
-- Único channel: `tasks-realtime-${userId}`, evento `*` em `tasks`, `projects`, `sections`, `task_labels`, `task_assignees`, `meeting_invitations` (L18–26).
-- **Sem filtro server-side** — qualquer mudança em qualquer linha que o usuário **possa ler via RLS** dispara `scheduleRefetch` (debounce 400 ms → `fetchData()`).
-- Convidado recebe o evento? Sim, desde que a RLS permita SELECT (RLS de `meeting_invitations`/`task_assignees` libera para o convidado). Não há `filter: created_by=eq.X`.
+3. **Subtarefa inline**: `InlineSubtaskAdder` embaixo da pai expandida. Indentação `pl-6` por nível. Header da pai exibe `chevron + 0/N` quando tem filhos. Reusa `addTask({ parentId })` do store.
 
-## 4. useUpdateTaskWithRecurrencePrompt.ts — fluxo "apenas esta ocorrência"
+4. **Quick add NL parser** (`quickAddParser.ts`):
+   - Datas pt-BR: `hoje`, `amanhã`, `amanhã 14h`, `seg..dom/sex`, `dd/mm`, `dd/mm/aaaa`, `todo dia útil 9h`, `todo dia 5`. Saída: `{ dueDate, dueTime, recurrence? }`.
+   - `#nome` → resolve por `projects[].name` (case/acentos-insensitive).
+   - `!p1..!p4` → `priority: 1..4`.
+   - `@nome` → label existente; se não existir, ignora silenciosamente (não cria sem confirmação).
+   - `+nome` → membro do projeto resolvido; multi-`+` permitido.
+   - **Preview de tokens** abaixo do input, chips removíveis. **Fallback**: se nada reconhece, comportamento idêntico ao `AddTaskForm` atual.
 
-Passos (L94–163):
-1. Confere `occurrenceDate`, `recurrenceRule`, `dueDate`. Se faltar, faz fallback para série.
-2. `addExdateToRecurrence(rule, dueDate, dueTime, occurrenceDate)` gera string com `DTSTART + RRULE + EXDATE` (recurrence.ts L111–142). Usa **horário local do anchor** convertido por `parseISO('YYYY-MM-DDTHH:mm:00')` → **timezone local do navegador** (sem TZID, sem `Z`). Formato `yyyyMMdd'T'HHmmss` floating.
-3. Faz `UPDATE tasks SET recurrence_rule = newRule WHERE id = taskId` direto via supabase (L128–132).
-4. **Atualiza store local com `setLocalRule(newRule)`** (L133) — antes de qualquer confirmação adicional.
-5. Chama `addTask({...})` para criar a ocorrência avulsa com novos valores (L138–149). `addTask` espera o INSERT do banco antes de inserir no store (L594).
-6. Se `addTask` retorna `null`, faz **rollback do recurrence_rule** no banco e no store (L150–154). Se erro lança, toast `"Falha ao editar apenas esta ocorrência"`.
+5. **Filtro por responsável** (mantido + refinado): conforme auditoria acima. Multi-seleção, avatares, contador, persistência por `viewKey`, atalho `F`. **Coexiste** com agrupamento Kanban — nunca substitui.
 
-**Observações relevantes**:
-- O EXDATE não usa TZID, e o `expandOccurrencesInRange` parseia a string com a mesma lógica → consistente em local time **desde que** a hora atual da série coincida com o `dueTime` armazenado. Se a tarefa tem `dueTime = null`, o fallback é `'00:00'` (recurrence.ts L117), gerando EXDATE `T000000` que **não casa** com a hora real da ocorrência expandida → EXDATE é ignorado na expansão e a ocorrência continua aparecendo.
-- O store local é atualizado **depois do UPDATE no banco confirmar** (await), e **antes** do `addTask`. Se o realtime chegar entre o UPDATE e o `addTask` finalizar, o `fetchData()` pode rodar sobre estado intermediário e ainda assim ficar consistente — mas a corrida com `cleanupLocalCalendarDuplicates` pode **apagar** a nova ocorrência avulsa (mesmo título, mesma data, mesmo horário que uma instância da série antes do EXDATE propagar no SELECT).
-- Não há verificação de `created_by`/RLS antes do INSERT da nova tarefa avulsa; se o `taskId` é uma **reunião** ou tarefa em workspace compartilhado onde o usuário tem leitura mas não escrita em `tasks`, o INSERT falha silenciosamente (`addTask` retorna `null`) e o rollback dispara — produzindo o toast "Falha ao editar apenas esta ocorrência".
+6. **DnD** via `@dnd-kit/core` + `@dnd-kit/sortable` (já em uso no Kanban):
+   - Ordem manual persistida em `localStorage` por `viewKey` (`taskflow:taskOrder:<viewKey>`) — mantém a abordagem já presente no `TaskList` (vi `orderOverride` nas linhas 232-244).
+   - Mover entre seções de data muda `dueDate` via `updateTask` (Hoje→amanhã = +1d; Atrasado→Hoje = `today`). Não toca em recorrência.
+   - Kanban segue intocado.
 
-## 5. ScheduleMeetingDialog.tsx + delegação
+7. **Densidade Todoist**: bolinha do checkbox colorida por prioridade (P1 `--destructive`, P2 laranja `--primary`, P3 azul, P4 `--muted-foreground`). Ícones `lucide` em `h-3.5 w-3.5 text-muted-foreground`. Padding linha `py-2`, font `text-sm`. Tudo via tokens semânticos do `index.css` (sem cores hard-coded).
 
-**Ordem dos writes** (handleSubmit, L169–298):
-1. `INSERT tasks` (com `is_meeting=true`, `project_id=inboxId`) → retorna `taskId` (L194–213).
-2. `INSERT meeting_invitations` em batch (L216–234).
-3. `INSERT task_assignees` apenas para o **criador** (L237–240). Erro silenciosamente ignorado.
-4. **Não** insere convidados internos como assignees (comentário L242–244): só viram assignee quando aceitam o convite (via trigger `handle_meeting_invitation_response` no banco).
-5. `google-calendar` edge function (L260–288) tenta criar evento e atualiza `gcal_event_id` na tarefa.
-6. `void fetchData()` (L297) — força refresh.
+## Smoke test obrigatório no Calendário (sem código alterado lá)
 
-**Subtarefas via "delegar tarefa completa"**:
-- `addTask` no taskStore não copia `task_assignees` da pai automaticamente. A cópia depende do componente que dispara a criação (em geral passa `assigneeIds: parent.assigneeIds`). Não há trigger no banco para herança.
+1. Abrir `/upcoming` → confirmar que grade semanal renderiza igual.
+2. Criar tarefa nova com data futura via `QuickAddInput` da Inbox ("amanhã 14h ligar fulano") → abrir `/upcoming` → tarefa aparece na grade no horário certo.
+3. Abrir reunião existente "REUNIÃO RESULTADO FINANCEIRO + TASKFLOW" no `/upcoming` → painel de detalhe abre normalmente, convidados visíveis.
+4. Mover ALMOÇO de hoje via "editar apenas esta ocorrência" → confirmar que o fluxo de recorrência segue chamando `useUpdateTaskWithRecurrencePrompt` sem alteração.
+5. Console limpo: sem novos warnings de Zustand "infinite update".
 
-## 6. Comentários
+## Dependência
 
-- `TaskDetailPanel.tsx` L195–266: SELECT em `comments` filtrado por `task_id`, depois SELECT em `profiles` para os `user_id` distintos não cacheados (L241–266).
-- **RLS `profiles`**:
-  - "Users can view own profile": `auth.uid() = user_id`.
-  - "Workspace members can view each other profiles": permite SELECT quando viewer e dono compartilham um `workspace_members` (qualquer workspace).
-- **Confirmado via SQL** acima. Funciona para usuários no mesmo workspace. **Não funciona** para um convidado externo que tem acesso a uma task via `meeting_invitations` mas **não é membro** de workspace algum em comum — `profiles` não retorna nada, e a UI cai no fallback "Usuário".
+- `@dnd-kit/core` + `@dnd-kit/sortable` (verificar `package.json`; se faltar, `bun add` antes de começar).
 
-## 7. Layout do calendário (Semana)
+## O que **não** vou fazer nesta onda
 
-- Algoritmo em `WeekGrid` L961–1007:
-  1. Cria `items` com `startMin/endMin` por evento.
-  2. Ordena por `startMin` ascendente, ties por `endMin` desc.
-  3. Cluster: enquanto o próximo evento `startMin < clusterEnd`, faz parte do cluster.
-  4. Para cada item no cluster, atribui `col = menor inteiro não usado` entre os ainda ativos.
-  5. No `flush`, `cols[a]` = max colunas entre os que de fato sobrepõem `a`.
-  6. `EventBlock` posiciona: `left: col * (100/cols)%`, `width: (100/cols)% - 4px` (L1138–1158).
-- **Por que blocos saem da coluna**: o cálculo de `cols` no `flush` (L982–989) considera **apenas o cluster atual**, mas o `clusterEnd` cresce de forma transitiva (qualquer evento que toque o anterior expande o cluster). Isso já está OK. O problema visual relatado vem de:
-  1. `cols` é calculado por evento (`maxCols` local), e dois eventos no mesmo cluster podem ter `cols` diferentes; ao misturar `widthPct = 100/cols` distintos, as colunas não somam 100% e os blocos ficam parciais ou invadem o vizinho.
-  2. `MIN_EVENT_HEIGHT = 22` e textos longos no card → `truncate` aparece junto com largura mínima (cluster grande → `1/N` da coluna). Em segunda/terça, vários eventos curtos sobrepostos geram `cols ≥ 3`, cada bloco ocupa ~33% da coluna do dia → texto truncado.
-  3. O `width: calc(100/cols% - 4px)` com `cols` variando entre eventos do mesmo cluster gera o "saindo da coluna" (somatório > 100% quando `cols` de um é menor que o real).
-
-Componente/função responsáveis: `WeekGrid` (IIFE em L961–1007) + `EventBlock` (L1137–1158).
-
-## 8. Estilo "concluído"
-
-- `EventBlock` (L1106–1112): `isDone = task.completed || isRecurringCompletion`. `variantClasses` aplica `bg-success/15` etc. Strikethrough no título: `cn('truncate', isDone && 'line-through')` (renderização do título do bloco).
-- `TaskItem.tsx` aplica strikethrough quando `task.completed === true`.
-- **Caminho onde aparece sem `completed=true`**: ocorrências históricas de `recurring_task_completions` (UpcomingPage L188–200) constroem um `Task` sintético com `completed: true, isRecurringCompletion: true`. Está correto, mas o id é `recurring-completion:${id}` — qualquer comparação por `task.id` em outras telas falha. Não há outro caminho aplicando `line-through` sem `completed`.
-
----
-
-## Causas raiz dos bugs
-
-### Bug A — Tarefa criada na Agenda some, mas fica no banco
-
-**Cadeia**:
-1. `addTask` insere no DB e adiciona ao store imediatamente (taskStore L666). Tarefa **aparece**.
-2. Realtime do INSERT em `tasks` dispara `scheduleRefetch` → `fetchData()` em 400 ms.
-3. `fetchData` chama `cleanupLocalCalendarDuplicates` (L233–256) e/ou `syncGoogleCalendarEvents` (L459–478):
-   - **Cleanup duplicates**: agrupa por `título+date+time`. Se o usuário tem GCal conectado, a sincronização que aconteceu no fetch anterior pode ter trazido um evento com mesmo título/horário (próprio evento criado segundos antes pelo `createGoogleCalendarEvent` retornando assíncrono). A nova tarefa local sem `googleCalendarEventId` ainda fica em segundo lugar na ordenação → **DELETADA do DB** e do array.
-   - **Orphan delete**: se a nova tarefa **tem** `googleCalendarEventId` mas o GCal ainda não retorna o evento (latência da API), ela é considerada órfã e **DELETADA**.
-4. Resultado: tarefa some da UI; (no banco depende de qual ramo) — quando o usuário diz "fica no banco" é o caso em que o orphan/cleanup falha em apagar (ex.: `delete()` sem checagem de RLS retorna OK mas linha persiste por race) ou que a deleção ainda não propagou.
-5. Mesmo cenário ocorre quando usuário **convidado** vê a reunião: para ele Google Sync não roda nessa tarefa, mas o `cleanupLocalCalendarDuplicates` continua agrupando — se ele não tem evento gêmeo, fica intacto. Bug é específico de quem tem GCal conectado e/ou de quem cria pela Agenda.
-
-**Hipótese principal**: `cleanupLocalCalendarDuplicates` + `syncGoogleCalendarEvents` rodam em todo `fetchData()` sem janela de proteção para tarefas recém-criadas, deletando-as. Antes era um patch para Google Calendar; hoje é o pior ofensor da Agenda.
-
-### Bug B — "Editar apenas esta ocorrência" do ALMOÇO de hoje não muda nada
-
-**Hipóteses, em ordem de probabilidade**:
-1. **EXDATE com horário desalinhado**: se a série armazenada tem `DTSTART:...T130000` mas a expansão consulta `dueTime='13:00'` enquanto o `addExdateToRecurrence` foi chamado com `dueTime` diferente (ex.: `null`), o EXDATE gerado fica `T000000` e **não suprime** a ocorrência → o item original continua aparecendo, lado a lado com a nova "avulsa". Visualmente parece "não mudou nada" (na verdade duplicou).
-2. **`addTask` retorna `null`** porque a tarefa avulsa entra no fluxo do `cleanupLocalCalendarDuplicates` no `fetchData()` que o realtime do UPDATE de `recurrence_rule` dispara: a nova ocorrência tem mesmo `título+date+time` que uma expansão "viva" da série (antes do EXDATE estar refletido no SELECT) → é deletada como duplicata. Rollback do hook restaura o rule original → ocorrência também volta. Resultado: nada muda.
-3. **RLS/ownership**: ALMOÇO é tarefa em workspace compartilhado (WEDO). `addTask` insere com `user_id=auth.uid()` e força `project_id` da pai original (`task.projectId`). Se esse projeto exige `auth.uid() = user_id` no INSERT (policy `tasks_insert`) **e** `has_project_access`, mas a tarefa original pertence a outro `user_id`, a nova insertada com `user_id` do usuário atual passa — exceto se `has_project_access` for `false` para esse projeto naquele workspace. Improvável aqui (caixa de entrada pessoal), mas possível para reuniões.
-4. **Timing do realtime + `setLocalRule`**: o `setLocalRule` otimista é sobrescrito quando `fetchData()` chega 400 ms depois com a `recurrence_rule` antiga (caso o UPDATE não tenha propagado ao SELECT no replica). A combinação com o `addTask` falhando reverte tudo.
-
----
-
-## Ordem recomendada de correção
-
-1. **Desligar o `cleanupLocalCalendarDuplicates` e o "orphan delete" do `syncGoogleCalendarEvents`** para tarefas criadas nos últimos N segundos (janela de quarentena de ~30 s baseada em `createdAt`). Eliminar `supabase.delete()` cego em `fetchData()`. *(resolve bug A e desbloqueia bug B)*
-2. **Corrigir `addExdateToRecurrence`**: derivar a hora do `EXDATE` a partir do `DTSTART` real da regra (parsear `DTSTART:` se presente), não do `dueTime` da tarefa. Garantir que se `dueTime` for `null`, ler `BYHOUR/BYMINUTE` ou usar `floating date` (`VALUE=DATE`). *(corrige bug B principal)*
-3. **No hook**, **não** atualizar store local com `setLocalRule` antes do `addTask` retornar — agrupar em uma única transição e só dar `setState` quando ambos OK. Considerar `useTaskStore.setState` adicionando o novo task **junto** com a mudança de rule, dentro de um `try` único. *(blinda contra realtime intermediário)*
-4. **Substituir o channel realtime único por filtros mais granulares** ou ao menos suprimir o `fetchData` quando o evento veio de uma operação local em curso (flag "I just wrote, ignore next echo"). *(reduz cascata)*
-5. **RLS de `profiles`** estender para "compartilha acesso a uma task" (LEFT JOIN com `task_assignees`/`meeting_invitations`) — só assim convidado externo vê o autor do comentário.
-6. **Layout WeekGrid**: usar `cols` por **cluster** (constante para todos do cluster, = max colunas reais), não por evento. Garantir que `Σ widthPct = 100%` e remover o `-4px` de `width` (mover para `padding`).
-7. **EventBlock strikethrough**: nada a corrigir; já está acoplado a `isDone`.
-
----
-
-## Detalhes técnicos
-
-- Arquivos-chave: `src/store/taskStore.ts` (L233–256, 326–484, 545–700, 497–543), `src/lib/realtimeTasks.ts` (todo), `src/hooks/useUpdateTaskWithRecurrencePrompt.ts` (L94–163), `src/lib/recurrence.ts` (L111–142), `src/pages/views/UpcomingPage.tsx` (L89–205, 961–1007, 1100–1158), `src/components/ScheduleMeetingDialog.tsx` (L169–298), `src/components/TaskDetailPanel.tsx` (L195–266).
-- RLS atual de `profiles` confirmada via `pg_policy`: 4 políticas (own + workspace members).
-- `has_task_access` já considera `task_assignees` e `meeting_invitations`, mas `profiles` **não** usa essa função — é a lacuna do item 5.
+- Sem mudar visual do `TaskDetailPanel`.
+- Sem novos campos no DB.
+- Sem migração SQL.
+- Sem mexer em `/upcoming` ou recorrência.
