@@ -66,10 +66,12 @@ const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
 const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
 
 export async function ensureFreshSession(): Promise<Session | null> {
+  console.info('[addTask] step=session-check');
   const { data, error } = await supabase.auth.getSession();
   const session = data.session;
 
   if (error || !session) {
+    console.warn('[addTask] aborted reason=session-null', { error });
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
@@ -81,6 +83,7 @@ export async function ensureFreshSession(): Promise<Session | null> {
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed.session) {
+    console.warn('[addTask] aborted reason=refresh-failed', { refreshError });
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
