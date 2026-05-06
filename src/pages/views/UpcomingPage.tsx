@@ -499,10 +499,12 @@ function WeekGrid({
       const box = createBoxRef.current;
       setCreateBox(null);
       if (box && box.endMin - box.startMin >= MIN_TASK_MINUTES) {
+        const inboxProject = useTaskStore.getState().projects.find((p) => p.isInbox);
         openQuickAdd({
           defaultDueDate: box.dayKey,
           defaultDueTime: minutesToTime(box.startMin),
           defaultDurationMinutes: box.endMin - box.startMin,
+          defaultProjectId: inboxProject?.id ?? null,
         });
       }
     }
@@ -712,10 +714,12 @@ function WeekGrid({
                   setDrag({ kind: 'create', dayKey: k, startMin });
                 }}
                 onClickEmpty={(startMin) => {
+                  const inboxProject = useTaskStore.getState().projects.find((p) => p.isInbox);
                   openQuickAdd({
                     defaultDueDate: k,
                     defaultDueTime: minutesToTime(startMin),
                     defaultDurationMinutes: DEFAULT_DURATION,
+                    defaultProjectId: inboxProject?.id ?? null,
                   });
                 }}
                 onStartMove={(taskId, pointerOffsetMin, durationMin, startMin, clientX, clientY) => {
