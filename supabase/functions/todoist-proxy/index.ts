@@ -477,6 +477,7 @@ serve(async (req) => {
       let skippedDeleted = 0;
       let skippedExisting = 0;
       let adoptedLegacy = 0;
+      let adoptionConflicts = 0;
 
       const tasksToInsert: { task: TodoistTask; row: any }[] = [];
       for (const tt of tdTasks) {
