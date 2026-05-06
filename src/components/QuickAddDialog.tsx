@@ -673,6 +673,10 @@ export function QuickAddDialog() {
     return (
       <Drawer open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
         <DrawerContent className="max-h-[90vh] p-0">
+          <DrawerTitle className="sr-only">Adicionar tarefa</DrawerTitle>
+          <DrawerDescription className="sr-only">
+            Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
+          </DrawerDescription>
           <div className="relative pb-2">{body}</div>
         </DrawerContent>
       </Drawer>
