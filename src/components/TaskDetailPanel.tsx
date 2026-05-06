@@ -57,6 +57,8 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { ChatThread } from '@/components/ChatThread';
+import { useChatStore } from '@/store/chatStore';
 import { TaskActivityLog } from '@/components/TaskActivityLog';
 import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { AssigneeChip } from '@/components/AssigneeChip';
@@ -181,6 +183,12 @@ export function TaskDetailPanel() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const ensureTaskConversation = useChatStore((s) => s.ensureTaskConversation);
+  const conversations = useChatStore((s) => s.conversations);
+  const unreadByConversation = useChatStore((s) => s.unreadByConversation);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
@@ -189,6 +197,17 @@ export function TaskDetailPanel() {
     setTitleDraft(task.title);
     setDescDraft(task.description ?? '');
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lookup existing chat conversation for this task (don't auto-create)
+  useEffect(() => {
+    if (!task?.id) {
+      setChatConversationId(null);
+      setChatOpen(false);
+      return;
+    }
+    const existing = conversations.find((c) => c.taskId === task.id);
+    setChatConversationId(existing?.id ?? null);
+  }, [task?.id, conversations]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -798,8 +817,51 @@ export function TaskDetailPanel() {
               )}
             </div>
 
-            {/* Task conversation launcher */}
-            {task.id && <TaskConversationButton taskId={task.id} />}
+            {/* Task conversation launcher (toggles side panel) */}
+            {task.id && (
+              <div className="pt-4 border-t border-border">
+                <Button
+                  variant={chatOpen ? 'default' : 'outline'}
+                  size="sm"
+                  className="w-full justify-start gap-2"
+                  disabled={chatLoading}
+                  onClick={async () => {
+                    if (chatOpen) {
+                      setChatOpen(false);
+                      return;
+                    }
+                    if (chatConversationId) {
+                      setChatOpen(true);
+                      return;
+                    }
+                    setChatLoading(true);
+                    try {
+                      const id = await ensureTaskConversation(task.id);
+                      if (id) {
+                        setChatConversationId(id);
+                        setChatOpen(true);
+                      }
+                    } finally {
+                      setChatLoading(false);
+                    }
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>
+                    {chatLoading
+                      ? 'Abrindo conversa...'
+                      : chatOpen
+                        ? 'Fechar conversa'
+                        : 'Conversa da tarefa'}
+                  </span>
+                  {chatConversationId && (unreadByConversation[chatConversationId] || 0) > 0 && !chatOpen && (
+                    <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full text-[10px] bg-primary text-primary-foreground flex items-center justify-center">
+                      {(unreadByConversation[chatConversationId] || 0) > 99 ? '99+' : unreadByConversation[chatConversationId]}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
 
             {/* Activity log */}
             {task.id && <TaskActivityLog taskId={task.id} />}
@@ -1177,6 +1239,27 @@ export function TaskDetailPanel() {
               </button>
             </DetailRow>
           </aside>
+
+          {/* Chat side column (toggled) */}
+          {chatOpen && chatConversationId && (
+            <div className="w-full lg:w-[380px] lg:border-l border-border bg-background flex flex-col lg:shrink-0 lg:max-h-[calc(100vh-7rem)]">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5" /> Conversa
+                </span>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="p-1 hover:bg-muted rounded text-muted-foreground"
+                  aria-label="Fechar conversa"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 min-h-[400px] lg:min-h-0 overflow-hidden">
+                <ChatThread conversationId={chatConversationId} compact />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
