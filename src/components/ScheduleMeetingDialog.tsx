@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceStore, type WorkspaceMember } from '@/store/workspaceStore';
-import { useTaskStore } from '@/store/taskStore';
+import { ensureFreshSession, useTaskStore } from '@/store/taskStore';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -166,6 +166,10 @@ export function ScheduleMeetingDialog({
       toast.error('Adicione pelo menos um convidado');
       return;
     }
+
+    const session = await ensureFreshSession();
+    if (!session) return;
+    const currentUserId = session.user.id;
 
     setSubmitting(true);
     try {
