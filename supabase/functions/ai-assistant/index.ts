@@ -78,8 +78,6 @@ interface BasePayload {
   projectCatalog?: { id: string; name: string; isInbox?: boolean }[];
   // Membros do workspace (para assign_task referenciar usuários por id real)
   memberCatalog?: { userId: string; name: string; email?: string | null }[];
-  // Eventos do Google Calendar (para gerenciar eventos do calendário)
-  calendarEvents?: { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[];
 }
 
 function toMinutes(time?: string | null) {
@@ -101,7 +99,7 @@ function isPastForToday(date: string | undefined, time: string | undefined, p: B
 }
 
 const BASE_PROMPT = `
-Você é o assistente de produtividade do TaskFlow, app pessoal que sincroniza Todoist e Google Calendar.
+Você é o assistente de produtividade do TaskFlow.
 
 IDIOMA: Português do Brasil. Direto, sem floreio, sem "claro!", sem "espero ter ajudado".
 
@@ -109,7 +107,6 @@ FUSO E DATA: O contexto sempre traz \`now\` em ISO com fuso America/Sao_Paulo. N
 
 DADOS DISPONÍVEIS:
 - tasks: {id, content, priority (1=baixa…4=urgente/P1), due, duration(min), labels, project}
-- events: {id, title, start, end, calendar} — TODOS os bloqueios do Calendar (incluindo almoço, pausas, pessoais)
 - holidays: feriados BR
 - userProfile: {workStart, workEnd, focusBlocks, energyPattern}
 - now, targetDate
@@ -268,13 +265,7 @@ function buildContextBlock(p: BasePayload): string {
     .slice(0, 100)
     .map((m) => `- userId=${m.userId} | ${m.name}${m.email ? ` <${m.email}>` : ""}`)
     .join("\n");
-  const eventsBlock = (p.calendarEvents ?? [])
-    .slice(0, 100)
-    .map(
-      (e) =>
-        `- eventId=${e.id} | ${e.title}${e.date ? ` | ${e.date}${e.time ? ` ${e.time}` : ""}` : ""}${e.durationMinutes ? ` | ${e.durationMinutes}min` : ""}`,
-    )
-    .join("\n");
+
 
   return [
     "CONTEXTO DO USUÁRIO:",
@@ -284,7 +275,7 @@ function buildContextBlock(p: BasePayload): string {
     `- workStart: ${ws} | workEnd: ${we}`,
     p.userProfile?.energyPattern ? `- energyPattern: ${p.userProfile.energyPattern}` : "",
     "",
-    "TASKS + EVENTS DO PERÍODO (cada item já marcado é bloqueio absoluto — eventos do Google Calendar incluídos):",
+    "TASKS DO PERÍODO (cada item já marcado é bloqueio absoluto):",
     sched || "(vazio)",
     "",
     catalog ? "CATÁLOGO DE TAREFAS (use estes ids em tool calls):" : "",
@@ -295,9 +286,6 @@ function buildContextBlock(p: BasePayload): string {
     "",
     membersBlock ? "CATÁLOGO DE MEMBROS (use estes userId em assign_task):" : "",
     membersBlock,
-    "",
-    eventsBlock ? "CATÁLOGO DE EVENTOS DO CALENDÁRIO (use estes eventId em delete_calendar_event):" : "",
-    eventsBlock,
     "",
     "FERIADOS BR:",
     hol || "(nenhum no período)",
@@ -686,56 +674,6 @@ Deno.serve(async (req) => {
                   reason: { type: "string", description: "Resumo curto do porquê" },
                 },
                 required: ["items"],
-                additionalProperties: false,
-              },
-            },
-          },
-          {
-            type: "function",
-            function: {
-              name: "create_calendar_event",
-              description: "Cria um evento direto no Google Calendar (sem virar tarefa). Use para bloqueios de tempo, foco, pausas.",
-              parameters: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  date: { type: "string", description: "YYYY-MM-DD" },
-                  time: { type: "string", description: "HH:mm" },
-                  durationMinutes: { type: "number" },
-                  allDay: { type: "boolean" },
-                },
-                required: ["title", "date"],
-                additionalProperties: false,
-              },
-            },
-          },
-          {
-            type: "function",
-            function: {
-              name: "delete_calendar_event",
-              description: "Apaga um evento específico do Google Calendar. Use eventId do CATÁLOGO DE EVENTOS.",
-              parameters: {
-                type: "object",
-                properties: {
-                  eventId: { type: "string" },
-                },
-                required: ["eventId"],
-                additionalProperties: false,
-              },
-            },
-          },
-          {
-            type: "function",
-            function: {
-              name: "clear_calendar_day",
-              description: "Apaga TODOS os eventos do Google Calendar de um dia inteiro. Operação destrutiva.",
-              parameters: {
-                type: "object",
-                properties: {
-                  date: { type: "string", description: "YYYY-MM-DD" },
-                },
-                required: ["date"],
                 additionalProperties: false,
               },
             },
