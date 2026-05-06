@@ -875,6 +875,7 @@ export default function SettingsPage() {
                 </Section>
               </Section>
             </TabsContent>
+            )}
 
             <TabsContent value="api" className="space-y-6 mt-0">
               <ApiKeysPanel />
