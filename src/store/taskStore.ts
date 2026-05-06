@@ -217,15 +217,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = ENABLE_GOOGLE_CALENDAR
-      ? await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask))
-      : (tasksRes.data || []).map(mapDbTaskToTask);
+    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
 
-    const syncedTasks = ENABLE_GOOGLE_CALENDAR
-      ? await syncGoogleCalendarEvents(userId, tasks, projects.find((p) => p.isInbox)?.id)
-      : tasks;
-
-    set({ projects, labels, tasks: syncedTasks, loading: false });
+    set({ projects, labels, tasks, loading: false });
   },
 
   addTask: async (taskData, options) => {
