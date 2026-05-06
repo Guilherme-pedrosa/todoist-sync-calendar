@@ -114,11 +114,6 @@ export function addExdateToRecurrence(
   anchorTime: string | null | undefined,
   exceptionDate: string
 ): string {
-  const time = anchorTime || '00:00';
-  const dtstartLocal = parseISO(`${anchorDate}T${time}:00`);
-  const exLocal = parseISO(`${exceptionDate}T${time}:00`);
-  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
-
   const trimmed = recurrenceRule.trim();
   const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
@@ -132,6 +127,19 @@ export function addExdateToRecurrence(
     else if (/^RRULE[:;]/i.test(line)) rrule = line;
     else if (/^[A-Z]+=/i.test(line)) rrule = `RRULE:${line}`;
   }
+
+  // Hora do EXDATE precisa casar com a do DTSTART real da regra; se não
+  // existir, cai para o anchorTime/00:00. Isso evita gerar EXDATE T000000
+  // que o rrule ignora silenciosamente.
+  let timeHHMM = anchorTime || '00:00';
+  if (dtstart) {
+    const m = dtstart.match(/T(\d{2})(\d{2})(\d{2})/);
+    if (m) timeHHMM = `${m[1]}:${m[2]}`;
+  }
+
+  const dtstartLocal = parseISO(`${anchorDate}T${timeHHMM}:00`);
+  const exLocal = parseISO(`${exceptionDate}T${timeHHMM}:00`);
+  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
 
   if (!dtstart) dtstart = `DTSTART:${fmt(dtstartLocal)}`;
   if (!rrule) rrule = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
