@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
 import { useUndoStore } from '@/store/undoStore';
-import { addExdateToRecurrence, rewriteRecurrenceAnchor } from '@/lib/recurrence';
+import { addExdateToRecurrence, rewriteRecurrenceAnchor, nextOccurrence } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -99,13 +99,6 @@ export function useUpdateTaskWithRecurrencePrompt() {
       }
 
       try {
-        const newRule = addExdateToRecurrence(
-          task.recurrenceRule,
-          task.dueDate,
-          task.dueTime,
-          occurrenceDate
-        );
-
         // Build the standalone task with the *new* scheduling values.
         const newDueDate =
           updates.dueDate !== undefined ? (updates.dueDate as string | null) : occurrenceDate;
@@ -116,15 +109,32 @@ export function useUpdateTaskWithRecurrencePrompt() {
             ? (updates.durationMinutes as number | null)
             : task.durationMinutes ?? null;
 
-        const setLocalRule = (rule: string | null) => {
-          useTaskStore.setState((state) => ({
-            tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, recurrenceRule: rule } : t)),
-          }));
-        };
+        // Estratégia anti-duplicata: em vez de EXDATE (que sofre desalinhamento
+        // entre DTSTART floating e horário local), avançamos a ÂNCORA da série
+        // para a próxima ocorrência após `occurrenceDate`. Isso remove a
+        // ocorrência editada da série de forma determinística e deixa a tarefa
+        // avulsa ocupar o slot remanejado.
+        const seriesUpdates: Partial<Task> = {};
+        const next = nextOccurrence(task.recurrenceRule, occurrenceDate, task.dueTime ?? undefined);
+        if (next) {
+          seriesUpdates.dueDate = next.dueDate;
+          if (next.dueTime !== undefined) seriesUpdates.dueTime = next.dueTime;
+          seriesUpdates.recurrenceRule = rewriteRecurrenceAnchor(
+            task.recurrenceRule,
+            next.dueDate,
+            next.dueTime ?? task.dueTime ?? null,
+          );
+        } else {
+          // Sem próxima ocorrência: aplica EXDATE como fallback.
+          seriesUpdates.recurrenceRule = addExdateToRecurrence(
+            task.recurrenceRule,
+            task.dueDate,
+            task.dueTime,
+            occurrenceDate,
+          );
+        }
 
         // 1) Cria primeiro a tarefa standalone (sem copiar googleCalendarEventId).
-        //    Isso evita que o realtime do UPDATE da série dispare antes da nova
-        //    ocorrência existir e que o usuário fique sem nenhuma das duas.
         const createdTask = await addTask({
           title: task.title,
           description: task.description ?? '',
@@ -141,24 +151,18 @@ export function useUpdateTaskWithRecurrencePrompt() {
           throw new Error('Falha ao criar a ocorrência remanejada');
         }
 
-        // 2) Aplica o EXDATE na série original.
-        const { error: ruleError } = await supabase
-          .from('tasks')
-          .update({ recurrence_rule: newRule })
-          .eq('id', taskId);
-        if (ruleError) {
-          // Rollback: remove a tarefa avulsa que acabou de ser criada.
-          await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
-          throw ruleError;
-        }
-        setLocalRule(newRule);
+        // 2) Avança a série original.
+        await updateTask(taskId, seriesUpdates);
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,
           undo: async () => {
             await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
-            await supabase.from('tasks').update({ recurrence_rule: task.recurrenceRule }).eq('id', taskId);
-            setLocalRule(task.recurrenceRule);
+            await updateTask(taskId, {
+              dueDate: task.dueDate,
+              dueTime: task.dueTime ?? null,
+              recurrenceRule: task.recurrenceRule,
+            });
           },
         });
       } catch (e) {
