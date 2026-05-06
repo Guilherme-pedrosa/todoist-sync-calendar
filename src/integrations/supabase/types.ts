@@ -2499,6 +2499,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      debug_try_insert_task: { Args: { _project_id: string }; Returns: Json }
+      debug_whoami: { Args: never; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
