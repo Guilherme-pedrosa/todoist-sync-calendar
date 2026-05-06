@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label as UiLabel } from '@/components/ui/label';
@@ -248,55 +248,7 @@ export function ScheduleMeetingDialog({
       //    eles só viram responsáveis (e a reunião aparece no "Em breve" deles)
       //    quando aceitam o convite via NotificationBell.
 
-      // 5) Cria evento no Google Calendar (se conectado e flag ligada)
-      if (ENABLE_GOOGLE_CALENDAR) {
-        try {
-          const allEmails = invitees
-            .map((i) => (i.kind === 'user' ? i.email : i.email))
-            .filter((e): e is string => !!e);
-
-          const endTime = (() => {
-            const [h, m] = time.split(':').map(Number);
-            const total = h * 60 + m + duration;
-            const eh = String(Math.floor((total / 60) % 24)).padStart(2, '0');
-            const em = String(total % 60).padStart(2, '0');
-            return `${eh}:${em}`;
-          })();
-
-          const { data: gcalData, error: gcalError } = await supabase.functions.invoke('google-calendar', {
-            body: {
-              action: 'create-event',
-              taskId,
-              title: title.trim(),
-              description: description.trim() || undefined,
-              date,
-              time,
-              endTime,
-              attendees: allEmails,
-              addMeet,
-              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            },
-          });
-
-          if (!gcalError && gcalData?.id) {
-            const meetUrl =
-              gcalData.hangoutLink ||
-              gcalData.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === 'video')?.uri ||
-              null;
-            await supabase
-              .from('tasks')
-              .update({
-                gcal_event_id: gcalData.id,
-                google_calendar_event_id: gcalData.id,
-                meeting_url: meetUrl,
-              } as any)
-              .eq('id', taskId);
-          }
-        } catch (e) {
-          // GCal pode não estar conectado — segue sem bloquear
-          console.warn('[meeting] GCal opcional falhou', e);
-        }
-      }
+      // 5) Integração com Google Calendar foi removida do runtime.
 
       toast.success(convertTaskId ? 'Tarefa convertida em reunião!' : 'Reunião agendada!', {
         description: `${invitees.length} convite(s) enviado(s)`,
@@ -371,20 +323,6 @@ export function ScheduleMeetingDialog({
             />
           </div>
 
-          {ENABLE_GOOGLE_CALENDAR && (
-            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Video className="h-4 w-4 text-primary" />
-                <div>
-                  <div className="text-sm font-medium">Criar link do Google Meet</div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Adiciona vídeo automaticamente (se você tem GCal conectado)
-                  </div>
-                </div>
-              </div>
-              <Switch checked={addMeet} onCheckedChange={setAddMeet} />
-            </div>
-          )}
           <div className="space-y-2">
             <UiLabel className="flex items-center gap-1">
               <Users className="h-3.5 w-3.5" /> Convidados *
