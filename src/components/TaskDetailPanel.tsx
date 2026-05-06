@@ -67,6 +67,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
+import { userDisplayName } from '@/lib/userDisplay';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'P1 — Urgente',
@@ -91,12 +92,14 @@ interface CommentRow {
 
 interface CommentAuthor {
   displayName: string | null;
+  email: string | null;
   avatarUrl: string | null;
 }
 
 interface ProfileRow {
   user_id: string;
   display_name: string | null;
+  email: string | null;
   avatar_url: string | null;
 }
 
@@ -252,7 +255,7 @@ export function TaskDetailPanel() {
     (async () => {
       const { data } = await supabase
         .from('profiles')
-        .select('user_id, display_name, avatar_url')
+        .select('user_id, display_name, email, avatar_url')
         .in('user_id', missingCommentAuthorIds);
 
       if (!active) return;
@@ -263,13 +266,13 @@ export function TaskDetailPanel() {
         ...Object.fromEntries(
           profiles.map((p) => [
             p.user_id,
-            { displayName: p.display_name, avatarUrl: p.avatar_url },
+            { displayName: p.display_name, email: p.email, avatarUrl: p.avatar_url },
           ])
         ),
         ...Object.fromEntries(
           missingCommentAuthorIds
             .filter((id) => !found.has(id))
-            .map((id) => [id, { displayName: 'Usuário', avatarUrl: null }])
+            .map((id) => [id, { displayName: null, email: null, avatarUrl: null }])
         ),
       }));
     })();
@@ -822,7 +825,7 @@ export function TaskDetailPanel() {
                   const authorName =
                     c.user_id === user?.id
                       ? 'Você'
-                      : author?.displayName || 'Usuário';
+                      : userDisplayName(author?.displayName, author?.email);
 
                   return (
                     <div key={c.id} className="flex gap-2">

@@ -3,6 +3,7 @@ import { History, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { userDisplayName } from '@/lib/userDisplay';
 
 interface ActivityRow {
   id: string;
@@ -151,7 +152,7 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
   const userName = (uid: string | null) => {
     if (!uid) return 'Sistema';
     const p = profiles[uid];
-    return p?.display_name || p?.email || 'Usuário';
+    return userDisplayName(p?.display_name, p?.email);
   };
 
   const formatFieldValue = (field: string, value: any): string => {
