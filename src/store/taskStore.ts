@@ -613,28 +613,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       })
       .catch((err) => console.warn('FleetDesk sync falhou:', err));
 
-    if (task.googleCalendarEventId) {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-
-        await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            eventId: task.googleCalendarEventId,
-            completed,
-          }),
-        });
-      } catch (error) {
-        console.error('Falha ao sincronizar conclusão com Google Calendar:', error);
-      }
-    }
   },
 
   addProject: async (projectData) => {
