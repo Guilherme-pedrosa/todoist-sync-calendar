@@ -19,6 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Task, Priority } from '@/types/task';
 import { useTaskStore } from '@/store/taskStore';
+import { useCommentsStore } from '@/store/commentsStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCompleteTask } from '@/hooks/useCompleteTask';
