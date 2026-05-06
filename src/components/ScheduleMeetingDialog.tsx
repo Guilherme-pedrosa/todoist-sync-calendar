@@ -367,19 +367,20 @@ export function ScheduleMeetingDialog({
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Video className="h-4 w-4 text-primary" />
-              <div>
-                <div className="text-sm font-medium">Criar link do Google Meet</div>
-                <div className="text-[11px] text-muted-foreground">
-                  Adiciona vídeo automaticamente (se você tem GCal conectado)
+          {ENABLE_GOOGLE_CALENDAR && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-card/50 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Video className="h-4 w-4 text-primary" />
+                <div>
+                  <div className="text-sm font-medium">Criar link do Google Meet</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Adiciona vídeo automaticamente (se você tem GCal conectado)
+                  </div>
                 </div>
               </div>
+              <Switch checked={addMeet} onCheckedChange={setAddMeet} />
             </div>
-            <Switch checked={addMeet} onCheckedChange={setAddMeet} />
-          </div>
-
+          )}
           <div className="space-y-2">
             <UiLabel className="flex items-center gap-1">
               <Users className="h-3.5 w-3.5" /> Convidados *
