@@ -78,7 +78,7 @@ export const useNotificationStore = create<State>((set, get) => ({
     await supabase.from('notifications').update({ read_at: now }).in('id', ids);
   },
 
-  markReadForConversation: async (conversationId) => {
+  markReadForConversation: (conversationId) => {
     const now = new Date().toISOString();
     const matching = get().items.filter(
       (n) => !n.readAt && n.payload?.conversation_id === conversationId
@@ -90,7 +90,6 @@ export const useNotificationStore = create<State>((set, get) => ({
         ids.includes(n.id) ? { ...n, readAt: now } : n
       ),
     });
-    await supabase.from('notifications').update({ read_at: now }).in('id', ids);
   },
 
   pushLocal: (n) => {
