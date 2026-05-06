@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { UsersManagementPanel } from '@/components/settings/UsersManagementPanel';
 import { ApiKeysPanel } from '@/components/settings/ApiKeysPanel';
-import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileSettings } from '@/components/settings/ProfileSettings';
 import { TodoistIntegration } from '@/components/settings/TodoistIntegration';

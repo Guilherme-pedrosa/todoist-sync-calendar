@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label as UiLabel } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Switch } from '@/components/ui/switch';
+
 import { CalendarDays, Clock, Users, X, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -98,7 +98,7 @@ export function ScheduleMeetingDialog({
       setInvitees(seeded);
       setSearch('');
       setEmailDraft('');
-      setAddMeet(true);
+      
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultDate, defaultTime, defaultTitle, defaultDescription, defaultDuration, today]);
