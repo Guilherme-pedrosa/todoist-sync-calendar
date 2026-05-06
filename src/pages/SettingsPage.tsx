@@ -786,8 +786,8 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
-            {ENABLE_GOOGLE_CALENDAR && (
-            <TabsContent value="calendars" className="space-y-6 mt-0">
+            {ENABLE_GOOGLE_CALENDAR ? (
+              <TabsContent value="calendars" className="space-y-6 mt-0">
               <Section title="Google Calendar">
                 <div className="rounded-xl border border-border p-4">
                   <div className="flex items-center justify-between">
@@ -874,8 +874,8 @@ export default function SettingsPage() {
                   </div>
                 </Section>
               </Section>
-            </TabsContent>
-            )}
+              </TabsContent>
+            ) : null}
 
             <TabsContent value="api" className="space-y-6 mt-0">
               <ApiKeysPanel />
