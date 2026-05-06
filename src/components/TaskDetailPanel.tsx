@@ -65,6 +65,7 @@ import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'P1 — Urgente',
@@ -796,6 +797,13 @@ export function TaskDetailPanel() {
 
             {/* Activity log */}
             {task.id && <TaskActivityLog taskId={task.id} />}
+
+            {/* Attachments */}
+            {task.id && (
+              <div className="pt-4 border-t border-border">
+                <TaskAttachmentsSection taskId={task.id} />
+              </div>
+            )}
 
             {/* Comments */}
             <div className="pt-4 border-t border-border space-y-3">
