@@ -594,7 +594,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
   addTask: async (taskData, options) => {
     const session = await ensureFreshSession();
-    if (!session) return null;
+    if (!session) {
+      console.warn('[addTask] aborted reason=no-session');
+      return null;
+    }
     const userId = session.user.id;
 
     const inboxProject = get().projects.find((p) => p.isInbox);
@@ -602,6 +605,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const targetProject = targetProjectId
       ? get().projects.find((p) => p.id === targetProjectId)
       : null;
+    console.info('[addTask] step=resolve-project', { projectId: targetProjectId, hasInbox: !!inboxProject });
     // Resolve workspace from target project (every project now has workspace_id)
     let workspaceId: string | null = (targetProject as any)?.workspaceId ?? null;
     if (!workspaceId && targetProjectId) {
@@ -622,6 +626,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         .maybeSingle();
       workspaceId = ws?.id ?? null;
     }
+    console.info('[addTask] step=resolve-workspace', { workspaceId, targetProjectId });
 
     const insertPayload: Record<string, any> = {
       user_id: userId,
@@ -641,17 +646,20 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
     };
+    console.info('[addTask] step=insert-payload', insertPayload);
 
     const { data, error } = await supabase
       .from('tasks')
       .insert(insertPayload as any)
       .select()
       .single();
+    console.info('[addTask] step=insert-response', { id: data?.id, error });
 
     if (error || !data) {
-      console.error('addTask error', error, 'payload:', insertPayload);
+      console.warn('[addTask] aborted reason=insert-failed', { error, payload: insertPayload });
       throw error ?? new Error('Falha ao inserir tarefa (sem dados retornados)');
     }
+    console.info('[addTask] step=local-insert', { id: data.id });
 
     const labelIds = taskData.labels || [];
     if (labelIds.length > 0) {
