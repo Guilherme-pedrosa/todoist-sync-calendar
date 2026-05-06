@@ -144,6 +144,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const fetchData = useTaskStore((s) => s.fetchData);
   const markRead = useNotificationStore((s) => s.markRead);
   const isMention = n.type === 'chat_mention';
+  const isChatMessage = n.type === 'chat_message';
   const isAssigned = n.type === 'task_assigned';
   const isReminder = n.type === 'task_reminder';
   const isInvite = n.type === 'meeting_invite';
@@ -186,6 +187,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
   const title = isMention
     ? 'Você foi mencionado'
+    : isChatMessage
+      ? 'Nova mensagem'
     : isAssigned
       ? 'Nova atividade atribuída a você'
       : isReminder
