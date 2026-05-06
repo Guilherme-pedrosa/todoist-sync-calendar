@@ -466,12 +466,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     const merged = existing ? ({ ...existing, ...updates } as Task) : null;
-    const touchesCalendar =
-      updates.title !== undefined ||
-      updates.description !== undefined ||
-      updates.dueDate !== undefined ||
-      updates.dueTime !== undefined ||
-      updates.durationMinutes !== undefined;
 
 
     // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
