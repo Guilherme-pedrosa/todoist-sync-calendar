@@ -152,7 +152,7 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
   const userName = (uid: string | null) => {
     if (!uid) return 'Sistema';
     const p = profiles[uid];
-    return p?.display_name || p?.email || 'Usuário';
+    return userDisplayName(p?.display_name, p?.email);
   };
 
   const formatFieldValue = (field: string, value: any): string => {
