@@ -817,8 +817,51 @@ export function TaskDetailPanel() {
               )}
             </div>
 
-            {/* Task conversation launcher */}
-            {task.id && <TaskConversationButton taskId={task.id} />}
+            {/* Task conversation launcher (toggles side panel) */}
+            {task.id && (
+              <div className="pt-4 border-t border-border">
+                <Button
+                  variant={chatOpen ? 'default' : 'outline'}
+                  size="sm"
+                  className="w-full justify-start gap-2"
+                  disabled={chatLoading}
+                  onClick={async () => {
+                    if (chatOpen) {
+                      setChatOpen(false);
+                      return;
+                    }
+                    if (chatConversationId) {
+                      setChatOpen(true);
+                      return;
+                    }
+                    setChatLoading(true);
+                    try {
+                      const id = await ensureTaskConversation(task.id);
+                      if (id) {
+                        setChatConversationId(id);
+                        setChatOpen(true);
+                      }
+                    } finally {
+                      setChatLoading(false);
+                    }
+                  }}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>
+                    {chatLoading
+                      ? 'Abrindo conversa...'
+                      : chatOpen
+                        ? 'Fechar conversa'
+                        : 'Conversa da tarefa'}
+                  </span>
+                  {chatConversationId && (unreadByConversation[chatConversationId] || 0) > 0 && !chatOpen && (
+                    <span className="ml-auto h-5 min-w-[20px] px-1.5 rounded-full text-[10px] bg-primary text-primary-foreground flex items-center justify-center">
+                      {(unreadByConversation[chatConversationId] || 0) > 99 ? '99+' : unreadByConversation[chatConversationId]}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            )}
 
             {/* Activity log */}
             {task.id && <TaskActivityLog taskId={task.id} />}
