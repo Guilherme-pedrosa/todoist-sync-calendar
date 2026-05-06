@@ -140,6 +140,11 @@ function mapDbTaskToTask(t: any): Task {
   };
 }
 
+async function getUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser();
+  return data.user?.id ?? null;
+}
+
 function recurrenceCoversTask(series: Task, occurrence: Task) {
   if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
   const day = new Date(`${occurrence.dueDate}T12:00:00`);
