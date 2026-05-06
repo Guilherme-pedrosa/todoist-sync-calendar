@@ -3,6 +3,7 @@ import { History, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { userDisplayName } from '@/lib/userDisplay';
 
 interface ActivityRow {
   id: string;
