@@ -189,6 +189,7 @@ export function TaskDetailPanel() {
   const ensureTaskConversation = useChatStore((s) => s.ensureTaskConversation);
   const conversations = useChatStore((s) => s.conversations);
   const unreadByConversation = useChatStore((s) => s.unreadByConversation);
+  const [creator, setCreator] = useState<{ display_name: string | null; email: string | null } | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync drafts when task changes
