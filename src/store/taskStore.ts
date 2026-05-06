@@ -616,10 +616,13 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask));
-    const inboxProjectId = projects.find((p) => p.isInbox)?.id;
+    const tasks: Task[] = ENABLE_GOOGLE_CALENDAR
+      ? await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask))
+      : (tasksRes.data || []).map(mapDbTaskToTask);
 
-    const syncedTasks = await syncGoogleCalendarEvents(userId, tasks, inboxProjectId);
+    const syncedTasks = ENABLE_GOOGLE_CALENDAR
+      ? await syncGoogleCalendarEvents(userId, tasks, projects.find((p) => p.isInbox)?.id)
+      : tasks;
 
     set({ projects, labels, tasks: syncedTasks, loading: false });
   },
