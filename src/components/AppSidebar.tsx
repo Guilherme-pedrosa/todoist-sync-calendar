@@ -27,7 +27,7 @@ import {
   Filter as FilterIcon,
   Settings,
   User as UserIcon,
-  RefreshCw,
+  
   Users,
   UsersRound,
   FolderKanban,
