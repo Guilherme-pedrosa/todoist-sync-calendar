@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { MessageSquare, AtSign, BellRing } from 'lucide-react';
+import { MessageSquare, AtSign, BellRing, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotificationStore } from '@/store/notificationStore';
