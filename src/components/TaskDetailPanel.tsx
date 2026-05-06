@@ -269,7 +269,7 @@ export function TaskDetailPanel() {
         ...Object.fromEntries(
           missingCommentAuthorIds
             .filter((id) => !found.has(id))
-            .map((id) => [id, { displayName: id.slice(0, 8), avatarUrl: null }])
+            .map((id) => [id, { displayName: 'Usuário', avatarUrl: null }])
         ),
       }));
     })();
@@ -822,7 +822,7 @@ export function TaskDetailPanel() {
                   const authorName =
                     c.user_id === user?.id
                       ? 'Você'
-                      : author?.displayName || c.user_id.slice(0, 8);
+                      : author?.displayName || 'Usuário';
 
                   return (
                     <div key={c.id} className="flex gap-2">
