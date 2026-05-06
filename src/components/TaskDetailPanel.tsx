@@ -210,6 +210,23 @@ export function TaskDetailPanel() {
     setChatConversationId(existing?.id ?? null);
   }, [task?.id, conversations]);
 
+  // Load creator profile
+  useEffect(() => {
+    if (!task?.id) { setCreator(null); return; }
+    let active = true;
+    (async () => {
+      const { data: t } = await supabase.from('tasks').select('user_id').eq('id', task.id).maybeSingle();
+      if (!active || !t?.user_id) { setCreator(null); return; }
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('display_name, email')
+        .eq('user_id', t.user_id)
+        .maybeSingle();
+      if (active) setCreator(p ? { display_name: p.display_name, email: p.email } : null);
+    })();
+    return () => { active = false; };
+  }, [task?.id]);
+
   useEffect(() => {
     const el = titleRef.current;
     if (!el) return;
