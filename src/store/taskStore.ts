@@ -64,6 +64,8 @@ const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
 const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
 
 function isGoogleSyncPaused() {
+  // Feature flag central — quando desligada, sync sempre pausado.
+  if (!ENABLE_GOOGLE_CALENDAR) return true;
   if (typeof window === 'undefined') return true;
   if (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged') {
     localStorage.setItem(GOOGLE_SYNC_PAUSED_KEY, 'true');
