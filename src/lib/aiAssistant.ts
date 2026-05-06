@@ -213,24 +213,10 @@ export type AssistantAction =
         }[];
         reason?: string;
       };
-    }
-  | {
-      type: 'create_calendar_event';
-      args: {
-        title: string;
-        description?: string;
-        date: string;
-        time?: string;
-        durationMinutes?: number;
-        allDay?: boolean;
-      };
-    }
-  | { type: 'delete_calendar_event'; args: { eventId: string } }
-  | { type: 'clear_calendar_day'; args: { date: string } };
+    };
 
 export type ChatContextExtras = {
   members?: { userId: string; name: string; email?: string | null }[];
-  calendarEvents?: { id: string; title: string; date?: string | null; time?: string | null; durationMinutes?: number | null }[];
 };
 
 export async function chatWithAssistant(opts: {
@@ -255,7 +241,6 @@ export async function chatWithAssistant(opts: {
     }));
   const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name, isInbox: !!(p as any).isInbox }));
   const memberCatalog = opts.extras?.members ?? [];
-  const calendarEvents = opts.extras?.calendarEvents ?? [];
 
   return invoke<{ text: string; actions?: AssistantAction[] }>({
     action: 'chat',
@@ -263,7 +248,6 @@ export async function chatWithAssistant(opts: {
     taskCatalog,
     projectCatalog,
     memberCatalog,
-    calendarEvents,
     ...ctx,
   });
 }
