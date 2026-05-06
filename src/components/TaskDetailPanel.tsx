@@ -91,12 +91,14 @@ interface CommentRow {
 
 interface CommentAuthor {
   displayName: string | null;
+  email: string | null;
   avatarUrl: string | null;
 }
 
 interface ProfileRow {
   user_id: string;
   display_name: string | null;
+  email: string | null;
   avatar_url: string | null;
 }
 
