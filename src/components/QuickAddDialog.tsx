@@ -436,16 +436,32 @@ export function QuickAddDialog() {
           onChange={setAssigneeIds}
         />
 
-        {/* Attachment (TODO Fase 4) */}
+        {/* Attachment */}
         <button
           type="button"
-          disabled
-          title="Anexo (em breve)"
-          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-dashed border-border text-muted-foreground/60 cursor-not-allowed"
+          onClick={() => attachInputRef.current?.click()}
+          title="Anexar arquivos"
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+            pendingFiles.length > 0
+              ? 'border-primary/40 text-primary bg-primary/5'
+              : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'
+          )}
         >
-          <Paperclip className="h-3.5 w-3.5" /> Anexo
-          <span className="text-[9px] uppercase font-bold ml-1 px-1 rounded bg-primary/10 text-primary">novo</span>
+          <Paperclip className="h-3.5 w-3.5" />
+          {pendingFiles.length > 0 ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}` : 'Anexo'}
         </button>
+        <input
+          ref={attachInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = e.target.files ? Array.from(e.target.files) : [];
+            if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
+            if (attachInputRef.current) attachInputRef.current.value = '';
+          }}
+        />
 
         {/* Priority */}
         <Popover>
