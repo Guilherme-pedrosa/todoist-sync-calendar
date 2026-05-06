@@ -16,7 +16,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { suggestSlot } from '@/lib/aiAssistant';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -682,6 +682,10 @@ export function QuickAddDialog() {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
       <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
+        <DialogTitle className="sr-only">Adicionar tarefa</DialogTitle>
+        <DialogDescription className="sr-only">
+          Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
+        </DialogDescription>
         <div className="relative">{body}</div>
       </DialogContent>
     </Dialog>
