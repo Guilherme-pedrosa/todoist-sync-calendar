@@ -230,8 +230,14 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
   );
 }
 
+// Janela de quarentena: tarefas criadas há menos de 60s nunca são tratadas como
+// duplicatas — protege itens recém-criados pela Agenda contra deleção em corrida
+// com a sincronização do Google Calendar.
+const DEDUPE_QUARANTINE_MS = 60_000;
+
 async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   const groups = new Map<string, Task[]>();
+  const now = Date.now();
   for (const task of tasks) {
     const key = getTaskDuplicateKey(task);
     if (!key) continue;
@@ -241,6 +247,12 @@ async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
   const duplicateIds = new Set<string>();
   for (const group of groups.values()) {
     if (group.length <= 1) continue;
+    // Só desempata duplicatas quando AMBAS estão fora da quarentena.
+    const allOutsideQuarantine = group.every((t) => {
+      const created = Date.parse(t.createdAt);
+      return Number.isFinite(created) && now - created > DEDUPE_QUARANTINE_MS;
+    });
+    if (!allOutsideQuarantine) continue;
     group.sort((a, b) => {
       if (!!a.googleCalendarEventId !== !!b.googleCalendarEventId) return a.googleCalendarEventId ? -1 : 1;
       return a.createdAt.localeCompare(b.createdAt);
