@@ -133,6 +133,8 @@ export function useUpdateTaskWithRecurrencePrompt() {
             task.dueTime,
             occurrenceDate,
           );
+          seriesUpdates.dueDate = task.dueDate;
+          seriesUpdates.dueTime = task.dueTime ?? null;
         }
 
         const session = await ensureFreshSession();
@@ -150,7 +152,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
           p_new_time: newDueTime ? `${newDueTime}:00` : null,
           p_new_duration: newDuration,
           p_series_due_date: seriesUpdates.dueDate,
-          p_series_due_time: seriesUpdates.dueTime ? `${seriesUpdates.dueTime}:00` : null,
+          p_series_due_time: (seriesUpdates.dueTime ?? task.dueTime) ? `${seriesUpdates.dueTime ?? task.dueTime}:00` : null,
           p_series_recurrence_rule: seriesUpdates.recurrenceRule,
         } as any);
         if (error || !createdTaskId) {
