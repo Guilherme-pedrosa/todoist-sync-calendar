@@ -191,6 +191,7 @@ function ConvLink({
   icon,
   label,
   prefix,
+  muted,
 }: {
   active: boolean;
   unread: number;
@@ -198,6 +199,7 @@ function ConvLink({
   icon: React.ReactNode;
   label: string;
   prefix?: string;
+  muted?: boolean;
 }) {
   return (
     <button
@@ -205,7 +207,8 @@ function ConvLink({
       className={cn(
         'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left',
         active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50 text-foreground/80',
-        unread > 0 && !active && 'font-semibold'
+        unread > 0 && !active && 'font-semibold',
+        muted && !active && 'text-foreground/55'
       )}
     >
       <span className="text-muted-foreground">{icon}</span>
