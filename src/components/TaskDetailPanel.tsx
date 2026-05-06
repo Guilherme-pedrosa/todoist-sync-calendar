@@ -198,6 +198,17 @@ export function TaskDetailPanel() {
     setDescDraft(task.description ?? '');
   }, [task?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Lookup existing chat conversation for this task (don't auto-create)
+  useEffect(() => {
+    if (!task?.id) {
+      setChatConversationId(null);
+      setChatOpen(false);
+      return;
+    }
+    const existing = conversations.find((c) => c.taskId === task.id);
+    setChatConversationId(existing?.id ?? null);
+  }, [task?.id, conversations]);
+
   useEffect(() => {
     const el = titleRef.current;
     if (!el) return;
