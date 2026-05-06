@@ -499,10 +499,12 @@ function WeekGrid({
       const box = createBoxRef.current;
       setCreateBox(null);
       if (box && box.endMin - box.startMin >= MIN_TASK_MINUTES) {
+        const inboxProject = useTaskStore.getState().projects.find((p) => p.isInbox);
         openQuickAdd({
           defaultDueDate: box.dayKey,
           defaultDueTime: minutesToTime(box.startMin),
           defaultDurationMinutes: box.endMin - box.startMin,
+          defaultProjectId: inboxProject?.id ?? null,
         });
       }
     }
