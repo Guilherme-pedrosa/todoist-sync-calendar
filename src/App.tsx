@@ -25,7 +25,7 @@ import ProductivityPage from "./pages/ProductivityPage";
 import ExtensionPage from "./pages/ExtensionPage";
 import EmbedChat from "./pages/EmbedChat";
 import Auth from "./pages/Auth";
-import CalendarCallback from "./pages/CalendarCallback";
+
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -54,14 +54,6 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/embed/chat" element={<EmbedChat />} />
-            <Route
-              path="/calendar-callback"
-              element={
-                <ProtectedRoute>
-                  <CalendarCallback />
-                </ProtectedRoute>
-              }
-            />
             <Route
               element={
                 <ProtectedRoute>
