@@ -161,6 +161,7 @@ export function QuickAddDialog() {
     setSelectedLabels([]);
     setReminders([]);
     setAssigneeIds([]);
+    setPendingFiles([]);
     setLocation_('');
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
