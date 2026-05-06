@@ -462,60 +462,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   >([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Carrega eventos do Google Calendar (próximos 30d) para a IA conseguir referenciá-los
-  useEffect(() => {
-    if (!ENABLE_GOOGLE_CALENDAR) return;
-    if (calendarConnected !== true) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-        const timeMin = new Date().toISOString();
-        const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=list-events&timeMin=${encodeURIComponent(timeMin)}&timeMax=${encodeURIComponent(timeMax)}`;
-        const r = await fetch(url, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-        });
-        if (!r.ok) return;
-        const data = await r.json();
-        const items = Array.isArray(data?.items) ? data.items : [];
-        if (cancelled) return;
-        setCalendarEvents(
-          items.slice(0, 80).map((e: any) => {
-            const startDateTime = e.start?.dateTime ?? null;
-            const endDateTime = e.end?.dateTime ?? null;
-            let date: string | null = e.start?.date ?? null;
-            let time: string | null = null;
-            let durationMinutes: number | null = null;
-            if (startDateTime) {
-              const [d, t] = startDateTime.split('T');
-              date = d;
-              time = t?.slice(0, 5) ?? null;
-              if (endDateTime) {
-                const start = new Date(startDateTime).getTime();
-                const end = new Date(endDateTime).getTime();
-                if (Number.isFinite(start) && Number.isFinite(end)) {
-                  durationMinutes = Math.max(1, Math.round((end - start) / 60000));
-                }
-              }
-            }
-            return { id: e.id, title: e.summary ?? '(sem título)', date, time, durationMinutes };
-          }),
-        );
-      } catch {
-        // silencioso — Calendar pode não estar conectado
-      }
-    };
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [calendarConnected]);
+  // Google Calendar foi removido do runtime — eventos sempre vazios.
+
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
