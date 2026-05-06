@@ -82,9 +82,6 @@ const TAB_ITEMS = [
   { value: 'notifications', icon: BellRing, label: 'Notificações' },
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
-  ...(ENABLE_GOOGLE_CALENDAR
-    ? [{ value: 'calendars', icon: CalendarDays, label: 'Calendários' }]
-    : []),
   { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
@@ -576,14 +573,6 @@ export default function SettingsPage() {
                   value={settings.show_sidebar_counts !== false}
                   onChange={(v) => update({ show_sidebar_counts: v })}
                 />
-                {ENABLE_GOOGLE_CALENDAR && (
-                  <ToggleRow
-                    label="Mostrar status do Google Calendar"
-                    desc="Bloco de conexão no rodapé da barra lateral"
-                    value={settings.show_calendar_status !== false}
-                    onChange={(v) => update({ show_calendar_status: v })}
-                  />
-                )}
                 <Field label="Ordem dos itens">
                   <p className="text-xs text-muted-foreground italic">
                     Atual: {(settings.sidebar_order || []).join(' → ') || 'padrão'}

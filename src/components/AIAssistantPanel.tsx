@@ -514,26 +514,8 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
     }
   };
 
-  const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
-    if (!ENABLE_GOOGLE_CALENDAR) throw new Error('Google Calendar desativado');
-    const { data: sessionData } = await supabase.auth.getSession();
-    const accessToken = sessionData.session?.access_token;
-    if (!accessToken) throw new Error('Sessão expirada');
-    const qs = query ? `&${query}` : '';
-    const r = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=${action}${qs}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: body ? JSON.stringify(body) : undefined,
-      },
-    );
-    if (!r.ok) throw new Error(`Calendar ${action} falhou`);
-    return r.json();
+  const callCalendar = async (_action: string, _body?: Record<string, unknown>, _query?: string): Promise<any> => {
+    throw new Error('Google Calendar foi removido do app.');
   };
 
   const applyActions = async (msgIndex: number) => {
