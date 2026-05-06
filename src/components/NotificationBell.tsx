@@ -185,7 +185,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                 ? UserX
                 : isAssignReturned
                   ? Undo2
-                  : MessageSquare;
+                  : isCompleted
+                    ? CheckCircle2
+                    : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
