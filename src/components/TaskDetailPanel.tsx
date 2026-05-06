@@ -57,6 +57,8 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
+import { ChatThread } from '@/components/ChatThread';
+import { useChatStore } from '@/store/chatStore';
 import { TaskActivityLog } from '@/components/TaskActivityLog';
 import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
 import { AssigneeChip } from '@/components/AssigneeChip';
