@@ -244,52 +244,54 @@ export function ScheduleMeetingDialog({
       //    eles só viram responsáveis (e a reunião aparece no "Em breve" deles)
       //    quando aceitam o convite via NotificationBell.
 
-      // 5) Cria evento no Google Calendar (se conectado)
-      try {
-        const allEmails = invitees
-          .map((i) => (i.kind === 'user' ? i.email : i.email))
-          .filter((e): e is string => !!e);
+      // 5) Cria evento no Google Calendar (se conectado e flag ligada)
+      if (ENABLE_GOOGLE_CALENDAR) {
+        try {
+          const allEmails = invitees
+            .map((i) => (i.kind === 'user' ? i.email : i.email))
+            .filter((e): e is string => !!e);
 
-        const endTime = (() => {
-          const [h, m] = time.split(':').map(Number);
-          const total = h * 60 + m + duration;
-          const eh = String(Math.floor((total / 60) % 24)).padStart(2, '0');
-          const em = String(total % 60).padStart(2, '0');
-          return `${eh}:${em}`;
-        })();
+          const endTime = (() => {
+            const [h, m] = time.split(':').map(Number);
+            const total = h * 60 + m + duration;
+            const eh = String(Math.floor((total / 60) % 24)).padStart(2, '0');
+            const em = String(total % 60).padStart(2, '0');
+            return `${eh}:${em}`;
+          })();
 
-        const { data: gcalData, error: gcalError } = await supabase.functions.invoke('google-calendar', {
-          body: {
-            action: 'create-event',
-            taskId,
-            title: title.trim(),
-            description: description.trim() || undefined,
-            date,
-            time,
-            endTime,
-            attendees: allEmails,
-            addMeet,
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          },
-        });
+          const { data: gcalData, error: gcalError } = await supabase.functions.invoke('google-calendar', {
+            body: {
+              action: 'create-event',
+              taskId,
+              title: title.trim(),
+              description: description.trim() || undefined,
+              date,
+              time,
+              endTime,
+              attendees: allEmails,
+              addMeet,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          });
 
-        if (!gcalError && gcalData?.id) {
-          const meetUrl =
-            gcalData.hangoutLink ||
-            gcalData.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === 'video')?.uri ||
-            null;
-          await supabase
-            .from('tasks')
-            .update({
-              gcal_event_id: gcalData.id,
-              google_calendar_event_id: gcalData.id,
-              meeting_url: meetUrl,
-            } as any)
-            .eq('id', taskId);
+          if (!gcalError && gcalData?.id) {
+            const meetUrl =
+              gcalData.hangoutLink ||
+              gcalData.conferenceData?.entryPoints?.find((e: any) => e.entryPointType === 'video')?.uri ||
+              null;
+            await supabase
+              .from('tasks')
+              .update({
+                gcal_event_id: gcalData.id,
+                google_calendar_event_id: gcalData.id,
+                meeting_url: meetUrl,
+              } as any)
+              .eq('id', taskId);
+          }
+        } catch (e) {
+          // GCal pode não estar conectado — segue sem bloquear
+          console.warn('[meeting] GCal opcional falhou', e);
         }
-      } catch (e) {
-        // GCal pode não estar conectado — segue sem bloquear
-        console.warn('[meeting] GCal opcional falhou', e);
       }
 
       toast.success(convertTaskId ? 'Tarefa convertida em reunião!' : 'Reunião agendada!', {
