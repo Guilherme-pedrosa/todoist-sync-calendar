@@ -82,7 +82,9 @@ const TAB_ITEMS = [
   { value: 'notifications', icon: BellRing, label: 'Notificações' },
   { value: 'backups', icon: Database, label: 'Backups' },
   { value: 'integrations', icon: Plug, label: 'Integrações' },
-  { value: 'calendars', icon: CalendarDays, label: 'Calendários' },
+  ...(ENABLE_GOOGLE_CALENDAR
+    ? [{ value: 'calendars', icon: CalendarDays, label: 'Calendários' }]
+    : []),
   { value: 'api', icon: KeyRound, label: 'API' },
   { value: 'about', icon: Info, label: 'Sobre' },
 ];
