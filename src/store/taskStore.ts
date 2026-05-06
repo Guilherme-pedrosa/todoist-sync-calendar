@@ -45,6 +45,38 @@ interface TaskState {
   setActiveProjectId: (id: string | null) => void;
   setActiveLabelId: (id: string | null) => void;
   toggleSidebar: () => void;
+
+  // Atomic realtime apply actions (no refetch)
+  applyTaskUpsertFromDb: (row: any) => void;
+  applyTaskDelete: (id: string) => void;
+  applyTaskAssigneeChange: (taskId: string, userId: string, op: 'add' | 'remove') => void;
+  applyTaskLabelChange: (taskId: string, labelId: string, op: 'add' | 'remove') => void;
+  applyMeetingInvitationChange: (taskId: string, inviteeUserId: string | null, op: 'add' | 'remove') => void;
+  applyProjectUpsertFromDb: (row: any) => void;
+  applyProjectDelete: (id: string) => void;
+}
+
+export function mapDbTaskRowToTask(t: any): Task {
+  return mapDbTaskToTask(t);
+}
+
+function mapDbProjectToProject(p: any): Project {
+  return {
+    id: p.id,
+    name: p.name,
+    color: p.color,
+    isInbox: p.is_inbox,
+    parentId: p.parent_id || null,
+    isFavorite: !!p.is_favorite,
+    viewType: (p.view_type as 'list' | 'board') || 'list',
+    description: p.description || null,
+    archivedAt: p.archived_at || null,
+    position: p.position ?? 0,
+    workspaceId: p.workspace_id || null,
+    ownerId: p.owner_id || null,
+    teamId: p.team_id || null,
+    visibility: (p.visibility as 'private' | 'team' | 'workspace') || 'private',
+  };
 }
 
 interface GoogleCalendarEvent {
