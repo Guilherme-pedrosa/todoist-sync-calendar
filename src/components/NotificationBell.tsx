@@ -40,7 +40,7 @@ export function NotificationBell() {
   const handleClick = (n: AppNotification) => {
     markRead(n.id);
     setOpen(false);
-    if (n.type === 'chat_mention' && n.payload?.conversation_id) {
+    if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
       navigate(`/conversations/${n.payload.conversation_id}`);
     } else if (
       (n.type === 'task_assigned' ||
