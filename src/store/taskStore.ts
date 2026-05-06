@@ -779,7 +779,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
       if (error) {
         console.error('updateTask error', error);
-        return;
+        throw error;
       }
     }
 
