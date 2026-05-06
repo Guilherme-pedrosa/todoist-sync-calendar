@@ -79,23 +79,7 @@ function mapDbProjectToProject(p: any): Project {
   };
 }
 
-interface GoogleCalendarEvent {
-  id: string;
-  summary?: string;
-  description?: string;
-  start?: {
-    date?: string;
-    dateTime?: string;
-  };
-  end?: {
-    date?: string;
-    dateTime?: string;
-  };
-}
-
-const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
-const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
-const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
+// Google Calendar integration removed. Internal calendar/agenda only.
 
 export async function ensureFreshSession(): Promise<Session | null> {
   console.info('[addTask] step=session-check');
@@ -124,16 +108,6 @@ export async function ensureFreshSession(): Promise<Session | null> {
   return refreshed.session;
 }
 
-function isGoogleSyncPaused() {
-  // Feature flag central — quando desligada, sync sempre pausado.
-  if (!ENABLE_GOOGLE_CALENDAR) return true;
-  if (typeof window === 'undefined') return true;
-  if (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged') {
-    localStorage.setItem(GOOGLE_SYNC_PAUSED_KEY, 'true');
-    return true;
-  }
-  return localStorage.getItem(GOOGLE_SYNC_PAUSED_KEY) !== 'false';
-}
 
 function mapDbTaskToTask(t: any): Task {
   return {
@@ -166,111 +140,9 @@ function mapDbTaskToTask(t: any): Task {
   };
 }
 
-function getCalendarDateAndTime(event: GoogleCalendarEvent): {
-  dueDate?: string;
-  dueTime?: string;
-  durationMinutes?: number | null;
-} {
-  if (event.start?.dateTime) {
-    const [date, timeWithOffset] = event.start.dateTime.split('T');
-    const dueTime = timeWithOffset?.slice(0, 5);
-    const start = new Date(event.start.dateTime);
-    const end = event.end?.dateTime ? new Date(event.end.dateTime) : null;
-    const durationMinutes =
-      end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())
-        ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000))
-        : null;
-    return { dueDate: date, dueTime, durationMinutes };
-  }
-  if (event.start?.date) {
-    return { dueDate: event.start.date, durationMinutes: null };
-  }
-  return {};
-}
-
 async function getUserId(): Promise<string | null> {
   const { data } = await supabase.auth.getUser();
   return data.user?.id ?? null;
-}
-
-async function getGoogleAccessToken(): Promise<string | null> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  return sessionData.session?.access_token ?? null;
-}
-
-function getTaskEndTime(task: Pick<Task, 'dueTime' | 'durationMinutes'>): string | undefined {
-  if (!task.dueTime) return undefined;
-  const [h, m] = task.dueTime.split(':').map(Number);
-  const duration = task.durationMinutes ?? 60;
-  const endDate = new Date(2000, 0, 1, h, m + duration);
-  return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
-}
-
-function normalizeCalendarTitle(value?: string | null) {
-  return (value || '').replace(/^✅\s*/, '').trim().toLowerCase();
-}
-
-function getTaskDuplicateKey(task: Pick<Task, 'title' | 'dueDate' | 'dueTime' | 'completed'>): string | null {
-  if (task.completed || !task.dueDate) return null;
-  return [normalizeCalendarTitle(task.title), task.dueDate, task.dueTime ?? 'all-day'].join('|');
-}
-
-function getCalendarEventDuplicateKey(event: GoogleCalendarEvent): string | null {
-  const parsed = getCalendarDateAndTime(event);
-  if (!parsed.dueDate) return null;
-  return [normalizeCalendarTitle(event.summary), parsed.dueDate, parsed.dueTime ?? 'all-day'].join('|');
-}
-
-function isSameCalendarSlot(task: Task, event: GoogleCalendarEvent) {
-  const parsed = getCalendarDateAndTime(event);
-  return (
-    !task.completed &&
-    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
-    task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null)
-  );
-}
-
-function rangesOverlap(startA?: string | null, durationA?: number | null, startB?: string | null, durationB?: number | null) {
-  if (!startA || !startB) return false;
-  const toMin = (value: string) => {
-    const [h, m] = value.slice(0, 5).split(':').map(Number);
-    return h * 60 + m;
-  };
-  const aStart = toMin(startA);
-  const bStart = toMin(startB);
-  const aEnd = aStart + (durationA ?? 60);
-  const bEnd = bStart + (durationB ?? 60);
-  return aStart < bEnd && bStart < aEnd;
-}
-
-function taskMatchesCalendarEvent(task: Task, event: GoogleCalendarEvent) {
-  const parsed = getCalendarDateAndTime(event);
-  return (
-    !task.completed &&
-    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
-    task.dueDate === parsed.dueDate &&
-    (task.dueTime ?? null) === (parsed.dueTime ?? null)
-  );
-}
-
-function recurrenceCoversCalendarEvent(task: Task, event: GoogleCalendarEvent) {
-  const parsed = getCalendarDateAndTime(event);
-  if (!task.recurrenceRule || !parsed.dueDate || !task.dueDate) return false;
-  const day = new Date(`${parsed.dueDate}T12:00:00`);
-  const occurrences = expandOccurrencesInRange(
-    task.recurrenceRule,
-    task.dueDate,
-    task.dueTime,
-    day,
-    day
-  );
-  return (
-    !task.completed &&
-    occurrences.includes(parsed.dueDate) &&
-    normalizeCalendarTitle(task.title) === normalizeCalendarTitle(event.summary) &&
-    rangesOverlap(task.dueTime, task.durationMinutes, parsed.dueTime, parsed.durationMinutes)
-  );
 }
 
 function recurrenceCoversTask(series: Task, occurrence: Task) {
@@ -283,288 +155,17 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
     day,
     day
   );
+  const normalize = (v?: string | null) => (v || '').replace(/^✅\s*/, '').trim().toLowerCase();
   return (
     series.id !== occurrence.id &&
     !series.completed &&
     !occurrence.completed &&
-    !!occurrence.googleCalendarEventId &&
     occurrences.includes(occurrence.dueDate) &&
-    normalizeCalendarTitle(series.title) === normalizeCalendarTitle(occurrence.title) &&
-    rangesOverlap(series.dueTime, series.durationMinutes, occurrence.dueTime, occurrence.durationMinutes)
+    normalize(series.title) === normalize(occurrence.title) &&
+    (series.dueTime ?? null) === (occurrence.dueTime ?? null)
   );
 }
 
-// Janela de quarentena: tarefas criadas há menos de 60s nunca são tratadas como
-// duplicatas — protege itens recém-criados pela Agenda contra deleção em corrida
-// com a sincronização do Google Calendar.
-const DEDUPE_QUARANTINE_MS = 60_000;
-
-async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
-  // Feature flag: integração GCal desligada → nunca apaga nada local.
-  if (!ENABLE_GOOGLE_CALENDAR) return tasks;
-  const groups = new Map<string, Task[]>();
-  const now = Date.now();
-  for (const task of tasks) {
-    const key = getTaskDuplicateKey(task);
-    if (!key) continue;
-    groups.set(key, [...(groups.get(key) ?? []), task]);
-  }
-
-  const duplicateIds = new Set<string>();
-  for (const group of groups.values()) {
-    if (group.length <= 1) continue;
-    // Só desempata duplicatas quando AMBAS estão fora da quarentena.
-    const allOutsideQuarantine = group.every((t) => {
-      const created = Date.parse(t.createdAt);
-      return Number.isFinite(created) && now - created > DEDUPE_QUARANTINE_MS;
-    });
-    if (!allOutsideQuarantine) continue;
-    group.sort((a, b) => {
-      if (!!a.googleCalendarEventId !== !!b.googleCalendarEventId) return a.googleCalendarEventId ? -1 : 1;
-      return a.createdAt.localeCompare(b.createdAt);
-    });
-    group.slice(1).forEach((task) => duplicateIds.add(task.id));
-  }
-
-  if (duplicateIds.size > 0) {
-    await supabase.from('tasks').delete().in('id', Array.from(duplicateIds));
-  }
-
-  return tasks.filter((task) => !duplicateIds.has(task.id));
-}
-
-async function createGoogleCalendarEvent(task: Task): Promise<string | null> {
-  if (isGoogleSyncPaused()) return null;
-  if (!task.dueDate) return null;
-  const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return null;
-  const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=create-event`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      title: task.title,
-      description: task.description ?? '',
-      date: task.dueDate,
-      time: task.dueTime,
-      endTime: getTaskEndTime(task),
-      allDay: !task.dueTime,
-      durationMinutes: task.durationMinutes ?? 60,
-      taskId: task.id,
-    }),
-  });
-  if (!response.ok) return null;
-  const payload = await response.json();
-  if (payload?.error) return null;
-  return typeof payload?.id === 'string' ? payload.id : null;
-}
-
-async function updateGoogleCalendarEvent(task: Task): Promise<void> {
-  if (isGoogleSyncPaused()) return;
-  if (!task.googleCalendarEventId || !task.dueDate) return;
-  const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return;
-  await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=update-event`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      eventId: task.googleCalendarEventId,
-      title: task.title,
-      description: task.description ?? '',
-      date: task.dueDate,
-      time: task.dueTime || undefined,
-      endTime: getTaskEndTime(task),
-      allDay: !task.dueTime,
-      durationMinutes: task.durationMinutes ?? 60,
-    }),
-  });
-}
-
-async function deleteGoogleCalendarEvent(eventId?: string | null): Promise<void> {
-  if (isGoogleSyncPaused()) return;
-  if (!eventId) return;
-  const accessToken = await getGoogleAccessToken();
-  if (!accessToken) return;
-  await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=delete-event&eventId=${encodeURIComponent(eventId)}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-    },
-  });
-}
-
-async function syncGoogleCalendarEvents(
-  userId: string,
-  currentTasks: Task[],
-  inboxProjectId?: string
-): Promise<Task[]> {
-  if (isGoogleSyncPaused()) return currentTasks;
-
-  const { data: tokenRows, error: tokenError } = await supabase
-    .from('google_tokens')
-    .select('id')
-    .eq('user_id', userId)
-    .limit(1);
-
-  if (tokenError || !tokenRows?.length) return currentTasks;
-
-  const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
-  if (!accessToken) return currentTasks;
-
-  // Janela ampla: 30 dias para trás até 180 dias para frente
-  const startOfRange = new Date();
-  startOfRange.setDate(startOfRange.getDate() - 30);
-  startOfRange.setHours(0, 0, 0, 0);
-  const endOfRange = new Date();
-  endOfRange.setDate(endOfRange.getDate() + 180);
-  endOfRange.setHours(23, 59, 59, 999);
-
-  const params = new URLSearchParams({
-    action: 'list-events',
-    timeMin: startOfRange.toISOString(),
-    timeMax: endOfRange.toISOString(),
-  });
-
-  try {
-    const response = await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?${params.toString()}`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) return currentTasks;
-    const payload = await response.json();
-    const events: GoogleCalendarEvent[] = Array.isArray(payload?.items) ? payload.items : [];
-    if (events.length === 0) return currentTasks;
-
-    let nextTasks = [...currentTasks];
-    const tasksToInsert: Record<string, any>[] = [];
-    const occupiedTaskKeys = new Set(
-      nextTasks.map((task) => getTaskDuplicateKey(task)).filter((key): key is string => Boolean(key))
-    );
-    const seenCalendarKeys = new Set<string>();
-    const seenEventIds = new Set<string>();
-
-    for (const event of events) {
-      if (!event.id) continue;
-      seenEventIds.add(event.id);
-      const { dueDate, dueTime, durationMinutes } = getCalendarDateAndTime(event);
-      const eventKey = getCalendarEventDuplicateKey(event);
-      if (!eventKey || seenCalendarKeys.has(eventKey)) continue;
-      seenCalendarKeys.add(eventKey);
-      const payload = {
-        title: event.summary?.trim() || 'Evento do Google Calendar',
-        description: event.description || null,
-        due_date: dueDate || null,
-        due_time: dueTime ? `${dueTime}:00` : null,
-        duration_minutes: durationMinutes,
-        google_calendar_event_id: event.id,
-      };
-
-      const linkedTask = nextTasks.find((task) => task.googleCalendarEventId === event.id);
-      if (linkedTask) {
-        const collisionTask = nextTasks.find((task) => task.id !== linkedTask.id && isSameCalendarSlot(task, event));
-        if (collisionTask) {
-          if (!collisionTask.googleCalendarEventId) {
-            await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', collisionTask.id);
-          }
-          await supabase.from('tasks').delete().eq('id', linkedTask.id);
-          nextTasks = nextTasks
-            .filter((task) => task.id !== linkedTask.id)
-            .map((task) => (task.id === collisionTask.id ? { ...task, googleCalendarEventId: event.id } : task));
-          continue;
-        }
-
-        const { error: updateError } = await supabase.from('tasks').update(payload).eq('id', linkedTask.id);
-        if (updateError) continue;
-        nextTasks = nextTasks.map((task) =>
-          task.id === linkedTask.id ? mapDbTaskToTask({ ...payload, id: task.id, user_id: userId, completed: task.completed, completed_at: task.completedAt, priority: task.priority, project_id: task.projectId, section_id: task.sectionId, parent_id: task.parentId, recurrence_type: null, recurrence_interval: 1, due_string: task.dueString, deadline: task.deadline, recurrence_rule: task.recurrenceRule, created_at: task.createdAt, task_labels: task.labels.map((label_id) => ({ label_id })) }) : task
-        );
-        continue;
-      }
-
-      if (nextTasks.some((task) => recurrenceCoversCalendarEvent(task, event))) {
-        continue;
-      }
-
-      const duplicateTask = nextTasks.find((task) => isSameCalendarSlot(task, event));
-      if (duplicateTask) {
-        if (!duplicateTask.googleCalendarEventId) {
-          const { error: linkError } = await supabase.from('tasks').update({ google_calendar_event_id: event.id }).eq('id', duplicateTask.id);
-          if (linkError) continue;
-          nextTasks = nextTasks.map((task) =>
-            task.id === duplicateTask.id ? { ...task, googleCalendarEventId: event.id } : task
-          );
-        }
-        continue;
-      }
-
-      if (occupiedTaskKeys.has(eventKey)) continue;
-      occupiedTaskKeys.add(eventKey);
-
-      tasksToInsert.push({
-        user_id: userId,
-        ...payload,
-        priority: 4,
-        project_id: inboxProjectId || null,
-      });
-    }
-
-    let resultTasks = nextTasks;
-    if (tasksToInsert.length > 0) {
-      const { data: insertedRows, error: insertError } = await supabase
-        .from('tasks')
-        .insert(tasksToInsert as any)
-        .select('*, task_labels(label_id), task_assignees(user_id)');
-
-      if (insertError || !insertedRows) return currentTasks;
-      const syncedTasks = insertedRows.map(mapDbTaskToTask);
-      resultTasks = [...syncedTasks, ...nextTasks];
-    }
-
-    // Remove tarefas locais cujo evento do Google Calendar foi apagado/cancelado
-    // dentro da janela sincronizada (evita "fantasmas" no Hoje).
-    // Quarentena: nunca apaga tarefas criadas há menos de DEDUPE_QUARANTINE_MS —
-    // o evento no GCal pode ainda não ter propagado para o list-events.
-    const rangeStartStr = startOfRange.toISOString().split('T')[0];
-    const rangeEndStr = endOfRange.toISOString().split('T')[0];
-    const nowMs = Date.now();
-    const orphanIds = resultTasks
-      .filter((task) => {
-        if (!task.googleCalendarEventId) return false;
-        if (seenEventIds.has(task.googleCalendarEventId)) return false;
-        if (!task.dueDate) return false;
-        if (task.dueDate < rangeStartStr || task.dueDate > rangeEndStr) return false;
-        if (task.completed) return false;
-        const created = Date.parse(task.createdAt);
-        if (Number.isFinite(created) && nowMs - created < DEDUPE_QUARANTINE_MS) return false;
-        return true;
-      })
-      .map((task) => task.id);
-
-    if (orphanIds.length > 0) {
-      await supabase.from('tasks').delete().in('id', orphanIds);
-      resultTasks = resultTasks.filter((task) => !orphanIds.includes(task.id));
-    }
-
-    return resultTasks;
-  } catch (error) {
-    console.error('Falha na sincronização com Google Calendar:', error);
-    return currentTasks;
-  }
-}
 
 export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: [],
@@ -616,15 +217,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = ENABLE_GOOGLE_CALENDAR
-      ? await cleanupLocalCalendarDuplicates((tasksRes.data || []).map(mapDbTaskToTask))
-      : (tasksRes.data || []).map(mapDbTaskToTask);
+    const tasks: Task[] = (tasksRes.data || []).map(mapDbTaskToTask);
 
-    const syncedTasks = ENABLE_GOOGLE_CALENDAR
-      ? await syncGoogleCalendarEvents(userId, tasks, projects.find((p) => p.isInbox)?.id)
-      : tasks;
-
-    set({ projects, labels, tasks: syncedTasks, loading: false });
+    set({ projects, labels, tasks, loading: false });
   },
 
   addTask: async (taskData, options) => {
@@ -784,35 +379,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
-    if (newTask.dueDate && !newTask.completed) {
-      try {
-        if (newTask.googleCalendarEventId) {
-          await updateGoogleCalendarEvent(newTask);
-        } else {
-          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
-          if (googleCalendarEventId) {
-          await supabase
-            .from('tasks')
-            .update({ google_calendar_event_id: googleCalendarEventId })
-            .eq('id', newTask.id);
-          newTask.googleCalendarEventId = googleCalendarEventId;
-          set((state) => ({
-            tasks: state.tasks.map((t) =>
-              t.id === newTask.id ? { ...t, googleCalendarEventId } : t
-            ),
-          }));
-          }
-        }
-      } catch (error) {
-        console.error('Falha ao criar evento no Google Calendar:', error);
-      }
-    }
-
     if (!options?.skipUndo) {
       useUndoStore.getState().push({
         label: `Criar "${newTask.title}"`,
         undo: async () => {
-          await deleteGoogleCalendarEvent(newTask.googleCalendarEventId);
           await supabase.from('tasks').delete().eq('id', newTask.id);
           set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
         },
@@ -896,36 +466,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     const merged = existing ? ({ ...existing, ...updates } as Task) : null;
-    const touchesCalendar =
-      updates.title !== undefined ||
-      updates.description !== undefined ||
-      updates.dueDate !== undefined ||
-      updates.dueTime !== undefined ||
-      updates.durationMinutes !== undefined;
 
-    if (existing && merged && touchesCalendar) {
-      try {
-        if (merged.dueDate && existing.googleCalendarEventId) {
-          await updateGoogleCalendarEvent(merged);
-        } else if (merged.dueDate && !existing.googleCalendarEventId && !merged.completed) {
-          const googleCalendarEventId = await createGoogleCalendarEvent(merged);
-          if (googleCalendarEventId) {
-            await supabase.from('tasks').update({ google_calendar_event_id: googleCalendarEventId }).eq('id', id);
-            set((state) => ({
-              tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId } : t)),
-            }));
-          }
-        } else if (!merged.dueDate && existing.googleCalendarEventId) {
-          await deleteGoogleCalendarEvent(existing.googleCalendarEventId);
-          await supabase.from('tasks').update({ google_calendar_event_id: null }).eq('id', id);
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId: undefined } : t)),
-          }));
-        }
-      } catch (error) {
-        console.error('Falha ao sincronizar atualização com Google Calendar:', error);
-      }
-    }
 
     // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
     const reminderTouched =
@@ -988,11 +529,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
     }));
 
-    if (task?.googleCalendarEventId) {
-      await deleteGoogleCalendarEvent(task.googleCalendarEventId).catch((error) => {
-        console.error('Falha ao remover evento do Google Calendar:', error);
-      });
-    }
 
     if (task && !options?.skipUndo) {
       const userId = await getUserId();
@@ -1077,28 +613,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       })
       .catch((err) => console.warn('FleetDesk sync falhou:', err));
 
-    if (task.googleCalendarEventId) {
-      try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) return;
-
-        await fetch(`${GOOGLE_CALENDAR_FUNCTION_URL}?action=complete-event`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            eventId: task.googleCalendarEventId,
-            completed,
-          }),
-        });
-      } catch (error) {
-        console.error('Falha ao sincronizar conclusão com Google Calendar:', error);
-      }
-    }
   },
 
   addProject: async (projectData) => {

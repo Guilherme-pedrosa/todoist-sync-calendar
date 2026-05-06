@@ -1,69 +1,151 @@
-# Diagnóstico: latência de tarefas e comentários para colaboradores
+## Objetivo
 
-## O que descobri
+Remover Google Calendar do runtime, eliminar a regressão "tarefa apagada volta", consertar o sino de notificações do chat e exibir nomes legíveis em comentários. Sem mexer em RLS. Sem republicar nada automaticamente.
 
-### 1. Realtime de tarefas: refetch global pesado (causa principal da demora)
-Em `src/lib/realtimeTasks.ts`, qualquer evento em `tasks`, `projects`, `sections`, `task_labels`, `task_assignees` ou `meeting_invitations` dispara o mesmo callback `scheduleRefetch`, que:
+Boa notícia: o item de **latência entre colaboradores** (refatoração de `realtimeTasks.ts` + actions atômicas no `taskStore`) já foi entregue na rodada anterior — `applyTaskUpsertFromDb`, `applyTaskDelete`, `applyTaskAssigneeChange`, `applyTaskLabelChange`, `applyMeetingInvitationChange`, `applyProjectUpsertFromDb`, `applyProjectDelete` existem e o realtime aplica payload incremental sem refetch global. Vou apenas validar que nada do plano abaixo regrida isso.
 
-- aguarda **400ms** de debounce
-- chama `useTaskStore.fetchData()`, que faz **3 queries em paralelo** (todos os projetos + todas as labels + todas as tasks com joins de `task_labels`, `task_assignees`, `meeting_invitations`)
-- roda `cleanupLocalCalendarDuplicates` (pode disparar deletes)
-- roda `syncGoogleCalendarEvents` (pode chamar API do Google)
-- só então o `set({...})` atualiza o estado
+---
 
-Resultado: cada mudança feita pelo Colab A leva **400ms + tempo do refetch completo + sync GCal** para aparecer no Colab B. Em workspaces com muitas tarefas, isso vira 2–5s facilmente. Pior: se múltiplos eventos chegam, todos colapsam num único refetch após 400ms — bom para spam, ruim para latência percebida.
+## 1) Remover Google Calendar do runtime
 
-### 2. Comentários: realtime amarrado ao painel da tarefa
-Em `src/components/TaskDetailPanel.tsx` (linha 212), o canal `comments-${task.id}` só existe enquanto o **painel de detalhes daquela tarefa específica está aberto**. Se o Colab B não estiver com o painel aberto, ele não recebe o evento — quando abrir, busca via SELECT inicial, então parece "atrasado". Não há canal global de comentários e nenhum mecanismo de notificação/badge para indicar comentário novo enquanto o painel está fechado.
+Estratégia: deletar o caminho de execução, não esconder atrás de flag. Manter as colunas `google_calendar_event_id` / `gcal_event_id` no banco (elas são nullable e não atrapalham — mexer em schema agora não tem ganho).
 
-### 3. Realtime já está habilitado no banco
-`supabase_realtime` cobre `tasks`, `comments`, `task_assignees`, `task_labels`, `projects`, `sections`, `messages`, `notifications`, `conversations`, `conversation_participants`. `REPLICA IDENTITY FULL` está ok nas tabelas relevantes. Não é problema de configuração.
+### `src/store/taskStore.ts`
+- Remover funções: `createGoogleCalendarEvent`, `updateGoogleCalendarEvent`, `deleteGoogleCalendarEvent`, `syncGoogleCalendarEvents`, `cleanupLocalCalendarDuplicates`, `isGoogleSyncPaused`, helper `GOOGLE_CALENDAR_FUNCTION_URL`.
+- Em `fetchData()`: remover o bloco `ENABLE_GOOGLE_CALENDAR ? cleanup… : …` e o `syncedTasks`. Passa a ser só `tasks: (tasksRes.data || []).map(mapDbTaskToTask)`.
+- Em `addTask` (~789): remover bloco `if (newTask.googleCalendarEventId) … createGoogleCalendarEvent …`.
+- Em `updateTask` (~908): remover os três ramos de update/create/delete de GCal event.
+- Em `deleteTask` (~991): remover o `if (task?.googleCalendarEventId) await deleteGoogleCalendarEvent(...)`. **Esse é o fix do BUG das tarefas zumbi**: sem sync, nada reinjeta.
+- Em recurrence completion (~1080–1094): remover chamada que cria próximo evento no GCal.
+- Manter `googleCalendarEventId` no tipo `Task` e no mapping (read-only) para não quebrar `Database` types — não é gravado em fluxo novo.
+- Remover import de `ENABLE_GOOGLE_CALENDAR`.
 
-## Proposta de correção
+### `src/contexts/AuthContext.tsx`
+- Remover `ENABLE_GOOGLE_CALENDAR` e os 3 blocos protegidos por ela (refresh token, query a `google_tokens`, disconnect endpoint). Substituir por um `connectGoogleCalendar`/`disconnectGoogleCalendar` no-op (ou remover do contexto se nenhum consumer ainda chamar — vou checar). Mais simples: remover totalmente e ajustar consumers em `SettingsPage.tsx`.
 
-### A. Aplicar mudanças incrementais no estado (eliminar refetch global)
-Refatorar `src/lib/realtimeTasks.ts` para processar `payload.new`/`payload.old` por tabela e atualizar diretamente o Zustand:
+### `src/pages/SettingsPage.tsx`
+- Remover seções dentro de `ENABLE_GOOGLE_CALENDAR && (...)` (cards de conexão/cleanup/duplicados).
+- Remover entrada na nav (`...(ENABLE_GOOGLE_CALENDAR ? [...] : [])`).
+- Remover handler `cleanup-duplicates` que faz `fetch` à edge function.
+- Remover import.
 
-- `tasks` INSERT → `addTaskLocal(mapDbTaskToTask(payload.new))`
-- `tasks` UPDATE → `updateTaskLocal(id, partial)`
-- `tasks` DELETE → `removeTaskLocal(id)`
-- `task_labels` / `task_assignees` / `meeting_invitations` → atualizar só o array correspondente da tarefa afetada
-- `projects` / `sections` → atualizar map local
-- Manter `fetchData()` apenas como fallback (ex.: ao montar o app, ao reconectar o canal, ao receber `system` event de erro)
-- Reduzir debounce para 50ms ou eliminar para INSERT/UPDATE de tarefas individuais
+### `src/pages/AppLayout.tsx`
+- Remover bloco que escuta callback OAuth (`ENABLE_GOOGLE_CALENDAR` + `exchange-code`).
+- Remover import.
 
-Adicionar ao `taskStore` actions atômicas: `applyTaskUpsert`, `applyTaskDelete`, `applyAssigneeChange`, `applyLabelChange`, `applyProjectUpsert`, `applySectionUpsert`.
+### `src/pages/CalendarCallback.tsx`
+- Apagar arquivo. Remover rota correspondente em `src/App.tsx`.
 
-### B. Comentários globais + indicador de novo
-Criar um canal global `comments-workspace-${workspaceId}` (ou por usuário) em `src/lib/realtimeTasks.ts` (ou novo `src/lib/realtimeComments.ts`) que:
+### `src/components/AppSidebar.tsx`
+- Remover bloco `ENABLE_GOOGLE_CALENDAR && (...)` (botão Calendar) e import.
 
-- escuta INSERT/UPDATE/DELETE em `comments`
-- mantém um contador "comentários não lidos" por `task_id` em uma store
-- exibe badge na lista de tarefas (ex.: pequeno indicador laranja na linha da tarefa)
-- ao abrir o painel da tarefa, marca como lido
+### `src/components/ScheduleMeetingDialog.tsx`
+- Remover branch `if (ENABLE_GOOGLE_CALENDAR)` que invoca a edge `google-calendar` e grava `gcal_event_id`. Mantém só a criação interna do meeting.
+- Remover toggle de UI gated pela flag.
+- Remover import.
 
-O canal por-task em `TaskDetailPanel` continua existindo para atualização ao vivo enquanto o painel está aberto, mas o canal global garante que o Colab B receba o evento mesmo com o painel fechado.
+### `src/components/AIAssistantPanel.tsx`
+- Remover dois blocos que usam `ENABLE_GOOGLE_CALENDAR` (tool list-events e create-event).
+- Ajustar prompt do assistant para não mencionar Google Calendar como fonte de agenda (a "agenda" passa a ser as `tasks` com `dueDate`/`dueTime`).
+- Remover import.
 
-### C. Saneamento extra
-- Remover `syncGoogleCalendarEvents` do caminho do realtime (ele só deve rodar no boot e em sync manual — hoje ele roda a cada evento realtime, o que multiplica o custo).
-- Remover `cleanupLocalCalendarDuplicates` do caminho do realtime pelo mesmo motivo.
-- Verificar se `NOTIFY pgrst, 'reload schema'` recente não derrubou o canal — se sim, adicionar reconexão automática.
+### `src/config/featureFlags.ts`
+- Remover `ENABLE_GOOGLE_CALENDAR` (e o comentário). Se o arquivo ficar vazio, manter como placeholder com export vazio para não quebrar imports residuais — mas após o passo acima não deve haver nenhum.
 
-## Escopo desta proposta (a executar quando aprovado)
+### Edge function & DB
+- Remover diretório `supabase/functions/google-calendar/` (deleta arquivo `index.ts`).
+- **NÃO** dropar `google_tokens` nem colunas `gcal_event_id` agora — está fora de escopo e exige migration coordenada. Fica como TODO documentado em `mem://`.
 
-1. Refatorar `src/lib/realtimeTasks.ts` com handlers por tabela e updates incrementais.
-2. Adicionar actions atômicas em `src/store/taskStore.ts`.
-3. Criar canal global de `comments` + estado de "não lido" + badge na linha da tarefa.
-4. Remover `syncGoogleCalendarEvents` e `cleanupLocalCalendarDuplicates` do callback realtime (mantendo no boot/manual).
+### Tipos (`src/types/task.ts`)
+- Manter `googleCalendarEventId?` por compatibilidade com `Database` types (é read-only daqui pra frente).
 
-## Validação
+---
 
-- Logar timestamp do evento recebido vs. timestamp do `set()` no console (`[realtime] applied in Xms`).
-- Teste manual: Colab A cria tarefa → Colab B vê em < 1s.
-- Teste manual: Colab A comenta numa tarefa → Colab B vê badge na lista em < 1s; ao abrir painel, comentário aparece imediatamente.
+## 2) BUG: tarefa apagada volta
 
-## Restrições
+Já é resolvido pelo passo 1 (remoção do `syncGoogleCalendarEvents`, que era a causa raiz do reinsert). Validações adicionais:
 
-- ZERO alteração em policies RLS.
-- ZERO alteração em triggers/funções do banco.
-- Mudança puramente frontend + Zustand.
+- Confirmar que `applyTaskDelete` no realtime remove corretamente: já existe em `realtimeTasks.ts`.
+- Confirmar que `deleteTask` no store remove local **antes** do DELETE no banco (otimismo) e não restaura em caso de erro silencioso. Vou reler a função e, se necessário, adicionar log de erro explícito (sem rollback automático — o realtime DELETE de outras sessões já garante consistência).
+
+---
+
+## 3) Notificações do chat (sino + leitura)
+
+### `src/store/chatStore.ts` — `markRead`
+Adicionar UPDATE em `notifications` marcando como lidas todas as notifs não-lidas daquela conversa para o usuário atual:
+```ts
+await supabase
+  .from('notifications')
+  .update({ read_at: now })
+  .eq('user_id', uid)
+  .is('read_at', null)
+  .contains('payload', { conversation_id: conversationId });
+```
+Como o `notificationStore` é um Zustand separado, também chamar `useNotificationStore.getState().markAllForConversation(conversationId)` para refletir local imediatamente (evita esperar realtime).
+
+### `src/store/notificationStore.ts`
+- Estender o canal realtime para escutar `INSERT | UPDATE | DELETE` (hoje só INSERT). No UPDATE com `read_at != null`, atualizar item no estado; no DELETE, remover.
+- Adicionar action `markAllForConversation(conversationId)` que zera `read_at` localmente para items cujo `payload.conversation_id === conversationId`.
+
+### `src/components/ChatThread.tsx`
+- Trocar a inserção restrita a mencionados por inserção para **todos os participantes da conversa exceto o autor**, mantendo type `chat_mention` quando há menção, e novo type `chat_message` para mensagem normal. Implementação:
+  - Buscar `conversation_participants` da conversa (já está no chatStore como `participants`).
+  - `participants.filter(p => p.userId !== user.id).map(p => ({ user_id: p.userId, type: mentionedIds.includes(p.userId) ? 'chat_mention' : 'chat_message', workspace_id, payload }))`.
+  - Single `insert` em batch.
+- `NotificationBell` já trata `chat_mention`; adicionar suporte mínimo a `chat_message` (mesma navegação, label diferente: "Nova mensagem em…").
+
+---
+
+## 4) Identidade em comentários
+
+### `src/components/TaskDetailPanel.tsx`
+- Quando perfil não existir, em vez de `id.slice(0, 8)`, fazer fallback: buscar o `email` via uma RPC ou via `auth.users` (sem permissão direta) — alternativa segura: criar/usar campo `email` em `profiles` se existir (verificar schema). Se não existir email no profile, usar literal `"Usuário"`.
+- Implementação concreta:
+  1. Verificar `profiles.email` no schema (provavelmente existe — `display_name`, `avatar_url` já estão sendo lidos). Se existir, incluir `email` no SELECT.
+  2. Display name = `profile.display_name || (profile.email?.split('@')[0]) || 'Usuário'`.
+  3. Remover qualquer uso de `c.user_id.slice(0, 8)` (linhas 272 e 825).
+- Aplicar mesma lógica em outros pontos que mostram identidade de comentário/atividade: `TaskActivityLog.tsx` (verificar), `AssigneeChip.tsx` (verificar — esses usam outro caminho).
+
+---
+
+## Arquivos tocados (resumo)
+
+**Deletar**: `src/pages/CalendarCallback.tsx`, `supabase/functions/google-calendar/index.ts`.
+
+**Editar**:
+- `src/store/taskStore.ts` (purga GCal)
+- `src/contexts/AuthContext.tsx`
+- `src/pages/SettingsPage.tsx`
+- `src/pages/AppLayout.tsx`
+- `src/App.tsx` (remover rota)
+- `src/components/AppSidebar.tsx`
+- `src/components/ScheduleMeetingDialog.tsx`
+- `src/components/AIAssistantPanel.tsx`
+- `src/config/featureFlags.ts`
+- `src/store/chatStore.ts` (markRead estendido)
+- `src/store/notificationStore.ts` (UPDATE/DELETE no canal + markAllForConversation)
+- `src/components/ChatThread.tsx` (notificar todos os participantes)
+- `src/components/NotificationBell.tsx` (suporte a chat_message)
+- `src/components/TaskDetailPanel.tsx` (fallback de identidade)
+
+**Memória**: atualizar `mem://integrations/google-calendar` para `mem://constraints/no-google-calendar` (rejeitado, não reintroduzir; agenda é interna; única integração externa = Todoist).
+
+---
+
+## Critérios de aceitação — como vou validar
+
+- **C1** (tarefa apagada): Após mudança, `grep` confirma zero referência ativa a `syncGoogleCalendarEvents`. Manual: deletar tarefa → reload → não retorna.
+- **C2** (comentário < 1s): Já validado na rodada anterior (canal global `comments-global-${userId}` + canal por task). Sem regressão.
+- **C3** (badge zera < 1s): Após `markRead`, sino zera local imediato + UPDATE no DB. Realtime UPDATE confirma em outras abas.
+- **C4** (nome legível): `grep` confirma zero `slice(0, 8)` em código de comentário.
+- **C5** (zero dependência GCal): `rg "google-calendar|google_tokens|syncGoogleCalendarEvents|deleteGoogleCalendarEvent|cleanupLocalCalendarDuplicates|ENABLE_GOOGLE_CALENDAR"` em `src/` retorna apenas o tipo legacy `googleCalendarEventId?` em `Task` (read-only por compat com Database types).
+
+---
+
+## Restrições respeitadas
+
+- Zero alteração em RLS.
+- Zero alteração em triggers/functions do banco.
+- `google_tokens` e colunas GCal **não são dropadas** nesta rodada (fora de escopo, evita migration arriscada).
+- Sem republish automático.
