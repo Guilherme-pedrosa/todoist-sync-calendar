@@ -576,12 +576,14 @@ export default function SettingsPage() {
                   value={settings.show_sidebar_counts !== false}
                   onChange={(v) => update({ show_sidebar_counts: v })}
                 />
-                <ToggleRow
-                  label="Mostrar status do Google Calendar"
-                  desc="Bloco de conexão no rodapé da barra lateral"
-                  value={settings.show_calendar_status !== false}
-                  onChange={(v) => update({ show_calendar_status: v })}
-                />
+                {ENABLE_GOOGLE_CALENDAR && (
+                  <ToggleRow
+                    label="Mostrar status do Google Calendar"
+                    desc="Bloco de conexão no rodapé da barra lateral"
+                    value={settings.show_calendar_status !== false}
+                    onChange={(v) => update({ show_calendar_status: v })}
+                  />
+                )}
                 <Field label="Ordem dos itens">
                   <p className="text-xs text-muted-foreground italic">
                     Atual: {(settings.sidebar_order || []).join(' → ') || 'padrão'}
