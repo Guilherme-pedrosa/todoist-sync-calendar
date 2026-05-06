@@ -2454,6 +2454,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_insert_task: {
+        Args: { _project_id: string; _user_id: string; _workspace_id: string }
+        Returns: boolean
+      }
       can_view_activity: {
         Args: { _target_user: string; _viewer: string; _workspace_id: string }
         Returns: boolean
