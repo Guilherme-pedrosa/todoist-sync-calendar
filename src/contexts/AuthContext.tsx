@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 const getCalendarRedirectUri = () => `${window.location.origin}/calendar-callback`;
 
