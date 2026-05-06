@@ -379,35 +379,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     });
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
 
-    if (newTask.dueDate && !newTask.completed) {
-      try {
-        if (newTask.googleCalendarEventId) {
-          await updateGoogleCalendarEvent(newTask);
-        } else {
-          const googleCalendarEventId = await createGoogleCalendarEvent(newTask);
-          if (googleCalendarEventId) {
-          await supabase
-            .from('tasks')
-            .update({ google_calendar_event_id: googleCalendarEventId })
-            .eq('id', newTask.id);
-          newTask.googleCalendarEventId = googleCalendarEventId;
-          set((state) => ({
-            tasks: state.tasks.map((t) =>
-              t.id === newTask.id ? { ...t, googleCalendarEventId } : t
-            ),
-          }));
-          }
-        }
-      } catch (error) {
-        console.error('Falha ao criar evento no Google Calendar:', error);
-      }
-    }
-
     if (!options?.skipUndo) {
       useUndoStore.getState().push({
         label: `Criar "${newTask.title}"`,
         undo: async () => {
-          await deleteGoogleCalendarEvent(newTask.googleCalendarEventId);
           await supabase.from('tasks').delete().eq('id', newTask.id);
           set((state) => ({ tasks: state.tasks.filter((t) => t.id !== newTask.id) }));
         },
