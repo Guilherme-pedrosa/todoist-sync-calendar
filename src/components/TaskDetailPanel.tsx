@@ -981,7 +981,7 @@ export function TaskDetailPanel() {
               </div>
             </div>
 
-            {/* Activity log (collapsed by default, at the bottom) */}
+            {/* Activity log (collapsed by default, at the bottom of main column) */}
             {task.id && (
               <details className="pt-4 border-t border-border group">
                 <summary className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer hover:text-foreground select-none list-none [&::-webkit-details-marker]:hidden">
@@ -993,6 +993,7 @@ export function TaskDetailPanel() {
                 </div>
               </details>
             )}
+          </div>
 
           {/* Sidebar */}
           <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
