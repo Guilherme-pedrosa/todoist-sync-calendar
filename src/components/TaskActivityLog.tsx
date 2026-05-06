@@ -163,10 +163,7 @@ export function TaskActivityLog({ taskId }: { taskId: string }) {
   };
 
   return (
-    <div className="pt-4 border-t border-border space-y-3">
-      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-        <History className="h-3.5 w-3.5" /> Histórico
-      </div>
+    <div className="space-y-3">
 
       {loading && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
