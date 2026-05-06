@@ -5,7 +5,7 @@ import { useUndoStore } from '@/store/undoStore';
 import { addExdateToRecurrence, rewriteRecurrenceAnchor, nextOccurrence } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+
 
 /**
  * Returns a function that applies a partial update to a task. If the task
