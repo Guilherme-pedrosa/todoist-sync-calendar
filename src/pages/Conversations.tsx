@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { NavLink, useParams, useNavigate } from 'react-router-dom';
-import { Hash, MessageSquare, ChevronLeft } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Hash, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chatStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useTaskStore } from '@/store/taskStore';
 import { ChatThread } from '@/components/ChatThread';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 
 export default function ConversationsPage() {
   const { id: routeId } = useParams<{ id?: string }>();
@@ -20,6 +19,7 @@ export default function ConversationsPage() {
   const tasks = useTaskStore((s) => s.tasks);
 
   const [activeId, setActiveId] = useState<string | null>(routeId || null);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   useEffect(() => {
     if (currentWorkspaceId) {
@@ -32,25 +32,52 @@ export default function ConversationsPage() {
     if (routeId) setActiveId(routeId);
   }, [routeId]);
 
+  const taskById = useMemo(() => {
+    const map = new Map<string, { title: string; number: number | null; completed: boolean }>();
+    for (const t of tasks) map.set(t.id, { title: t.title, number: t.taskNumber ?? null, completed: t.completed });
+    return map;
+  }, [tasks]);
+
   const workspaceConvs = useMemo(
     () => conversations.filter((c) => c.type === 'workspace'),
     [conversations]
   );
-  const taskConvs = useMemo(
-    () => conversations.filter((c) => c.type === 'task'),
-    [conversations]
-  );
+
+  const sortChats = (a: typeof conversations[number], b: typeof conversations[number]) => {
+    const ua = (unread[a.id] || 0) > 0 ? 1 : 0;
+    const ub = (unread[b.id] || 0) > 0 ? 1 : 0;
+    if (ua !== ub) return ub - ua;
+    const ta = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const tb = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return tb - ta;
+  };
+
+  const activeTaskConvs = useMemo(() => {
+    return conversations
+      .filter((c) => {
+        if (c.type !== 'task' || !c.taskId) return false;
+        const t = taskById.get(c.taskId);
+        // Só mostra se task carregada e NÃO concluída.
+        return !!t && !t.completed;
+      })
+      .sort(sortChats);
+  }, [conversations, taskById, unread]);
+
+  const completedTaskConvs = useMemo(() => {
+    return conversations
+      .filter((c) => {
+        if (c.type !== 'task' || !c.taskId) return false;
+        const t = taskById.get(c.taskId);
+        // Concluídas OU órfãs (task fora de escopo) → histórico.
+        return !t || t.completed;
+      })
+      .sort(sortChats);
+  }, [conversations, taskById, unread]);
 
   // Auto-select first conversation
   useEffect(() => {
     if (!activeId && workspaceConvs[0]) setActiveId(workspaceConvs[0].id);
   }, [activeId, workspaceConvs]);
-
-  const taskTitleMap = useMemo(() => {
-    const map = new Map<string, { title: string; number: number | null }>();
-    for (const t of tasks) map.set(t.id, { title: t.title, number: t.taskNumber ?? null });
-    return map;
-  }, [tasks]);
 
   return (
     <div className="flex h-full">
@@ -79,16 +106,16 @@ export default function ConversationsPage() {
 
           <div>
             <div className="px-2 mb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
-              Tarefas
+              Tarefas ativas
             </div>
             <div className="space-y-0.5">
-              {taskConvs.length === 0 ? (
+              {activeTaskConvs.length === 0 ? (
                 <div className="px-2 py-1 text-xs text-muted-foreground/60">
-                  Nenhuma conversa de tarefa ainda.
+                  Nenhum chat de tarefa ativa.
                 </div>
               ) : (
-                taskConvs.map((c) => {
-                  const t = c.taskId ? taskTitleMap.get(c.taskId) : undefined;
+                activeTaskConvs.map((c) => {
+                  const t = c.taskId ? taskById.get(c.taskId) : undefined;
                   const label = t?.title || c.title || 'Tarefa';
                   return (
                     <ConvLink
@@ -105,6 +132,42 @@ export default function ConversationsPage() {
               )}
             </div>
           </div>
+
+          {completedTaskConvs.length > 0 && (
+            <div>
+              <button
+                onClick={() => setShowCompleted((v) => !v)}
+                className="w-full flex items-center gap-1 px-2 mb-1 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showCompleted ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                <span>Concluídas ({completedTaskConvs.length})</span>
+              </button>
+              {showCompleted && (
+                <div className="space-y-0.5">
+                  {completedTaskConvs.map((c) => {
+                    const t = c.taskId ? taskById.get(c.taskId) : undefined;
+                    const label = t?.title || c.title || 'Tarefa';
+                    return (
+                      <ConvLink
+                        key={c.id}
+                        active={activeId === c.id}
+                        unread={unread[c.id] || 0}
+                        onClick={() => navigate(`/conversations/${c.id}`)}
+                        icon={<MessageSquare className="h-3.5 w-3.5 opacity-60" />}
+                        label={label}
+                        prefix={t?.number != null ? `#${t.number}` : undefined}
+                        muted
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </aside>
 
