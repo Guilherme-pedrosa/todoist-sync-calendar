@@ -13,6 +13,7 @@ import { useChatStore, type Message } from '@/store/chatStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 
 interface Props {
   conversationId: string;
