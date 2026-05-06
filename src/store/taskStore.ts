@@ -473,29 +473,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       updates.dueTime !== undefined ||
       updates.durationMinutes !== undefined;
 
-    if (existing && merged && touchesCalendar) {
-      try {
-        if (merged.dueDate && existing.googleCalendarEventId) {
-          await updateGoogleCalendarEvent(merged);
-        } else if (merged.dueDate && !existing.googleCalendarEventId && !merged.completed) {
-          const googleCalendarEventId = await createGoogleCalendarEvent(merged);
-          if (googleCalendarEventId) {
-            await supabase.from('tasks').update({ google_calendar_event_id: googleCalendarEventId }).eq('id', id);
-            set((state) => ({
-              tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId } : t)),
-            }));
-          }
-        } else if (!merged.dueDate && existing.googleCalendarEventId) {
-          await deleteGoogleCalendarEvent(existing.googleCalendarEventId);
-          await supabase.from('tasks').update({ google_calendar_event_id: null }).eq('id', id);
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? { ...t, googleCalendarEventId: undefined } : t)),
-          }));
-        }
-      } catch (error) {
-        console.error('Falha ao sincronizar atualização com Google Calendar:', error);
-      }
-    }
 
     // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
     const reminderTouched =
