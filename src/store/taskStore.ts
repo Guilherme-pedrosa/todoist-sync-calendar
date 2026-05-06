@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 import { useUndoStore } from '@/store/undoStore';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 
 interface TaskState {
   tasks: Task[];
