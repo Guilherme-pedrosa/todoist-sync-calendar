@@ -86,15 +86,23 @@ export default function UpcomingPage() {
 
   // Agenda deve mostrar tudo que o usuário pode ver e tem data:
   // responsável, convidado de reunião, ou itens antigos sem responsáveis carregados.
+  const visibleLogTsRef = useRef(0);
   const visibleTasks = useMemo(
-    () =>
-      tasks.filter((t) => {
+    () => {
+      const out = tasks.filter((t) => {
         if (!currentUserId) return true;
         const assigneeIds = t.assigneeIds || [];
         const inviteeIds = t.meetingInviteeIds || [];
         if (assigneeIds.length === 0 && inviteeIds.length === 0) return true;
         return assigneeIds.includes(currentUserId) || inviteeIds.includes(currentUserId);
-      }),
+      });
+      const now = Date.now();
+      if (now - visibleLogTsRef.current > 2000) {
+        visibleLogTsRef.current = now;
+        console.info('[UpcomingPage] visible-count', out.length, 'total-count', tasks.length);
+      }
+      return out;
+    },
     [tasks, currentUserId]
   );
 
