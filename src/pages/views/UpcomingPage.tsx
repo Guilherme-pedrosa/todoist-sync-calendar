@@ -959,18 +959,12 @@ function DayColumn({
 
       {/* Events with overlap-aware column layout */}
       {(() => {
-        // Detecta sobreposição REAL no tempo (a.start < b.end && b.start < a.end).
-        // Tarefas consecutivas (uma terminando exatamente quando a outra começa)
-        // NÃO são consideradas sobrepostas — ficam empilhadas em coluna única,
-        // ocupando 100% da largura. Só dividem em colunas lado a lado quando
-        // realmente colidem no tempo.
         const items = events.map((task) => {
           const p = preview[task.id];
           const startMin = p?.startMin ?? timeToMinutes(task.dueTime);
           const durationMin = p?.durationMin ?? task.durationMinutes ?? DEFAULT_DURATION;
           return { task, startMin, endMin: startMin + durationMin, durationMin };
         });
-        // Sort by start, then by longer first
         items.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
 
         type Laid = (typeof items)[number] & { col: number; cols: number };
@@ -979,22 +973,17 @@ function DayColumn({
         let clusterEnd = -Infinity;
 
         const flush = () => {
-          for (const a of cluster) {
-            let maxCols = a.col + 1;
-            for (const b of cluster) {
-              if (a === b) continue;
-              const overlaps = a.startMin < b.endMin && b.startMin < a.endMin;
-              if (overlaps) maxCols = Math.max(maxCols, b.col + 1);
-            }
-            a.cols = maxCols;
-          }
+          // Nº de colunas do cluster = max(col)+1 entre todos os itens.
+          let maxCol = 0;
+          for (const a of cluster) if (a.col > maxCol) maxCol = a.col;
+          const totalCols = maxCol + 1;
+          for (const a of cluster) a.cols = totalCols;
           laid.push(...cluster);
           cluster = [];
           clusterEnd = -Infinity;
         };
 
         for (const it of items) {
-          // Cluster apenas quando há sobreposição real (start estritamente antes do fim)
           if (it.startMin >= clusterEnd) flush();
           const used = new Set(
             cluster.filter((c) => c.endMin > it.startMin).map((c) => c.col)
