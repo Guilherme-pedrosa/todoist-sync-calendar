@@ -590,8 +590,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   addTask: async (taskData, options) => {
-    const userId = await getUserId();
-    if (!userId) return null;
+    const session = await ensureFreshSession();
+    if (!session) return null;
+    const userId = session.user.id;
 
     const inboxProject = get().projects.find((p) => p.isInbox);
     const targetProjectId = taskData.projectId || inboxProject?.id || null;
@@ -751,6 +752,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   updateTask: async (id, updates, options) => {
+    const session = await ensureFreshSession();
+    if (!session) return;
+
     const existing = get().tasks.find((t) => t.id === id);
 
     const dbUpdates: Record<string, any> = {};
@@ -902,6 +906,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   deleteTask: async (id, options) => {
+    const session = await ensureFreshSession();
+    if (!session) return;
+
     const task = get().tasks.find((t) => t.id === id);
     const children = get().tasks.filter((t) => t.parentId === id);
 
@@ -955,6 +962,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   },
 
   toggleTask: async (id) => {
+    const session = await ensureFreshSession();
+    if (!session) return;
+
     const task = get().tasks.find((t) => t.id === id);
     if (!task) return;
 
