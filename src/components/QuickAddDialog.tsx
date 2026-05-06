@@ -234,6 +234,7 @@ export function QuickAddDialog() {
     if (submitting) return;
     const finalTitle = (parsed?.cleanedTitle || title).trim();
     if (!finalTitle) return;
+    console.info('[QuickAdd] submit-start', { title: finalTitle, date, projectId, assigneeIds });
     setSubmitting(true);
     try {
       // Use first relative reminder for the legacy single-reminder column
@@ -252,6 +253,7 @@ export function QuickAddDialog() {
         reminderMinutes: firstRelative?.relative_minutes ?? null,
         assigneeIds,
       });
+      console.info('[QuickAdd] submit-end', { created: !!created, id: created?.id });
       // Insert any additional absolute reminders (besides the auto one)
       if (created && reminders.length > 0) {
         const additional = reminders.filter((r) => r.type === 'absolute');
@@ -285,7 +287,7 @@ export function QuickAddDialog() {
       setTimeout(() => inputRef.current?.focus(), 30);
       if (closeAfter) closeQuickAdd();
     } catch (err) {
-      console.error('addTask failed', err);
+      console.error('[QuickAdd] submit-error', err);
       toast.error(err instanceof Error ? err.message : 'Falha ao criar tarefa');
     } finally {
       setSubmitting(false);
