@@ -567,6 +567,7 @@ function ChatTab({ tasks, projects }: { tasks: any[]; projects: any[] }) {
   };
 
   const callCalendar = async (action: string, body?: Record<string, unknown>, query?: string) => {
+    if (!ENABLE_GOOGLE_CALENDAR) throw new Error('Google Calendar desativado');
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) throw new Error('Sessão expirada');
