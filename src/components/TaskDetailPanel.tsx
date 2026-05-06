@@ -824,7 +824,7 @@ export function TaskDetailPanel() {
                   const authorName =
                     c.user_id === user?.id
                       ? 'Você'
-                      : author?.displayName || 'Usuário';
+                      : userDisplayName(author?.displayName, author?.email);
 
                   return (
                     <div key={c.id} className="flex gap-2">
