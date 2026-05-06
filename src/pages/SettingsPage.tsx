@@ -13,7 +13,7 @@ import {
   BellRing,
   Database,
   Plug,
-  CalendarDays,
+  
   Info,
   LogOut,
   Trash2,
@@ -120,13 +120,11 @@ const DEFAULT_SETTINGS = {
   notify_on_reminders: true,
 };
 
-const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
-const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut, calendarConnected, connectCalendar, reconnectCalendar, disconnectCalendar } = useAuth();
+  const { user, signOut } = useAuth();
   const [loading, setLoading] = useState(true);
   const [savingFlash, setSavingFlash] = useState(false);
   const [settings, setSettings] = useState<any>(null);
@@ -138,14 +136,6 @@ export default function SettingsPage() {
     const tab = new URLSearchParams(window.location.search).get('tab');
     return TAB_ITEMS.some((item) => item.value === tab) ? tab! : 'account';
   });
-  const [calendarMaintenanceLoading, setCalendarMaintenanceLoading] = useState<null | 'analyze' | 'delete'>(null);
-  const [calendarDuplicateCount, setCalendarDuplicateCount] = useState<number | null>(null);
-  const [syncPaused, setSyncPaused] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      (localStorage.getItem(GOOGLE_SYNC_SAFETY_KEY) !== 'acknowledged' ||
-        localStorage.getItem(GOOGLE_SYNC_PAUSED_KEY) !== 'false')
-  );
 
   useEffect(() => {
     const tab = new URLSearchParams(location.search).get('tab');
@@ -301,42 +291,6 @@ export default function SettingsPage() {
     }
   };
 
-  const setCalendarSyncPaused = (paused: boolean) => {
-    if (!paused) localStorage.setItem(GOOGLE_SYNC_SAFETY_KEY, 'acknowledged');
-    localStorage.setItem(GOOGLE_SYNC_PAUSED_KEY, paused ? 'true' : 'false');
-    setSyncPaused(paused);
-    toast.success(paused ? 'Sync pausado' : 'Sync retomado');
-  };
-
-  const cleanupCalendarDuplicates = async (dryRun: boolean) => {
-    const mode = dryRun ? 'analyze' : 'delete';
-    setCalendarMaintenanceLoading(mode);
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token;
-      if (!accessToken) throw new Error('Sessão inválida. Faça login novamente.');
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar?action=cleanup-duplicates`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ dryRun }),
-      });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || payload?.error) throw new Error(payload?.error || 'Falha ao limpar duplicatas');
-
-      const count = Number(payload?.duplicateCount || 0);
-      setCalendarDuplicateCount(dryRun ? count : 0);
-      toast.success(dryRun ? `${count} duplicatas encontradas` : `${count} duplicatas removidas`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao limpar duplicatas');
-    } finally {
-      setCalendarMaintenanceLoading(null);
-    }
-  };
 
   if (loading || !settings) {
     return (
