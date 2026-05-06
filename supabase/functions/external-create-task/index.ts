@@ -264,12 +264,29 @@ Deno.serve(async (req) => {
   let taskErr: any = null;
 
   if (externalRef) {
-    // Tenta localizar existente
+    // Tenta localizar existente (inclui soft-deleted para bloquear ressurreição)
     const { data: existing } = await admin
       .from('tasks')
-      .select('id')
+      .select('id, deleted_at')
       .eq('external_ref', externalRef)
       .maybeSingle();
+
+    if (existing?.deleted_at) {
+      console.warn('[external-create-task] rejected: task soft-deleted', {
+        external_ref: externalRef,
+        title,
+        x_sync_source: syncSource,
+        scope: 'parent',
+      });
+      return json({
+        ok: false,
+        code: 'GONE',
+        error: 'task_was_deleted_by_user',
+        message: 'Esta tarefa foi excluída pelo usuário e não será recriada. Para reabrir, envie um novo external_ref.',
+        task_id: existing.id,
+        external_ref: externalRef,
+      }, 409);
+    }
 
     if (existing?.id) {
       const { data: updated, error: updErr } = await admin
@@ -362,6 +379,31 @@ Deno.serve(async (req) => {
       last_sync_source: syncSource,
       ...(subCompletion ? { completed: subCompletion.completed, completed_at: subCompletion.completed_at } : {}),
     };
+    // Pré-check: subtask com mesmo external_ref já apagada pelo usuário?
+    if (subExternalRef) {
+      const { data: existingSub } = await admin
+        .from('tasks')
+        .select('id, deleted_at')
+        .eq('external_ref', subExternalRef)
+        .maybeSingle();
+      if (existingSub?.deleted_at) {
+        console.warn('[external-create-task] rejected: task soft-deleted', {
+          external_ref: subExternalRef,
+          title: subTitle,
+          x_sync_source: syncSource,
+          scope: 'subtask',
+          parent_external_ref: externalRef,
+        });
+        return json({
+          ok: false,
+          code: 'GONE',
+          error: 'task_was_deleted_by_user',
+          message: 'Esta subtarefa foi excluída pelo usuário e não será recriada. Para reabrir, envie um novo external_ref.',
+          task_id: existingSub.id,
+          external_ref: subExternalRef,
+        }, 409);
+      }
+    }
     const query = subExternalRef
       ? admin.from('tasks').upsert(subPayload, { onConflict: 'external_ref' })
       : admin.from('tasks').insert(subPayload);
