@@ -619,8 +619,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       .single();
 
     if (error || !data) {
-      console.error('addTask error', error);
-      return null;
+      console.error('addTask error', error, 'payload:', insertPayload);
+      throw error ?? new Error('Falha ao inserir tarefa (sem dados retornados)');
     }
 
     const labelIds = taskData.labels || [];
