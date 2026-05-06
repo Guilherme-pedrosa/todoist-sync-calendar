@@ -79,23 +79,7 @@ function mapDbProjectToProject(p: any): Project {
   };
 }
 
-interface GoogleCalendarEvent {
-  id: string;
-  summary?: string;
-  description?: string;
-  start?: {
-    date?: string;
-    dateTime?: string;
-  };
-  end?: {
-    date?: string;
-    dateTime?: string;
-  };
-}
-
-const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
-const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
-const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
+// Google Calendar integration removed. Internal calendar/agenda only.
 
 export async function ensureFreshSession(): Promise<Session | null> {
   console.info('[addTask] step=session-check');
