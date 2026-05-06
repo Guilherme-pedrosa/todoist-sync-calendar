@@ -14,6 +14,7 @@ import {
   FolderInput,
   Edit3,
   Plus,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Task, Priority } from '@/types/task';
