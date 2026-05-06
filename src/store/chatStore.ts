@@ -263,8 +263,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         p.conversationId === conversationId && p.userId === uid ? { ...p, lastReadAt: now } : p
       ),
     }));
-    // Also mark related chat notifications as read so the bell badge clears.
+    // Mark related chat notifications as read in DB by conversation_id (covers all, not only loaded ones).
     try {
+      await supabase
+        .from('notifications')
+        .update({ read_at: now })
+        .eq('user_id', uid)
+        .is('read_at', null)
+        .in('type', ['chat_mention', 'chat_message'])
+        .filter('payload->>conversation_id', 'eq', conversationId);
       const { useNotificationStore } = await import('@/store/notificationStore');
       useNotificationStore.getState().markReadForConversation(conversationId);
     } catch {
