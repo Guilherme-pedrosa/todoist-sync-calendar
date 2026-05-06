@@ -237,6 +237,8 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
 const DEDUPE_QUARANTINE_MS = 60_000;
 
 async function cleanupLocalCalendarDuplicates(tasks: Task[]): Promise<Task[]> {
+  // Feature flag: integração GCal desligada → nunca apaga nada local.
+  if (!ENABLE_GOOGLE_CALENDAR) return tasks;
   const groups = new Map<string, Task[]>();
   const now = Date.now();
   for (const task of tasks) {
