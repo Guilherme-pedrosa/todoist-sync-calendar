@@ -5,6 +5,7 @@ import { useUndoStore } from '@/store/undoStore';
 import { addExdateToRecurrence, rewriteRecurrenceAnchor } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 /**
  * Returns a function that applies a partial update to a task. If the task
@@ -115,6 +116,22 @@ export function useUpdateTaskWithRecurrencePrompt() {
             ? (updates.durationMinutes as number | null)
             : task.durationMinutes ?? null;
 
+        const setLocalRule = (rule: string | null) => {
+          useTaskStore.setState((state) => ({
+            tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, recurrenceRule: rule } : t)),
+          }));
+        };
+
+        // Primeiro exclui a ocorrência da série original. Antes isso acontecia
+        // depois da criação da tarefa solta; se a atualização da série falhasse,
+        // a Agenda ficava com duas ocorrências e parecia que “apenas hoje” não alterou.
+        const { error: ruleError } = await supabase
+          .from('tasks')
+          .update({ recurrence_rule: newRule })
+          .eq('id', taskId);
+        if (ruleError) throw ruleError;
+        setLocalRule(newRule);
+
         // Cria a nova tarefa standalone SEM copiar o googleCalendarEventId
         // (senão o mesmo evento do GCal fica linkado a duas tarefas → duplica).
         // O addTask cria um novo evento próprio para essa nova ocorrência.
@@ -130,17 +147,18 @@ export function useUpdateTaskWithRecurrencePrompt() {
           labels: task.labels,
           assigneeIds: task.assigneeIds,
         } as any, { skipUndo: true });
-        if (!createdTask) throw new Error('Falha ao criar a ocorrência remanejada');
-
-        // Mantém o googleCalendarEventId da série original (não limpar!),
-        // só atualiza a regra para excluir a ocorrência movida.
-        await updateTask(taskId, { recurrenceRule: newRule } as any, { skipUndo: true });
+        if (!createdTask) {
+          await supabase.from('tasks').update({ recurrence_rule: task.recurrenceRule }).eq('id', taskId);
+          setLocalRule(task.recurrenceRule);
+          throw new Error('Falha ao criar a ocorrência remanejada');
+        }
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,
           undo: async () => {
             await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
-            await useTaskStore.getState().updateTask(taskId, { recurrenceRule: task.recurrenceRule } as any, { skipUndo: true });
+            await supabase.from('tasks').update({ recurrence_rule: task.recurrenceRule }).eq('id', taskId);
+            setLocalRule(task.recurrenceRule);
           },
         });
       } catch (e) {
