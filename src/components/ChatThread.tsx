@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Paperclip, Pencil, ExternalLink, X, Bell, FileText, Image as ImageIcon } from 'lucide-react';
+import { Send, Paperclip, Pencil, ExternalLink, X, Bell, FileText, Image as ImageIcon, ListChecks } from 'lucide-react';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
