@@ -2499,6 +2499,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      debug_whoami: { Args: never; Returns: Json }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
