@@ -616,6 +616,7 @@ serve(async (req) => {
         skippedDeleted,
         skippedExisting,
         adoptedLegacy,
+        adoptionConflicts,
       });
     } catch (e) {
       console.error("[todoist-proxy] import-inbox error:", e);
