@@ -1,10 +1,11 @@
 import { useCallback } from 'react';
-import { useTaskStore } from '@/store/taskStore';
+import { ensureFreshSession, useTaskStore } from '@/store/taskStore';
 import { useRecurringEditStore } from '@/store/recurringEditStore';
 import { useUndoStore } from '@/store/undoStore';
 import { addExdateToRecurrence, rewriteRecurrenceAnchor, nextOccurrence } from '@/lib/recurrence';
 import type { Task } from '@/types/task';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 
 /**
@@ -21,7 +22,7 @@ import { toast } from 'sonner';
 export function useUpdateTaskWithRecurrencePrompt() {
   const tasks = useTaskStore((s) => s.tasks);
   const updateTask = useTaskStore((s) => s.updateTask);
-  const addTask = useTaskStore((s) => s.addTask);
+  const fetchData = useTaskStore((s) => s.fetchData);
   const ask = useRecurringEditStore((s) => s.ask);
 
   return useCallback(
@@ -132,32 +133,38 @@ export function useUpdateTaskWithRecurrencePrompt() {
             task.dueTime,
             occurrenceDate,
           );
+          seriesUpdates.dueDate = task.dueDate;
+          seriesUpdates.dueTime = task.dueTime ?? null;
         }
 
-        // 1) Cria primeiro a tarefa standalone (sem copiar googleCalendarEventId).
-        const createdTask = await addTask({
-          title: task.title,
-          description: task.description ?? '',
-          priority: task.priority,
-          dueDate: newDueDate ?? undefined,
-          dueTime: newDueTime ?? undefined,
-          durationMinutes: newDuration ?? undefined,
-          projectId: task.projectId ?? undefined,
-          sectionId: task.sectionId ?? undefined,
-          labels: task.labels,
-          assigneeIds: task.assigneeIds,
-        } as any, { skipUndo: true });
-        if (!createdTask) {
-          throw new Error('Falha ao criar a ocorrência remanejada');
+        const session = await ensureFreshSession();
+        if (!session) return;
+
+        if (!seriesUpdates.dueDate || !seriesUpdates.recurrenceRule) {
+          throw new Error('Falha ao calcular próxima ocorrência da série');
         }
 
-        // 2) Avança a série original.
-        await updateTask(taskId, seriesUpdates);
+        // Cria a tarefa standalone e avança a série original numa única transação.
+        const { data: createdTaskId, error } = await supabase.rpc('reschedule_single_occurrence', {
+          p_task_id: taskId,
+          p_occurrence_date: occurrenceDate,
+          p_new_date: newDueDate ?? occurrenceDate,
+          p_new_time: newDueTime ? `${newDueTime}:00` : null,
+          p_new_duration: newDuration,
+          p_series_due_date: seriesUpdates.dueDate,
+          p_series_due_time: (seriesUpdates.dueTime ?? task.dueTime) ? `${seriesUpdates.dueTime ?? task.dueTime}:00` : null,
+          p_series_recurrence_rule: seriesUpdates.recurrenceRule,
+        } as any);
+        if (error || !createdTaskId) {
+          throw error ?? new Error('Falha ao remanejar ocorrência');
+        }
+
+        await fetchData();
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,
           undo: async () => {
-            await useTaskStore.getState().deleteTask(createdTask.id, { skipUndo: true });
+            await useTaskStore.getState().deleteTask(createdTaskId, { skipUndo: true });
             await updateTask(taskId, {
               dueDate: task.dueDate,
               dueTime: task.dueTime ?? null,
@@ -167,9 +174,11 @@ export function useUpdateTaskWithRecurrencePrompt() {
         });
       } catch (e) {
         console.error('single-occurrence edit failed', e);
-        toast.error('Falha ao editar apenas esta ocorrência');
+        toast.error('Falha ao editar apenas esta ocorrência', {
+          description: e instanceof Error ? e.message : undefined,
+        });
       }
     },
-    [tasks, updateTask, addTask, ask]
+    [tasks, updateTask, fetchData, ask]
   );
 }
