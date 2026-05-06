@@ -797,6 +797,13 @@ export function TaskDetailPanel() {
             {/* Activity log */}
             {task.id && <TaskActivityLog taskId={task.id} />}
 
+            {/* Attachments */}
+            {task.id && (
+              <div className="pt-4 border-t border-border">
+                <TaskAttachmentsSection taskId={task.id} />
+              </div>
+            )}
+
             {/* Comments */}
             <div className="pt-4 border-t border-border space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
