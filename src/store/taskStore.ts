@@ -4,6 +4,8 @@ import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/ty
 import { useUndoStore } from '@/store/undoStore';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
 import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
+import type { Session } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 
 interface TaskState {
   tasks: Task[];
@@ -62,6 +64,30 @@ interface GoogleCalendarEvent {
 const GOOGLE_CALENDAR_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-calendar`;
 const GOOGLE_SYNC_PAUSED_KEY = 'taskflow_google_sync_paused';
 const GOOGLE_SYNC_SAFETY_KEY = 'taskflow_google_sync_safety_v2';
+
+export async function ensureFreshSession(): Promise<Session | null> {
+  const { data, error } = await supabase.auth.getSession();
+  const session = data.session;
+
+  if (error || !session) {
+    toast.error('Sessão expirada, faça login');
+    await supabase.auth.signOut();
+    return null;
+  }
+
+  const expiresAt = session.expires_at ?? 0;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (expiresAt - nowSeconds >= 60) return session;
+
+  const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError || !refreshed.session) {
+    toast.error('Sessão expirada, faça login');
+    await supabase.auth.signOut();
+    return null;
+  }
+
+  return refreshed.session;
+}
 
 function isGoogleSyncPaused() {
   // Feature flag central — quando desligada, sync sempre pausado.
