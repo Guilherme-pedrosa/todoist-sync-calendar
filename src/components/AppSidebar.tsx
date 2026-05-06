@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { ENABLE_GOOGLE_CALENDAR } from '@/config/featureFlags';
 import {
   Inbox,
   CalendarDays,
