@@ -86,6 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const checkCalendarConnection = async (userId: string) => {
+    // Integração desligada via flag — UI nunca enxerga "conectado".
+    if (!ENABLE_GOOGLE_CALENDAR) {
+      setCalendarConnected(false);
+      return;
+    }
     const { data, error } = await supabase
       .from('google_tokens')
       .select('id')
