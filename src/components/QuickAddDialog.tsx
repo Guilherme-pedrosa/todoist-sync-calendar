@@ -276,6 +276,18 @@ export function QuickAddDialog() {
         toast.error('Não foi possível criar a tarefa');
         return;
       }
+      // Upload pending attachments
+      if (pendingFiles.length > 0) {
+        const { uploadTaskAttachment } = await import('@/lib/attachments');
+        for (const file of pendingFiles) {
+          try {
+            await uploadTaskAttachment(created.id, file);
+          } catch (e) {
+            console.error('[QuickAdd] attachment upload failed', e);
+            toast.error(`Falha ao enviar ${file.name}`);
+          }
+        }
+      }
       toast.success('Tarefa adicionada');
       // Reset for next entry (Todoist behavior)
       setTitle('');
@@ -285,6 +297,7 @@ export function QuickAddDialog() {
       setSelectedLabels([]);
       setReminders([]);
       setAssigneeIds([]);
+      setPendingFiles([]);
       setLocation_('');
       setShowLocation(false);
       setTimeout(() => inputRef.current?.focus(), 30);
