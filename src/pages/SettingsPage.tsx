@@ -786,6 +786,7 @@ export default function SettingsPage() {
               </Section>
             </TabsContent>
 
+            {ENABLE_GOOGLE_CALENDAR && (
             <TabsContent value="calendars" className="space-y-6 mt-0">
               <Section title="Google Calendar">
                 <div className="rounded-xl border border-border p-4">
