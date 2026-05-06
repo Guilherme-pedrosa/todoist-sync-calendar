@@ -4,7 +4,16 @@ import { useTaskStore } from '@/store/taskStore';
 let channel: ReturnType<typeof supabase.channel> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleRefetch() {
+function scheduleRefetch(payload?: any) {
+  if (payload) {
+    console.info('[realtime] event', {
+      table: payload.table,
+      eventType: payload.eventType,
+      newId: payload.new?.id,
+      oldId: payload.old?.id,
+    });
+  }
+  console.info('[realtime] triggering fetchData reason=postgres_changes');
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     void useTaskStore.getState().fetchData();
