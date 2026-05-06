@@ -1277,4 +1277,85 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   setActiveProjectId: (id) => set({ activeProjectId: id, activeView: 'project' }),
   setActiveLabelId: (id) => set({ activeLabelId: id, activeView: 'label' }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  applyTaskUpsertFromDb: (row) => {
+    if (!row?.id) return;
+    set((state) => {
+      const existing = state.tasks.find((t) => t.id === row.id);
+      // Preserve existing assignees/labels/meeting invitees if not in payload
+      const merged = mapDbTaskToTask({
+        ...row,
+        task_labels: row.task_labels ?? (existing ? existing.labels.map((id) => ({ label_id: id })) : []),
+        task_assignees: row.task_assignees ?? (existing ? existing.assigneeIds.map((id) => ({ user_id: id })) : []),
+        meeting_invitations:
+          row.meeting_invitations ??
+          (existing ? existing.meetingInviteeIds.map((id) => ({ invitee_user_id: id })) : []),
+      });
+      if (existing) {
+        return { tasks: state.tasks.map((t) => (t.id === row.id ? { ...t, ...merged } : t)) };
+      }
+      return { tasks: [...state.tasks, merged] };
+    });
+  },
+
+  applyTaskDelete: (id) => {
+    set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
+  },
+
+  applyTaskAssigneeChange: (taskId, userId, op) => {
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const set1 = new Set(t.assigneeIds || []);
+        if (op === 'add') set1.add(userId);
+        else set1.delete(userId);
+        return { ...t, assigneeIds: Array.from(set1) };
+      }),
+    }));
+  },
+
+  applyTaskLabelChange: (taskId, labelId, op) => {
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const set1 = new Set(t.labels || []);
+        if (op === 'add') set1.add(labelId);
+        else set1.delete(labelId);
+        return { ...t, labels: Array.from(set1) };
+      }),
+    }));
+  },
+
+  applyMeetingInvitationChange: (taskId, inviteeUserId, op) => {
+    if (!inviteeUserId) return;
+    set((state) => ({
+      tasks: state.tasks.map((t) => {
+        if (t.id !== taskId) return t;
+        const set1 = new Set(t.meetingInviteeIds || []);
+        if (op === 'add') set1.add(inviteeUserId);
+        else set1.delete(inviteeUserId);
+        return { ...t, meetingInviteeIds: Array.from(set1) };
+      }),
+    }));
+  },
+
+  applyProjectUpsertFromDb: (row) => {
+    if (!row?.id) return;
+    if (row.archived_at) {
+      set((state) => ({ projects: state.projects.filter((p) => p.id !== row.id) }));
+      return;
+    }
+    const mapped = mapDbProjectToProject(row);
+    set((state) => {
+      const exists = state.projects.some((p) => p.id === row.id);
+      const projects = exists
+        ? state.projects.map((p) => (p.id === row.id ? mapped : p))
+        : [...state.projects, mapped];
+      return { projects: projects.sort((a, b) => (a.position || 0) - (b.position || 0)) };
+    });
+  },
+
+  applyProjectDelete: (id) => {
+    set((state) => ({ projects: state.projects.filter((p) => p.id !== id) }));
+  },
 }));
