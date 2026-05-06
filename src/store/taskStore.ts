@@ -606,25 +606,32 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       ? get().projects.find((p) => p.id === targetProjectId)
       : null;
     console.info('[addTask] step=resolve-project', { projectId: targetProjectId, hasInbox: !!inboxProject });
-    // Resolve workspace from target project (every project now has workspace_id)
-    let workspaceId: string | null = (targetProject as any)?.workspaceId ?? null;
-    if (!workspaceId && targetProjectId) {
-      const { data: proj } = await supabase
+    // Resolve workspaceId SEMPRE a partir do projeto-alvo.
+    // Se não conseguir, aborta — nunca usa workspace pessoal como fallback.
+    let workspaceId: string | null = null;
+    if (targetProject && (targetProject as any).workspaceId) {
+      workspaceId = (targetProject as any).workspaceId;
+    } else if (targetProjectId) {
+      const { data: proj, error: projErr } = await supabase
         .from('projects')
         .select('workspace_id')
         .eq('id', targetProjectId)
         .maybeSingle();
+      if (projErr) {
+        console.warn('[addTask] aborted reason=project-fetch-error', { projErr });
+        toast.error('Não foi possível resolver o workspace do projeto');
+        return null;
+      }
       workspaceId = proj?.workspace_id ?? null;
     }
-    if (!workspaceId) {
-      // Fallback: user's personal workspace
-      const { data: ws } = await supabase
-        .from('workspaces')
-        .select('id')
-        .eq('owner_id', userId)
-        .eq('is_personal', true)
-        .maybeSingle();
-      workspaceId = ws?.id ?? null;
+    if (!workspaceId || !targetProjectId) {
+      console.warn('[addTask] aborted reason=missing-workspace-or-project', { workspaceId, targetProjectId });
+      toast.error(
+        targetProjectId
+          ? 'O projeto selecionado está sem workspace. Atualize a página.'
+          : 'Selecione um projeto antes de criar a tarefa.'
+      );
+      return null;
     }
     console.info('[addTask] step=resolve-workspace', { workspaceId, targetProjectId });
 
@@ -657,7 +664,13 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (error || !data) {
       console.warn('[addTask] aborted reason=insert-failed', { error, payload: insertPayload });
-      throw error ?? new Error('Falha ao inserir tarefa (sem dados retornados)');
+      const msg = error?.message
+        ? `Falha ao criar tarefa: ${error.message}`
+        : 'Falha ao criar tarefa (sem dados retornados)';
+      toast.error(msg, {
+        description: error?.code ? `código ${error.code}` : undefined,
+      });
+      return null;
     }
     console.info('[addTask] step=local-insert', { id: data.id });
 
