@@ -50,9 +50,21 @@ const safeGoogleJson = async (res: Response) => {
   }
 };
 
+// Feature flag espelhada do client (src/config/featureFlags.ts).
+// Quando false, toda a edge function responde 503 sem tocar em token/Google APIs.
+// Para religar, troque para true aqui E em src/config/featureFlags.ts.
+const GCAL_ENABLED = false;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  if (!GCAL_ENABLED) {
+    return jsonResponse(
+      { error: "Google Calendar integration is currently disabled" },
+      503,
+    );
   }
 
   try {
