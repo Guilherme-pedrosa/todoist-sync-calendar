@@ -541,7 +541,25 @@ serve(async (req) => {
           }) || {};
           // Adoção do legado: marca todoist_id no mesmo update (caminho rápido nas próximas).
           (patch as any).todoist_id = tt.id;
-          await supabase.from("tasks").update(patch).eq("id", existing.id);
+          // Defensivo: só adota se a linha ainda não tiver todoist_id (evita corrida multi-device).
+          const { error: adoptErr } = await supabase
+            .from("tasks")
+            .update(patch)
+            .eq("id", existing.id)
+            .is("todoist_id", null);
+          if (adoptErr) {
+            // Conflito típico: unique_violation no índice (user_id, todoist_id) — outra adoção concorrente.
+            console.warn("[todoist-proxy] adoption conflict", {
+              todoist_id: tt.id,
+              title: tt.content,
+              user_id: user.id,
+              scope: "import-inbox",
+              error: adoptErr.message,
+            });
+            adoptionConflicts++;
+            existingByKey.delete(key);
+            continue;
+          }
           existingByTodoistId.set(tt.id, { id: existing.id, deleted_at: null });
           existingByKey.delete(key);
           adoptedLegacy++;
