@@ -6,7 +6,7 @@ import { Label as UiLabel } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
-import { CalendarDays, Clock, Users, X, Mail, Loader2, Video } from 'lucide-react';
+import { CalendarDays, Clock, Users, X, Mail, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -73,7 +73,7 @@ export function ScheduleMeetingDialog({
   const [invitees, setInvitees] = useState<Invitee[]>([]);
   const [search, setSearch] = useState('');
   const [emailDraft, setEmailDraft] = useState('');
-  const [addMeet, setAddMeet] = useState(true);
+  
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
