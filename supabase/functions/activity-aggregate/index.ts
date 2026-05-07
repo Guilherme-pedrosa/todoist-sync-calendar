@@ -172,7 +172,7 @@ serve(async (req) => {
       // 3) tasks completed that day per user (using activity_log)
       const { data: completions } = await supabase
         .from("activity_log")
-        .select("user_id, payload, created_at")
+        .select("user_id, entity_id, payload, created_at")
         .eq("entity_type", "task")
         .eq("action", "completed")
         .gte("created_at", dayStart)
@@ -182,6 +182,7 @@ serve(async (req) => {
       const taskIds = ((completions as any[] | null) || [])
         .map((c) => c.payload?.task_id || c.entity_id)
         .filter(Boolean);
+
 
       const projectByTask = new Map<string, { project_id: string | null; workspace_id: string; project_name?: string }>();
       if (taskIds.length) {
@@ -204,7 +205,7 @@ serve(async (req) => {
       }>();
 
       for (const c of (completions as any[] | null) || []) {
-        const taskId = c.payload?.task_id;
+        const taskId = c.payload?.task_id || (c as any).entity_id;
         const meta = taskId ? projectByTask.get(taskId) : null;
         if (!meta) continue;
         const key = `${c.user_id}|${meta.workspace_id}`;
