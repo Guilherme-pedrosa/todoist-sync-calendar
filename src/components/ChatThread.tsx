@@ -434,7 +434,31 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
               }
               if (e.key === 'Escape') setMentionState({ open: false, query: '', pos: 0 });
             }}
-            placeholder="Mensagem... (use @ para mencionar)"
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const files: File[] = [];
+              for (const it of items) {
+                if (it.kind === 'file') {
+                  const f = it.getAsFile();
+                  if (f) {
+                    // Renomeia imagens coladas (geralmente "image.png") com timestamp
+                    if (f.type.startsWith('image/') && /^image\.\w+$/i.test(f.name)) {
+                      const ext = f.type.split('/')[1] || 'png';
+                      files.push(new File([f], `colado-${Date.now()}.${ext}`, { type: f.type }));
+                    } else {
+                      files.push(f);
+                    }
+                  }
+                }
+              }
+              if (files.length > 0) {
+                e.preventDefault();
+                setPendingAttachments((prev) => [...prev, ...files]);
+                toast.success(`${files.length} ${files.length === 1 ? 'arquivo colado' : 'arquivos colados'}`);
+              }
+            }}
+            placeholder="Mensagem... (use @ para mencionar, Ctrl+V para colar imagem)"
             className="min-h-[40px] max-h-32 resize-none flex-1"
             rows={1}
           />
