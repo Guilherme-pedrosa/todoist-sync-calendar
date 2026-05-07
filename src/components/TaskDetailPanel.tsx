@@ -166,6 +166,11 @@ export function TaskDetailPanel() {
   const complete = useCompleteTask();
 
   const task = useMemo(() => tasks.find((t) => t.id === taskId) || null, [tasks, taskId]);
+  const parentTask = useMemo(
+    () => (task?.parentId ? tasks.find((t) => t.id === task.parentId) || null : null),
+    [tasks, task?.parentId]
+  );
+  const openDetail = useTaskDetailStore((s) => s.open);
   const subtasks = useMemo(
     () => (task ? tasks.filter((t) => t.parentId === task.id) : []),
     [tasks, task]
@@ -767,6 +772,20 @@ export function TaskDetailPanel() {
                   </DropdownMenu>
                 )}
               </div>
+              {parentTask && (
+                <button
+                  type="button"
+                  onClick={() => openDetail(parentTask.id)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary mb-1 max-w-full"
+                  title="Voltar para tarefa principal"
+                >
+                  <ChevronLeft className="h-3 w-3 shrink-0" />
+                  {parentTask.taskNumber != null && (
+                    <span className="font-mono tabular-nums">#{parentTask.taskNumber}</span>
+                  )}
+                  <span className="truncate">{parentTask.title}</span>
+                </button>
+              )}
               {task.taskNumber != null && (
                 <div className="text-xs font-mono text-muted-foreground/70 tabular-nums mb-1">
                   #{task.taskNumber}
