@@ -93,23 +93,30 @@ serve(async (req) => {
       // Each heartbeat represents a ~30-60s window. We build intervals around each
       // heartbeat and merge overlaps to get real online seconds, immune to zombie sessions.
       const HEARTBEAT_WINDOW_MS = 90 * 1000; // half-window each side of the heartbeat
-      const { data: hbs } = await supabase
-        .from("activity_heartbeats")
-        .select("user_id, workspace_id, ts, is_active")
-        .gte("ts", dayStart)
-        .lte("ts", dayEnd)
-        .order("ts", { ascending: true });
-
-      // group heartbeats per (user, workspace)
+      // Paginate to bypass the 1000-row default limit
       const hbByKey = new Map<string, Array<{ ts: number; active: boolean }>>();
-      for (const h of (hbs as any[] | null) || []) {
-        const key = `${h.user_id}|${h.workspace_id}`;
-        if (!buckets.has(key)) {
-          buckets.set(key, { user_id: h.user_id, workspace_id: h.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] });
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data: page } = await supabase
+          .from("activity_heartbeats")
+          .select("user_id, workspace_id, ts, is_active")
+          .gte("ts", dayStart)
+          .lte("ts", dayEnd)
+          .order("ts", { ascending: true })
+          .range(from, from + PAGE - 1);
+        const rows = (page as any[] | null) || [];
+        for (const h of rows) {
+          const key = `${h.user_id}|${h.workspace_id}`;
+          if (!buckets.has(key)) {
+            buckets.set(key, { user_id: h.user_id, workspace_id: h.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] });
+          }
+          let arr = hbByKey.get(key);
+          if (!arr) { arr = []; hbByKey.set(key, arr); }
+          arr.push({ ts: new Date(h.ts).getTime(), active: !!h.is_active });
         }
-        let arr = hbByKey.get(key);
-        if (!arr) { arr = []; hbByKey.set(key, arr); }
-        arr.push({ ts: new Date(h.ts).getTime(), active: !!h.is_active });
+        if (rows.length < PAGE) break;
+        from += PAGE;
       }
 
       for (const [key, hbList] of hbByKey.entries()) {
