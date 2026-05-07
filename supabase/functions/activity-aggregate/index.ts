@@ -22,6 +22,13 @@ interface SessionRow {
 }
 
 const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+const BRAZIL_TZ = "America/Sao_Paulo";
+const brazilDay = (date = new Date()) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: BRAZIL_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const brazilDayBoundsUtc = (day: string) => ({
+  start: new Date(`${day}T00:00:00.000-03:00`).toISOString(),
+  end: new Date(`${day}T23:59:59.999-03:00`).toISOString(),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -43,16 +50,15 @@ serve(async (req) => {
     if (targetDay) {
       days.push(targetDay);
     } else {
-      const today = new Date();
-      const yest = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-      days.push(yest.toISOString().slice(0, 10), today.toISOString().slice(0, 10));
+      const today = brazilDay();
+      const yest = brazilDay(new Date(new Date(`${today}T00:00:00.000-03:00`).getTime() - 24 * 60 * 60 * 1000));
+      days.push(yest, today);
     }
 
     let processed = 0;
 
     for (const day of days) {
-      const dayStart = new Date(`${day}T00:00:00.000Z`).toISOString();
-      const dayEnd = new Date(`${day}T23:59:59.999Z`).toISOString();
+      const { start: dayStart, end: dayEnd } = brazilDayBoundsUtc(day);
 
       // 1) sessions overlapping the day
       const { data: sessions } = await supabase
@@ -89,9 +95,9 @@ serve(async (req) => {
         }
       }
 
-      // 2) Heartbeats are the source of truth for online/active/idle time.
-      // Each heartbeat represents a ~30-60s window. We build intervals around each
-      // heartbeat and merge overlaps to get real online seconds, immune to zombie sessions.
+      // 2) Active heartbeats are the source of truth for counted online/active time.
+      // Idle heartbeats from an open tab are deliberately ignored so overnight tabs
+      // cannot inflate "online today".
       const HEARTBEAT_WINDOW_MS = 90 * 1000; // half-window each side of the heartbeat
       // Paginate to bypass the 1000-row default limit
       const hbByKey = new Map<string, Array<{ ts: number; active: boolean }>>();
@@ -103,6 +109,7 @@ serve(async (req) => {
           .select("user_id, workspace_id, ts, is_active")
           .gte("ts", dayStart)
           .lte("ts", dayEnd)
+          .eq("is_active", true)
           .order("ts", { ascending: true })
           .range(from, from + PAGE - 1);
         const rows = (page as any[] | null) || [];
