@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
 
       // Buscar settings dos usuários afetados (para saber canais e e-mail)
       const userIds = Array.from(new Set(
-        due.map((r) => {
+        dueValid.map((r) => {
           const t = Array.isArray((r as any).tasks) ? (r as any).tasks[0] : (r as any).tasks;
           return t?.user_id;
         }).filter(Boolean)
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       const notificationRows: any[] = [];
       const emailJobs: { userId: string; taskTitle: string; mins: number | null; dueAt: string | null }[] = [];
 
-      for (const r of due) {
+      for (const r of dueValid) {
         const task = Array.isArray((r as any).tasks) ? (r as any).tasks[0] : (r as any).tasks;
         if (!task?.user_id || !task?.workspace_id) continue;
         if (task.completed_at) continue; // tarefa já concluída — pular
@@ -172,6 +172,7 @@ Deno.serve(async (req) => {
       .lte('due_at', nowIso)
       .gte('due_at', overdueWindow)
       .is('completed_at', null)
+      .is('deleted_at', null)
       .limit(100);
 
     if (overdueTasks && overdueTasks.length > 0) {
