@@ -70,32 +70,68 @@ serve(async (req) => {
         first: string | null;
         last: string | null;
         hourly: Record<string, number>;
+        intervals: Array<[number, number]>; // ms epoch [lo, hi] within the day
       }>();
+
+      const dayStartMs = new Date(dayStart).getTime();
+      const dayEndMs = new Date(dayEnd).getTime();
 
       for (const s of (sessions as SessionRow[] | null) || []) {
         const started = new Date(s.started_at);
-        const ended = new Date(s.ended_at || s.last_seen_at);
-        // only count overlap within the day
-        const lo = new Date(Math.max(started.getTime(), new Date(dayStart).getTime()));
-        const hi = new Date(Math.min(ended.getTime(), new Date(dayEnd).getTime()));
+        // Use last_seen_at as the real "end" of activity. ended_at can be far in the future
+        // when a session is closed in batch days later, which would falsely inflate online time.
+        const lastSeen = new Date(s.last_seen_at);
+        const realEnd = s.ended_at
+          ? new Date(Math.min(new Date(s.ended_at).getTime(), lastSeen.getTime() + 5 * 60 * 1000))
+          : lastSeen;
+        const lo = Math.max(started.getTime(), dayStartMs);
+        const hi = Math.min(realEnd.getTime(), dayEndMs);
         if (hi <= lo) continue;
 
         const key = `${s.user_id}|${s.workspace_id}`;
         let agg = buckets.get(key);
         if (!agg) {
-          agg = { user_id: s.user_id, workspace_id: s.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {} };
+          agg = { user_id: s.user_id, workspace_id: s.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] };
           buckets.set(key, agg);
         }
-        const overlapSec = Math.floor((hi.getTime() - lo.getTime()) / 1000);
-        agg.online += overlapSec;
+        agg.intervals.push([lo, hi]);
         agg.sessions += 1;
         // proportional active/idle if session spans multiple days
-        const totalSec = Math.max(1, Math.floor((ended.getTime() - started.getTime()) / 1000));
+        const overlapSec = Math.floor((hi - lo) / 1000);
+        const totalSec = Math.max(1, Math.floor((realEnd.getTime() - started.getTime()) / 1000));
         const ratio = overlapSec / totalSec;
         agg.active += Math.floor((s.active_seconds || 0) * ratio);
         agg.idle += Math.floor((s.idle_seconds || 0) * ratio);
-        if (!agg.first || lo.toISOString() < agg.first) agg.first = lo.toISOString();
-        if (!agg.last || hi.toISOString() > agg.last) agg.last = hi.toISOString();
+        const loIso = new Date(lo).toISOString();
+        const hiIso = new Date(hi).toISOString();
+        if (!agg.first || loIso < agg.first) agg.first = loIso;
+        if (!agg.last || hiIso > agg.last) agg.last = hiIso;
+      }
+
+      // Merge overlapping intervals to compute real online time (cap at 24h)
+      for (const agg of buckets.values()) {
+        if (!agg.intervals.length) continue;
+        agg.intervals.sort((a, b) => a[0] - b[0]);
+        let mergedSec = 0;
+        let [curLo, curHi] = agg.intervals[0];
+        for (let i = 1; i < agg.intervals.length; i++) {
+          const [lo, hi] = agg.intervals[i];
+          if (lo <= curHi) {
+            if (hi > curHi) curHi = hi;
+          } else {
+            mergedSec += Math.floor((curHi - curLo) / 1000);
+            curLo = lo; curHi = hi;
+          }
+        }
+        mergedSec += Math.floor((curHi - curLo) / 1000);
+        agg.online = Math.min(mergedSec, 86400);
+        // active/idle should never exceed online
+        if (agg.active + agg.idle > agg.online) {
+          const total = agg.active + agg.idle;
+          const k = agg.online / total;
+          agg.active = Math.floor(agg.active * k);
+          agg.idle = Math.floor(agg.idle * k);
+        }
       }
 
       // 2) hourly buckets from heartbeats (active only)
