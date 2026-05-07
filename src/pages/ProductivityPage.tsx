@@ -341,7 +341,7 @@ export default function ProductivityPage() {
       score: number;
       days: number;
     }>();
-    for (const r of stats) {
+    for (const r of filtered) {
       let agg = map.get(r.user_id);
       if (!agg) {
         agg = { user_id: r.user_id, online: 0, active: 0, idle: 0, tasks: 0, tasks_proj: 0, tasks_inbox: 0, score: 0, days: 0 };
