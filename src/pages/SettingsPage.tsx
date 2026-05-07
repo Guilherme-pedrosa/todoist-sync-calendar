@@ -253,17 +253,34 @@ export default function SettingsPage() {
     if (!user) return;
     setWiping(true);
     try {
-      // Reminders (via task ownership), comments, task_labels, then tasks
-      const { data: taskIds } = await supabase.from('tasks').select('id').eq('user_id', user.id);
-      const ids = (taskIds || []).map((t: any) => t.id);
-      if (ids.length) {
-        await supabase.from('reminders').delete().in('task_id', ids);
-        await supabase.from('comments').delete().in('task_id', ids);
-        await supabase.from('task_labels').delete().in('task_id', ids);
+      // Soft-delete em massa: tarefas deletadas continuam protegidas contra
+      // ressurreição via integrações externas (FleetDesk, Todoist).
+      // Reminders/comments/task_labels mantidos (cascade real só se task
+      // for hard-deletada futuramente via housekeeping).
+      const now = new Date().toISOString();
+      const { error: softErr } = await supabase
+        .from('tasks')
+        .update({ deleted_at: now })
+        .eq('user_id', user.id)
+        .is('deleted_at', null);
+
+      if (softErr) {
+        throw softErr;
       }
-      await supabase.from('tasks').delete().eq('user_id', user.id);
-      await supabase.from('activity_log').delete().eq('user_id', user.id).eq('entity_type', 'task');
-      toast.success('Todas as tarefas foram apagadas');
+
+      // Reminders pendentes não fazem mais sentido — cancelar (não apagar)
+      const { data: allTaskIds } = await supabase.from('tasks').select('id').eq('user_id', user.id);
+      const idsForReminders = (allTaskIds || []).map((t: any) => t.id);
+      if (idsForReminders.length) {
+        await supabase
+          .from('reminders')
+          .update({ fired_at: now, notification_sent: true })
+          .in('task_id', idsForReminders)
+          .is('fired_at', null);
+      }
+
+      // Activity log preservado (auditoria).
+      toast.success('Todas as tarefas foram apagadas (recuperáveis via banco)');
       setConfirmWipeTasks(false);
     } catch (e: any) {
       toast.error('Erro ao apagar tarefas: ' + (e?.message || ''));
