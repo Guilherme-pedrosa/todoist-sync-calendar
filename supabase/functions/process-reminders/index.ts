@@ -29,15 +29,21 @@ Deno.serve(async (req) => {
     // ============ 1) PROCESSAR REMINDERS VENCIDOS ============
     const { data: due, error: selErr } = await supabase
       .from('reminders')
-      .select('id, task_id, trigger_at, type, channel, relative_minutes, tasks(id, title, user_id, workspace_id, due_at, completed_at)')
+      .select('id, task_id, trigger_at, type, channel, relative_minutes, tasks!inner(id, title, user_id, workspace_id, due_at, completed_at, deleted_at)')
       .lte('trigger_at', nowIso)
       .is('fired_at', null)
       .limit(200);
 
     if (selErr) throw selErr;
 
-    if (due && due.length > 0) {
-      const ids = due.map((r) => r.id);
+    // Filtrar reminders cujas tasks foram soft-deletadas
+    const dueValid = (due || []).filter((r: any) => {
+      const t = Array.isArray(r.tasks) ? r.tasks[0] : r.tasks;
+      return t && !t.deleted_at;
+    });
+
+    if (dueValid.length > 0) {
+      const ids = dueValid.map((r) => r.id);
       const { error: updErr } = await supabase
         .from('reminders')
         .update({ fired_at: nowIso, notification_sent: true })
