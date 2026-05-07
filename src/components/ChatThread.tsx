@@ -189,15 +189,33 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {
-        // Busca participantes da conversa para notificar todos (exceto o autor).
-        const { data: parts } = await supabase
-          .from('conversation_participants')
-          .select('user_id')
-          .eq('conversation_id', conversationId);
-        const participantIds = (parts || [])
-          .map((p: any) => p.user_id as string)
-          .filter((id) => id !== user.id);
+        // Determina quem deve receber notificação:
+        // - Conversa de tarefa: apenas criador + responsáveis (assignees) da tarefa.
+        // - Conversa de workspace/contexto: todos os participantes.
+        // Mencionados (@) sempre recebem, independentemente.
+        let recipientIds: string[] = [];
+        if (conversation?.type === 'task' && conversation.taskId) {
+          const [{ data: taskRow }, { data: assignees }] = await Promise.all([
+            supabase.from('tasks').select('user_id, created_by, assignee').eq('id', conversation.taskId).maybeSingle(),
+            supabase.from('task_assignees').select('user_id').eq('task_id', conversation.taskId),
+          ]);
+          const set = new Set<string>();
+          if (taskRow?.created_by) set.add(taskRow.created_by as string);
+          if (taskRow?.user_id) set.add(taskRow.user_id as string);
+          if (taskRow?.assignee) set.add(taskRow.assignee as string);
+          for (const a of assignees || []) if ((a as any).user_id) set.add((a as any).user_id);
+          recipientIds = [...set];
+        } else {
+          const { data: parts } = await supabase
+            .from('conversation_participants')
+            .select('user_id')
+            .eq('conversation_id', conversationId);
+          recipientIds = (parts || []).map((p: any) => p.user_id as string);
+        }
         const mentionedSet = new Set(mentionedIds);
+        // Mencionados são sempre notificados, mesmo fora dos responsáveis.
+        const targetIds = new Set<string>([...recipientIds, ...mentionedIds]);
+        const participantIds = [...targetIds].filter((id) => id !== user.id);
         const rows: any[] = [];
         for (const id of participantIds) {
           if (id === user.id) continue;
