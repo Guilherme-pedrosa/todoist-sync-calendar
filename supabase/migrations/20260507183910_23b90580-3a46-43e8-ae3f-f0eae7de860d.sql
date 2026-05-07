@@ -1,0 +1,1 @@
+SELECT public.run_activity_aggregate((now() AT TIME ZONE 'America/Sao_Paulo')::date);
