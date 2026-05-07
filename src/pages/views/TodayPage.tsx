@@ -16,6 +16,7 @@ import { useViewPref } from '@/hooks/useViewPref';
 import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
 import { useAuth } from '@/contexts/AuthContext';
+import { expandOccurrencesInRange } from '@/lib/recurrence';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
@@ -32,20 +33,48 @@ export default function TodayPage() {
     const overdue: Task[] = [];
     const todayTasks: Task[] = [];
     const completedToday: Task[] = [];
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(todayStr + 'T00:00:00');
+    const futureWindow = new Date(todayDate);
+    futureWindow.setDate(futureWindow.getDate() + 30);
+    const futureWindowStr = futureWindow.toISOString().split('T')[0];
+
     for (const t of tasks) {
       if (t.parentId) continue;
       if (!t.dueDate) continue;
-      // Se a tarefa tem responsáveis atribuídos e o usuário atual NÃO está entre eles, ocultar
       if (user && t.assigneeIds && t.assigneeIds.length > 0 && !t.assigneeIds.includes(user.id)) {
         continue;
       }
       if (t.completed) {
-        // Show completed tasks in "Hoje" only if they were due today
-        if (t.dueDate === today) completedToday.push(t);
+        if (t.dueDate === todayStr) completedToday.push(t);
         continue;
       }
-      if (t.dueDate < today) overdue.push(t);
-      else if (t.dueDate === today) todayTasks.push(t);
+      if (t.dueDate === todayStr) {
+        todayTasks.push(t);
+        continue;
+      }
+      if (t.dueDate < todayStr) {
+        // Recorrentes com due_date desalinhado da regra: se a regra prevê
+        // ocorrência nos próximos 30 dias, série está viva — esconder do overdue.
+        if (t.recurrenceRule) {
+          try {
+            const futureOccurrences = expandOccurrencesInRange(
+              t.recurrenceRule,
+              todayStr,
+              futureWindowStr
+            );
+            if (futureOccurrences && futureOccurrences.length > 0) {
+              continue;
+            }
+          } catch (err) {
+            console.warn('[TodayPage] expandOccurrencesInRange failed', {
+              taskId: t.id, rule: t.recurrenceRule, err,
+            });
+          }
+        }
+        overdue.push(t);
+      }
     }
     const sortFn = (a: Task, b: Task) => {
       if (a.priority !== b.priority) return a.priority - b.priority;
@@ -58,7 +87,7 @@ export default function TodayPage() {
     todayTasks.sort(sortFn);
     completedToday.sort(sortFn);
     return { overdue, todayTasks, completedToday };
-  }, [tasks, today, user]);
+  }, [tasks, user]);
 
   const rescheduleAllOverdue = async () => {
     await Promise.all(overdue.map((t) => updateTask(t.id, { dueDate: today })));
