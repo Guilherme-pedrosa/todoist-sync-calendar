@@ -496,6 +496,33 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_classifications: {
+        Row: {
+          category: string
+          classified_at: string
+          classified_by: string
+          confidence: string
+          domain: string
+          reasoning: string | null
+        }
+        Insert: {
+          category: string
+          classified_at?: string
+          classified_by?: string
+          confidence: string
+          domain: string
+          reasoning?: string | null
+        }
+        Update: {
+          category?: string
+          classified_at?: string
+          classified_by?: string
+          confidence?: string
+          domain?: string
+          reasoning?: string | null
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -1003,6 +1030,51 @@ export type Database = {
           id?: string
           is_super?: boolean
           user_id?: string
+        }
+        Relationships: []
+      }
+      productivity_insights: {
+        Row: {
+          concerns: Json
+          generated_at: string
+          generated_by: string
+          highlights: Json
+          id: string
+          period_end: string
+          period_start: string
+          raw_metrics: Json | null
+          suggestions: Json
+          summary: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          concerns?: Json
+          generated_at?: string
+          generated_by?: string
+          highlights?: Json
+          id?: string
+          period_end: string
+          period_start: string
+          raw_metrics?: Json | null
+          suggestions?: Json
+          summary: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          concerns?: Json
+          generated_at?: string
+          generated_by?: string
+          highlights?: Json
+          id?: string
+          period_end?: string
+          period_start?: string
+          raw_metrics?: Json | null
+          suggestions?: Json
+          summary?: string
+          user_id?: string
+          workspace_id?: string
         }
         Relationships: []
       }
