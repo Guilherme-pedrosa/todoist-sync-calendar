@@ -61,8 +61,10 @@ export default function TodayPage() {
           try {
             const futureOccurrences = expandOccurrencesInRange(
               t.recurrenceRule,
-              todayStr,
-              futureWindowStr
+              t.dueDate,
+              t.dueTime,
+              todayDate,
+              futureWindow
             );
             if (futureOccurrences && futureOccurrences.length > 0) {
               continue;
