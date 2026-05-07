@@ -2463,6 +2463,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      advance_stuck_recurrences: { Args: never; Returns: Json }
       can_insert_task: {
         Args: { _project_id: string; _user_id: string; _workspace_id: string }
         Returns: boolean
