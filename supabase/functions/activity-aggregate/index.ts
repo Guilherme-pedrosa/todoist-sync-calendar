@@ -175,6 +175,17 @@ serve(async (req) => {
         agg.last = new Date(Math.min(dayEndMs, lastTs)).toISOString();
       }
 
+      const primaryWorkspaceByUser = new Map<string, string>();
+      const primarySecondsByUser = new Map<string, number>();
+      for (const agg of buckets.values()) {
+        if (agg.online <= 0) continue;
+        const cur = primarySecondsByUser.get(agg.user_id) || 0;
+        if (agg.online > cur) {
+          primarySecondsByUser.set(agg.user_id, agg.online);
+          primaryWorkspaceByUser.set(agg.user_id, agg.workspace_id);
+        }
+      }
+
 
       // 3) tasks completed that day per user (using activity_log)
       const { data: completions } = await supabase
@@ -191,7 +202,7 @@ serve(async (req) => {
         .filter(Boolean);
 
 
-      const projectByTask = new Map<string, { project_id: string | null; workspace_id: string; project_name?: string }>();
+      const projectByTask = new Map<string, { project_id: string | null; workspace_id: string; project_name?: string; is_inbox: boolean }>();
       if (taskIds.length) {
         const { data: tasks } = await supabase
           .from("tasks")
@@ -202,6 +213,7 @@ serve(async (req) => {
             project_id: t.project_id,
             workspace_id: t.workspace_id,
             project_name: t.projects?.name,
+            is_inbox: !!t.projects?.is_inbox,
           });
         }
       }
@@ -215,15 +227,16 @@ serve(async (req) => {
         const taskId = c.payload?.task_id || (c as any).entity_id;
         const meta = taskId ? projectByTask.get(taskId) : null;
         if (!meta) continue;
-        const key = `${c.user_id}|${meta.workspace_id}`;
+        const projName = meta.project_name || "—";
+        const isInbox = meta.is_inbox || projName.toLowerCase().includes("caixa de entrada") || projName.toLowerCase().includes("inbox");
+        const targetWorkspaceId = isInbox ? (primaryWorkspaceByUser.get(c.user_id) || meta.workspace_id) : meta.workspace_id;
+        const key = `${c.user_id}|${targetWorkspaceId}`;
         let ta = taskAgg.get(key);
         if (!ta) {
           ta = { total: 0, with_project: 0, inbox: 0, by_project: {} };
           taskAgg.set(key, ta);
         }
         ta.total += 1;
-        const projName = meta.project_name || "—";
-        const isInbox = projName.toLowerCase().includes("caixa de entrada") || projName.toLowerCase().includes("inbox");
         if (isInbox) ta.inbox += 1; else ta.with_project += 1;
         const pid = meta.project_id || "inbox";
         if (!ta.by_project[pid]) ta.by_project[pid] = { name: projName, tasks: 0, seconds: 0 };
