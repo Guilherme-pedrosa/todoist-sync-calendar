@@ -183,10 +183,6 @@ serve(async (req) => {
         .map((c) => c.payload?.task_id || c.entity_id)
         .filter(Boolean);
 
-      // Need workspace per task → fetch task workspace_ids
-      const taskIds = ((completions as any[] | null) || [])
-        .map((c) => c.payload?.task_id || c.entity_id)
-        .filter(Boolean);
 
       const projectByTask = new Map<string, { project_id: string | null; workspace_id: string; project_name?: string }>();
       if (taskIds.length) {
