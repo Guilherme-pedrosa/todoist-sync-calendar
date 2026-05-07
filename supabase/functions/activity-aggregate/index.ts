@@ -204,7 +204,7 @@ serve(async (req) => {
       }>();
 
       for (const c of (completions as any[] | null) || []) {
-        const taskId = c.payload?.task_id;
+        const taskId = c.payload?.task_id || (c as any).entity_id;
         const meta = taskId ? projectByTask.get(taskId) : null;
         if (!meta) continue;
         const key = `${c.user_id}|${meta.workspace_id}`;
