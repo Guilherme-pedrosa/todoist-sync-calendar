@@ -38,7 +38,6 @@ export default function TodayPage() {
     const todayDate = new Date(todayStr + 'T00:00:00');
     const futureWindow = new Date(todayDate);
     futureWindow.setDate(futureWindow.getDate() + 30);
-    const futureWindowStr = futureWindow.toISOString().split('T')[0];
 
     for (const t of tasks) {
       if (t.parentId) continue;
