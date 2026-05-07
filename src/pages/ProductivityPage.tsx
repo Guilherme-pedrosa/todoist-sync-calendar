@@ -718,7 +718,7 @@ export default function ProductivityPage() {
               )}
             </Card>
 
-
+            <Tabs defaultValue="ranking">
               <TabsList>
                 <TabsTrigger value="ranking">Ranking</TabsTrigger>
                 <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
