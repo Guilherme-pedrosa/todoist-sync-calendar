@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown } from "lucide-react";
+import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown, Sparkles, AlertTriangle, Lightbulb, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
