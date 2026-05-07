@@ -1356,20 +1356,17 @@ export function TaskDetailPanel() {
         </div>
       </div>
 
-      {/* Footer: comment input + summary */}
-      <div className="border-t border-border px-4 py-3 space-y-2">
-        <div className="text-[11px] text-muted-foreground flex items-center gap-3">
+      {/* Footer: compact comment + summary */}
+      <div className="border-t border-border px-4 py-2 flex items-center gap-3">
+        <div className="text-[11px] text-muted-foreground flex items-center gap-3 flex-1 min-w-0 truncate">
           {subtasks.length > 0 && (
-            <span>
+            <span className="shrink-0">
               {subtasks.filter((s) => s.completed).length}/{subtasks.length} subtarefas
             </span>
           )}
-          {summaryLine && <span>{summaryLine}</span>}
+          {summaryLine && <span className="truncate">{summaryLine}</span>}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 shrink-0 rounded-full bg-primary/15 text-primary text-[11px] font-semibold flex items-center justify-center">
-            {(user?.email?.[0] ?? '?').toUpperCase()}
-          </div>
+        <div className="flex items-center gap-1 shrink-0">
           <Input
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
@@ -1379,17 +1376,17 @@ export function TaskDetailPanel() {
                 sendComment();
               }
             }}
-            placeholder="Comentar"
-            className="h-8 text-sm"
+            placeholder="Comentar rápido…"
+            className="h-7 text-xs w-48 sm:w-64"
           />
-          <button
-            disabled
-            title="Anexo (em breve)"
-            className="p-1.5 text-muted-foreground/50 cursor-not-allowed"
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={sendComment}
+            disabled={!commentText.trim()}
+            className="h-7 w-7 p-0"
+            aria-label="Enviar comentário"
           >
-            <Paperclip className="h-4 w-4" />
-          </button>
-          <Button size="sm" onClick={sendComment} disabled={!commentText.trim()} className="h-8 px-3">
             <Send className="h-3.5 w-3.5" />
           </Button>
         </div>
