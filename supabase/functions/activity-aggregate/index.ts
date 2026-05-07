@@ -78,14 +78,21 @@ serve(async (req) => {
 
       for (const s of (sessions as SessionRow[] | null) || []) {
         const started = new Date(s.started_at);
-        // Use last_seen_at as the real "end" of activity. ended_at can be far in the future
-        // when a session is closed in batch days later, which would falsely inflate online time.
         const lastSeen = new Date(s.last_seen_at);
         const realEnd = s.ended_at
           ? new Date(Math.min(new Date(s.ended_at).getTime(), lastSeen.getTime() + 5 * 60 * 1000))
           : lastSeen;
+
+        // Cap session duration by actually-measured time (active+idle) + small buffer.
+        // This prevents zombie sessions (browser hibernated, network drop, missed close)
+        // from inflating online time by counting hours of wall-clock with no heartbeats.
+        const measuredSec = (s.active_seconds || 0) + (s.idle_seconds || 0);
+        const elapsedSec = Math.max(0, Math.floor((realEnd.getTime() - started.getTime()) / 1000));
+        const cappedSec = Math.min(elapsedSec, measuredSec + 5 * 60); // +5min grace
+        const cappedEnd = new Date(started.getTime() + cappedSec * 1000);
+
         const lo = Math.max(started.getTime(), dayStartMs);
-        const hi = Math.min(realEnd.getTime(), dayEndMs);
+        const hi = Math.min(cappedEnd.getTime(), dayEndMs);
         if (hi <= lo) continue;
 
         const key = `${s.user_id}|${s.workspace_id}`;
@@ -96,10 +103,10 @@ serve(async (req) => {
         }
         agg.intervals.push([lo, hi]);
         agg.sessions += 1;
-        // proportional active/idle if session spans multiple days
+        // proportional active/idle if capped session spans multiple days
         const overlapSec = Math.floor((hi - lo) / 1000);
-        const totalSec = Math.max(1, Math.floor((realEnd.getTime() - started.getTime()) / 1000));
-        const ratio = overlapSec / totalSec;
+        const totalSec = Math.max(1, cappedSec);
+        const ratio = Math.min(1, overlapSec / totalSec);
         agg.active += Math.floor((s.active_seconds || 0) * ratio);
         agg.idle += Math.floor((s.idle_seconds || 0) * ratio);
         const loIso = new Date(lo).toISOString();
