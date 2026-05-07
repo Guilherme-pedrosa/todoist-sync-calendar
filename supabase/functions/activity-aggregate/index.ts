@@ -76,79 +76,98 @@ serve(async (req) => {
       const dayStartMs = new Date(dayStart).getTime();
       const dayEndMs = new Date(dayEnd).getTime();
 
+      // Initialize buckets per (user, workspace) seen in sessions overlapping the day
       for (const s of (sessions as SessionRow[] | null) || []) {
-        const started = new Date(s.started_at);
-        // Use last_seen_at as the real "end" of activity. ended_at can be far in the future
-        // when a session is closed in batch days later, which would falsely inflate online time.
-        const lastSeen = new Date(s.last_seen_at);
-        const realEnd = s.ended_at
-          ? new Date(Math.min(new Date(s.ended_at).getTime(), lastSeen.getTime() + 5 * 60 * 1000))
-          : lastSeen;
-        const lo = Math.max(started.getTime(), dayStartMs);
-        const hi = Math.min(realEnd.getTime(), dayEndMs);
-        if (hi <= lo) continue;
-
         const key = `${s.user_id}|${s.workspace_id}`;
-        let agg = buckets.get(key);
-        if (!agg) {
-          agg = { user_id: s.user_id, workspace_id: s.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] };
-          buckets.set(key, agg);
+        if (!buckets.has(key)) {
+          buckets.set(key, { user_id: s.user_id, workspace_id: s.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] });
         }
-        agg.intervals.push([lo, hi]);
-        agg.sessions += 1;
-        // proportional active/idle if session spans multiple days
-        const overlapSec = Math.floor((hi - lo) / 1000);
-        const totalSec = Math.max(1, Math.floor((realEnd.getTime() - started.getTime()) / 1000));
-        const ratio = overlapSec / totalSec;
-        agg.active += Math.floor((s.active_seconds || 0) * ratio);
-        agg.idle += Math.floor((s.idle_seconds || 0) * ratio);
-        const loIso = new Date(lo).toISOString();
-        const hiIso = new Date(hi).toISOString();
-        if (!agg.first || loIso < agg.first) agg.first = loIso;
-        if (!agg.last || hiIso > agg.last) agg.last = hiIso;
+        const started = new Date(s.started_at).getTime();
+        const last = new Date(s.last_seen_at).getTime();
+        if (started <= dayEndMs && last >= dayStartMs) {
+          buckets.get(key)!.sessions += 1;
+        }
       }
 
-      // Merge overlapping intervals to compute real online time (cap at 24h)
-      for (const agg of buckets.values()) {
-        if (!agg.intervals.length) continue;
-        agg.intervals.sort((a, b) => a[0] - b[0]);
-        let mergedSec = 0;
-        let [curLo, curHi] = agg.intervals[0];
-        for (let i = 1; i < agg.intervals.length; i++) {
-          const [lo, hi] = agg.intervals[i];
+      // 2) Heartbeats are the source of truth for online/active/idle time.
+      // Each heartbeat represents a ~30-60s window. We build intervals around each
+      // heartbeat and merge overlaps to get real online seconds, immune to zombie sessions.
+      const HEARTBEAT_WINDOW_MS = 90 * 1000; // half-window each side of the heartbeat
+      // Paginate to bypass the 1000-row default limit
+      const hbByKey = new Map<string, Array<{ ts: number; active: boolean }>>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data: page } = await supabase
+          .from("activity_heartbeats")
+          .select("user_id, workspace_id, ts, is_active")
+          .gte("ts", dayStart)
+          .lte("ts", dayEnd)
+          .order("ts", { ascending: true })
+          .range(from, from + PAGE - 1);
+        const rows = (page as any[] | null) || [];
+        for (const h of rows) {
+          const key = `${h.user_id}|${h.workspace_id}`;
+          if (!buckets.has(key)) {
+            buckets.set(key, { user_id: h.user_id, workspace_id: h.workspace_id, active: 0, idle: 0, online: 0, sessions: 0, first: null, last: null, hourly: {}, intervals: [] });
+          }
+          let arr = hbByKey.get(key);
+          if (!arr) { arr = []; hbByKey.set(key, arr); }
+          arr.push({ ts: new Date(h.ts).getTime(), active: !!h.is_active });
+        }
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+
+      for (const [key, hbList] of hbByKey.entries()) {
+        const agg = buckets.get(key)!;
+        // Build & merge intervals around heartbeats
+        const intervals: Array<[number, number, boolean]> = hbList.map((h) => [
+          Math.max(dayStartMs, h.ts - HEARTBEAT_WINDOW_MS / 2),
+          Math.min(dayEndMs, h.ts + HEARTBEAT_WINDOW_MS / 2),
+          h.active,
+        ]);
+        intervals.sort((a, b) => a[0] - b[0]);
+
+        let onlineSec = 0;
+        let activeSec = 0;
+        let curLo = intervals[0][0];
+        let curHi = intervals[0][1];
+        let curActive = intervals[0][2];
+        for (let i = 1; i < intervals.length; i++) {
+          const [lo, hi, act] = intervals[i];
           if (lo <= curHi) {
             if (hi > curHi) curHi = hi;
+            curActive = curActive || act; // any active in window counts as active
           } else {
-            mergedSec += Math.floor((curHi - curLo) / 1000);
-            curLo = lo; curHi = hi;
+            const dur = Math.floor((curHi - curLo) / 1000);
+            onlineSec += dur;
+            if (curActive) activeSec += dur;
+            curLo = lo; curHi = hi; curActive = act;
           }
         }
-        mergedSec += Math.floor((curHi - curLo) / 1000);
-        agg.online = Math.min(mergedSec, 86400);
-        // active/idle should never exceed online
-        if (agg.active + agg.idle > agg.online) {
-          const total = agg.active + agg.idle;
-          const k = agg.online / total;
-          agg.active = Math.floor(agg.active * k);
-          agg.idle = Math.floor(agg.idle * k);
+        const dur = Math.floor((curHi - curLo) / 1000);
+        onlineSec += dur;
+        if (curActive) activeSec += dur;
+
+        agg.online = Math.min(onlineSec, 86400);
+        agg.active = Math.min(activeSec, agg.online);
+        agg.idle = Math.max(0, agg.online - agg.active);
+
+        // hourly active bucket from active heartbeats
+        for (const h of hbList) {
+          if (!h.active) continue;
+          const hour = String(new Date(h.ts).getUTCHours());
+          agg.hourly[hour] = (agg.hourly[hour] || 0) + 30;
         }
+
+        // first/last seen
+        const firstTs = hbList[0].ts;
+        const lastTs = hbList[hbList.length - 1].ts;
+        agg.first = new Date(Math.max(dayStartMs, firstTs)).toISOString();
+        agg.last = new Date(Math.min(dayEndMs, lastTs)).toISOString();
       }
 
-      // 2) hourly buckets from heartbeats (active only)
-      const { data: hbs } = await supabase
-        .from("activity_heartbeats")
-        .select("user_id, workspace_id, ts, is_active")
-        .gte("ts", dayStart)
-        .lte("ts", dayEnd);
-
-      for (const h of (hbs as any[] | null) || []) {
-        if (!h.is_active) continue;
-        const key = `${h.user_id}|${h.workspace_id}`;
-        const agg = buckets.get(key);
-        if (!agg) continue;
-        const hour = String(new Date(h.ts).getUTCHours());
-        agg.hourly[hour] = (agg.hourly[hour] || 0) + 30; // approx 30s per heartbeat
-      }
 
       // 3) tasks completed that day per user (using activity_log)
       const { data: completions } = await supabase
