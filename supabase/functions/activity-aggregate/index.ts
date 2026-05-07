@@ -172,11 +172,16 @@ serve(async (req) => {
       // 3) tasks completed that day per user (using activity_log)
       const { data: completions } = await supabase
         .from("activity_log")
-        .select("user_id, payload, created_at")
+        .select("user_id, entity_id, payload, created_at")
         .eq("entity_type", "task")
         .eq("action", "completed")
         .gte("created_at", dayStart)
         .lte("created_at", dayEnd);
+
+      // Need workspace per task → fetch task workspace_ids
+      const taskIds = ((completions as any[] | null) || [])
+        .map((c) => c.payload?.task_id || c.entity_id)
+        .filter(Boolean);
 
       // Need workspace per task → fetch task workspace_ids
       const taskIds = ((completions as any[] | null) || [])
