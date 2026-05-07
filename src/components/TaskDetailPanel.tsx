@@ -166,6 +166,11 @@ export function TaskDetailPanel() {
   const complete = useCompleteTask();
 
   const task = useMemo(() => tasks.find((t) => t.id === taskId) || null, [tasks, taskId]);
+  const parentTask = useMemo(
+    () => (task?.parentId ? tasks.find((t) => t.id === task.parentId) || null : null),
+    [tasks, task?.parentId]
+  );
+  const openDetail = useTaskDetailStore((s) => s.open);
   const subtasks = useMemo(
     () => (task ? tasks.filter((t) => t.parentId === task.id) : []),
     [tasks, task]
