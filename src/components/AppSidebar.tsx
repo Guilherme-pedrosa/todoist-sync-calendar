@@ -182,7 +182,7 @@ export function AppSidebar() {
   const projectTaskCount = useMemo(() => {
     const map = new Map<string, number>();
     for (const t of tasks) {
-      if (t.completed || !t.projectId) continue;
+      if (t.completed || !t.projectId || t.parentId) continue;
       map.set(t.projectId, (map.get(t.projectId) || 0) + 1);
     }
     return map;
