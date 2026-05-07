@@ -961,11 +961,11 @@ function DayColumn({
       {/* Now indicator */}
       {nowMin !== null && nowMin >= DAY_START_MIN && nowMin <= DAY_END_MIN && (
         <div
-          className="absolute left-0 right-0 z-[5] pointer-events-none"
+          className="absolute left-0 right-0 z-50 pointer-events-none"
           style={{ top: ((nowMin - DAY_START_MIN) / 60) * HOUR_HEIGHT }}
         >
-          <div className="h-px bg-primary" />
-          <div className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-primary" />
+          <div className="h-0.5 bg-destructive shadow-[0_0_4px_hsl(var(--destructive))]" />
+          <div className="absolute -left-1 -top-1 h-2.5 w-2.5 rounded-full bg-destructive ring-2 ring-background" />
         </div>
       )}
 
