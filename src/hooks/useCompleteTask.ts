@@ -86,6 +86,41 @@ export function useCompleteTask() {
             dueDate: next.dueDate,
             dueTime: next.dueTime,
           });
+
+          // Defesa: confirmar que a série realmente avançou no estado local.
+          // Se não avançou, tentar uma vez mais. Se ainda não, alertar o user
+          // e logar warn — alguém precisa ver e agir manualmente.
+          const refreshed = useTaskStore.getState().tasks.find((tt) => tt.id === taskId);
+          if (refreshed && refreshed.dueDate !== next.dueDate) {
+            console.warn('[useCompleteTask] série não avançou após updateTask, tentando novamente', {
+              taskId,
+              title: task.title,
+              expected_due: next.dueDate,
+              actual_due: refreshed.dueDate,
+              rule: task.recurrenceRule,
+            });
+
+            // Retry único
+            await updateTask(taskId, {
+              dueDate: next.dueDate,
+              dueTime: next.dueTime,
+            });
+
+            const refreshed2 = useTaskStore.getState().tasks.find((tt) => tt.id === taskId);
+            if (refreshed2 && refreshed2.dueDate !== next.dueDate) {
+              console.error('[useCompleteTask] série em estado inconsistente após 2 tentativas', {
+                taskId,
+                title: task.title,
+                expected_due: next.dueDate,
+                actual_due: refreshed2.dueDate,
+                rule: task.recurrenceRule,
+              });
+              toast.error('Tarefa recorrente em estado inconsistente. Avise o admin.', {
+                duration: 8000,
+              });
+              // Continua o fluxo — não bloqueia a conclusão da ocorrência atual.
+            }
+          }
           // Log occurrence completion
           try {
             if (u.user) {
