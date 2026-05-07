@@ -64,7 +64,7 @@ export default function ProductivityPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const currentWs = workspaces.find((w) => w.id === currentWorkspaceId);
 
-  const [range, setRange] = useState<"7" | "30">("7");
+  const [range, setRange] = useState<string>("7");
   const [stats, setStats] = useState<DailyStat[]>([]);
   const [members, setMembers] = useState<MemberLite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -411,13 +411,20 @@ export default function ProductivityPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={range} onValueChange={(v) => setRange(v as "7" | "30")}>
-              <SelectTrigger className="w-[140px]">
+            <Select value={range} onValueChange={setRange}>
+              <SelectTrigger className="w-[160px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="1">Hoje</SelectItem>
+                <SelectItem value="2">Últimos 2 dias</SelectItem>
                 <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="14">Últimos 14 dias</SelectItem>
                 <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="60">Últimos 60 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+                <SelectItem value="180">Últimos 6 meses</SelectItem>
+                <SelectItem value="365">Último ano</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={triggerAggregate} disabled={refreshing} title="Recalcular">
