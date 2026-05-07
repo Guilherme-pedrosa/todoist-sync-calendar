@@ -201,8 +201,9 @@ export default function ProductivityPage() {
   const load = async () => {
     if (!currentWorkspaceId) return;
     setLoading(true);
+    const days = Math.max(1, parseInt(range, 10));
     const since = new Date();
-    since.setDate(since.getDate() - parseInt(range, 10));
+    since.setDate(since.getDate() - (days - 1));
     const sinceStr = since.toISOString().slice(0, 10);
 
     const { data: rows } = await supabase
