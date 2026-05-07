@@ -98,7 +98,7 @@ serve(async (req) => {
         agg.sessions += 1;
         // proportional active/idle if session spans multiple days
         const overlapSec = Math.floor((hi - lo) / 1000);
-        const totalSec = Math.max(1, Math.floor((ended.getTime() - started.getTime()) / 1000));
+        const totalSec = Math.max(1, Math.floor((realEnd.getTime() - started.getTime()) / 1000));
         const ratio = overlapSec / totalSec;
         agg.active += Math.floor((s.active_seconds || 0) * ratio);
         agg.idle += Math.floor((s.idle_seconds || 0) * ratio);
