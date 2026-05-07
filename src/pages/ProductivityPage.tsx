@@ -266,7 +266,62 @@ export default function ProductivityPage() {
     }
   };
 
-  // Filtered to selected user (or all)
+  // Load most recent saved insight for current selection
+  const loadInsight = async () => {
+    if (!currentWorkspaceId || selectedUser === "all") {
+      setInsight(null);
+      return;
+    }
+    setInsightLoading(true);
+    const { data } = await supabase
+      .from("productivity_insights")
+      .select("id,summary,highlights,concerns,suggestions,generated_at,generated_by,period_start,period_end")
+      .eq("workspace_id", currentWorkspaceId)
+      .eq("user_id", selectedUser)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setInsight((data as unknown as Insight) || null);
+    setInsightLoading(false);
+  };
+
+  useEffect(() => { void loadInsight(); /* eslint-disable-next-line */ }, [currentWorkspaceId, selectedUser]);
+
+  const generateInsight = async () => {
+    if (!currentWorkspaceId || selectedUser === "all") {
+      toast.error("Selecione um colaborador para gerar análise.");
+      return;
+    }
+    setInsightGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const periodDays = Math.min(30, parseInt(range, 10));
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/productivity-insights`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: selectedUser,
+            workspace_id: currentWorkspaceId,
+            period_days: periodDays,
+          }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || j.message || "Falha ao gerar análise");
+      toast.success("Análise gerada");
+      setInsight(j.insight as Insight);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInsightGenerating(false);
+    }
+  };
   const filtered = useMemo(
     () => (selectedUser === "all" ? stats : stats.filter((s) => s.user_id === selectedUser)),
     [stats, selectedUser],
