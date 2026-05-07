@@ -81,6 +81,23 @@ export default function ProductivityPage() {
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
 
+  // Insights AI
+  interface InsightItem { text: string; metric?: string; severity?: string; category?: string }
+  interface Insight {
+    id?: string;
+    summary: string;
+    highlights: InsightItem[];
+    concerns: InsightItem[];
+    suggestions: InsightItem[];
+    generated_at?: string;
+    generated_by?: string;
+    period_start?: string;
+    period_end?: string;
+  }
+  const [insight, setInsight] = useState<Insight | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightGenerating, setInsightGenerating] = useState(false);
+
   const refreshAccess = async () => {
     if (!user) return;
     setAccessChecking(true);
