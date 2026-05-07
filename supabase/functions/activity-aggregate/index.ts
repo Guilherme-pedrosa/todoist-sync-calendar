@@ -78,9 +78,14 @@ serve(async (req) => {
 
       for (const s of (sessions as SessionRow[] | null) || []) {
         const started = new Date(s.started_at);
-        const ended = new Date(s.ended_at || s.last_seen_at);
+        // Use last_seen_at as the real "end" of activity. ended_at can be far in the future
+        // when a session is closed in batch days later, which would falsely inflate online time.
+        const lastSeen = new Date(s.last_seen_at);
+        const realEnd = s.ended_at
+          ? new Date(Math.min(new Date(s.ended_at).getTime(), lastSeen.getTime() + 5 * 60 * 1000))
+          : lastSeen;
         const lo = Math.max(started.getTime(), dayStartMs);
-        const hi = Math.min(ended.getTime(), dayEndMs);
+        const hi = Math.min(realEnd.getTime(), dayEndMs);
         if (hi <= lo) continue;
 
         const key = `${s.user_id}|${s.workspace_id}`;
