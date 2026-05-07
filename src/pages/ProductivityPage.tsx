@@ -360,7 +360,7 @@ export default function ProductivityPage() {
       ...a,
       avg_score: a.days > 0 ? Math.round(a.score / a.days) : 0,
     })).sort((a, b) => b.avg_score - a.avg_score);
-  }, [stats]);
+  }, [filtered]);
 
   // Heatmap data (24 hours x days of week)
   const heatmap = useMemo(() => {
