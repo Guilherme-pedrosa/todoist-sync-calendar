@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown } from "lucide-react";
+import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown, Sparkles, AlertTriangle, Lightbulb, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -80,6 +80,23 @@ export default function ProductivityPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
+
+  // Insights AI
+  interface InsightItem { text: string; metric?: string; severity?: string; category?: string }
+  interface Insight {
+    id?: string;
+    summary: string;
+    highlights: InsightItem[];
+    concerns: InsightItem[];
+    suggestions: InsightItem[];
+    generated_at?: string;
+    generated_by?: string;
+    period_start?: string;
+    period_end?: string;
+  }
+  const [insight, setInsight] = useState<Insight | null>(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightGenerating, setInsightGenerating] = useState(false);
 
   const refreshAccess = async () => {
     if (!user) return;
@@ -249,7 +266,62 @@ export default function ProductivityPage() {
     }
   };
 
-  // Filtered to selected user (or all)
+  // Load most recent saved insight for current selection
+  const loadInsight = async () => {
+    if (!currentWorkspaceId || selectedUser === "all") {
+      setInsight(null);
+      return;
+    }
+    setInsightLoading(true);
+    const { data } = await supabase
+      .from("productivity_insights")
+      .select("id,summary,highlights,concerns,suggestions,generated_at,generated_by,period_start,period_end")
+      .eq("workspace_id", currentWorkspaceId)
+      .eq("user_id", selectedUser)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setInsight((data as unknown as Insight) || null);
+    setInsightLoading(false);
+  };
+
+  useEffect(() => { void loadInsight(); /* eslint-disable-next-line */ }, [currentWorkspaceId, selectedUser]);
+
+  const generateInsight = async () => {
+    if (!currentWorkspaceId || selectedUser === "all") {
+      toast.error("Selecione um colaborador para gerar análise.");
+      return;
+    }
+    setInsightGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const periodDays = Math.min(30, parseInt(range, 10));
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/productivity-insights`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            user_id: selectedUser,
+            workspace_id: currentWorkspaceId,
+            period_days: periodDays,
+          }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || j.message || "Falha ao gerar análise");
+      toast.success("Análise gerada");
+      setInsight(j.insight as Insight);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setInsightGenerating(false);
+    }
+  };
   const filtered = useMemo(
     () => (selectedUser === "all" ? stats : stats.filter((s) => s.user_id === selectedUser)),
     [stats, selectedUser],
@@ -530,6 +602,121 @@ export default function ProductivityPage() {
                 <div className="text-2xl font-display font-bold mt-2">{totals.tasks}</div>
               </Card>
             </div>
+
+            {/* AI Insights */}
+            <Card className="p-5 border-primary/20">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold">Análise IA</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedUser === "all"
+                        ? "Selecione um colaborador para gerar análise individual."
+                        : insight?.generated_at
+                          ? `Gerado em ${new Date(insight.generated_at).toLocaleString("pt-BR")} • ${insight.period_start} → ${insight.period_end}`
+                          : "Nenhuma análise ainda. Gere uma agora."}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={generateInsight}
+                  disabled={insightGenerating || selectedUser === "all"}
+                >
+                  {insightGenerating ? (
+                    <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Gerando...</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4 mr-1.5" /> {insight ? "Regenerar" : "Gerar análise"}</>
+                  )}
+                </Button>
+              </div>
+
+              {insightLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : insight ? (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed">{insight.summary}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {insight.highlights?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-primary font-semibold">
+                          <TrendingUp className="h-3.5 w-3.5" /> Destaques
+                        </div>
+                        <ul className="space-y-1.5">
+                          {insight.highlights.map((h, i) => (
+                            <li key={i} className="text-sm bg-primary/5 border border-primary/10 rounded-md p-2">
+                              <div>{h.text}</div>
+                              {h.metric && <div className="text-xs text-muted-foreground mt-0.5 tabular-nums">{h.metric}</div>}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {insight.concerns?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-warning font-semibold">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Pontos de atenção
+                        </div>
+                        <ul className="space-y-1.5">
+                          {insight.concerns.map((c, i) => (
+                            <li
+                              key={i}
+                              className={`text-sm rounded-md p-2 border ${
+                                c.severity === "high"
+                                  ? "bg-destructive/5 border-destructive/20"
+                                  : c.severity === "medium"
+                                    ? "bg-warning/5 border-warning/20"
+                                    : "bg-muted/30 border-border"
+                              }`}
+                            >
+                              <div>{c.text}</div>
+                              {c.severity && (
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                                  {c.severity === "high" ? "alta" : c.severity === "medium" ? "média" : "baixa"}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {insight.suggestions?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                          <Lightbulb className="h-3.5 w-3.5" /> Sugestões
+                        </div>
+                        <ul className="space-y-1.5">
+                          {insight.suggestions.map((s, i) => (
+                            <li key={i} className="text-sm bg-muted/30 border border-border rounded-md p-2">
+                              <div>{s.text}</div>
+                              {s.category && (
+                                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
+                                  {s.category}
+                                </div>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-sm text-muted-foreground">
+                  {selectedUser === "all"
+                    ? "Escolha um colaborador acima para gerar análise."
+                    : "Clique em \"Gerar análise\" para que a IA avalie esse colaborador."}
+                </div>
+              )}
+            </Card>
 
             <Tabs defaultValue="ranking">
               <TabsList>
