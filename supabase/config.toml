@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.classify-domain]
 verify_jwt = false
+
+[functions.productivity-insights-cron]
+verify_jwt = false
