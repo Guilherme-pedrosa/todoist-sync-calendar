@@ -14,6 +14,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
+import { getTaskChatRecipientIds } from '@/lib/taskChatRecipients';
 
 interface Props {
   conversationId: string;
@@ -28,6 +29,26 @@ interface MentionPick {
   display: string;
 }
 
+type ChatMeta = {
+  type?: string | null;
+  taskId?: string | null;
+  task_id?: string | null;
+  workspaceId?: string | null;
+  workspace_id?: string | null;
+};
+
+type ChatNotificationRow = {
+  user_id: string;
+  type: 'chat_mention' | 'chat_message';
+  workspace_id?: string | null;
+  payload: {
+    conversation_id: string;
+    task_id?: string | null;
+    from_user: string;
+    snippet: string;
+  };
+};
+
 function getInitials(name: string | null | undefined) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -37,7 +58,7 @@ function getInitials(name: string | null | undefined) {
 function renderBodyWithMentions(body: string, members: { userId: string; display: string }[], myId: string | null) {
   // Substitui @nome por chip; destaca se for eu
   const parts: Array<{ type: 'text' | 'mention'; text: string; isMe?: boolean }> = [];
-  const regex = /@([A-Za-zÀ-ÿ0-9_.\-]+(?:\s[A-Za-zÀ-ÿ0-9_.\-]+)?)/g;
+  const regex = /@([A-Za-zÀ-ÿ0-9_.-]+(?:\s[A-Za-zÀ-ÿ0-9_.-]+)?)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(body)) !== null) {
@@ -126,7 +147,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
     if (!el) return;
     const cursor = el.selectionStart ?? value.length;
     const before = value.slice(0, cursor);
-    const m = before.match(/@([A-Za-zÀ-ÿ0-9_.\-]*)$/);
+    const m = before.match(/@([A-Za-zÀ-ÿ0-9_.-]*)$/);
     if (m) {
       setMentionState({ open: true, query: m[1], pos: cursor - m[0].length });
     } else {
@@ -189,44 +210,42 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {
+        const chatMeta: ChatMeta | null = conversation ?? (await supabase
+          .from('conversations')
+          .select('type, task_id, workspace_id')
+          .eq('id', conversationId)
+          .maybeSingle()).data;
         // Determina quem deve receber notificação:
         // - Conversa de tarefa: apenas criador + responsáveis (assignees) da tarefa.
         // - Conversa de workspace/contexto: todos os participantes.
         // Mencionados (@) sempre recebem, independentemente.
         let recipientIds: string[] = [];
-        if (conversation?.type === 'task' && conversation.taskId) {
-          const [{ data: taskRow }, { data: assignees }] = await Promise.all([
-            supabase.from('tasks').select('user_id, created_by, assignee').eq('id', conversation.taskId).maybeSingle(),
-            supabase.from('task_assignees').select('user_id').eq('task_id', conversation.taskId),
-          ]);
-          const set = new Set<string>();
-          if (taskRow?.created_by) set.add(taskRow.created_by as string);
-          if (taskRow?.user_id) set.add(taskRow.user_id as string);
-          if (taskRow?.assignee) set.add(taskRow.assignee as string);
-          for (const a of assignees || []) if ((a as any).user_id) set.add((a as any).user_id);
-          recipientIds = [...set];
+        const taskId = chatMeta?.taskId ?? chatMeta?.task_id;
+        const workspaceId = chatMeta?.workspaceId ?? chatMeta?.workspace_id;
+        if (chatMeta?.type === 'task' && taskId) {
+          recipientIds = await getTaskChatRecipientIds(taskId);
         } else {
           const { data: parts } = await supabase
             .from('conversation_participants')
             .select('user_id')
             .eq('conversation_id', conversationId);
-          recipientIds = (parts || []).map((p: any) => p.user_id as string);
+          recipientIds = (parts || []).map((p) => p.user_id as string);
         }
         const mentionedSet = new Set(mentionedIds);
         // Mencionados são sempre notificados, mesmo fora dos responsáveis.
         const targetIds = new Set<string>([...recipientIds, ...mentionedIds]);
         const participantIds = [...targetIds].filter((id) => id !== user.id);
-        const rows: any[] = [];
+        const rows: ChatNotificationRow[] = [];
         for (const id of participantIds) {
           if (id === user.id) continue;
           if (mentionedSet.has(id)) {
             rows.push({
               user_id: id,
               type: 'chat_mention',
-              workspace_id: conversation?.workspaceId,
+              workspace_id: workspaceId,
               payload: {
                 conversation_id: conversationId,
-                task_id: conversation?.taskId,
+                task_id: taskId,
                 from_user: user.id,
                 snippet: text.slice(0, 140),
               },
@@ -235,10 +254,10 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             rows.push({
               user_id: id,
               type: 'chat_message',
-              workspace_id: conversation?.workspaceId,
+              workspace_id: workspaceId,
               payload: {
                 conversation_id: conversationId,
-                task_id: conversation?.taskId,
+                task_id: taskId,
                 from_user: user.id,
                 snippet: text.slice(0, 140),
               },

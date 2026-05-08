@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { getTaskChatRecipientIds } from '@/lib/taskChatRecipients';
 
 // Event bus para notificar a UI quando chega mensagem nova de outro usuário
 export type IncomingChatEvent = {
@@ -450,23 +451,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // unread bump se não for ativa nem própria
             getCurrentUserId().then((uid) => {
               if (msg.userId !== uid && s.activeConversationId !== msg.conversationId) {
-                set((ss) => ({
-                  unreadByConversation: {
-                    ...ss.unreadByConversation,
-                    [msg.conversationId]: (ss.unreadByConversation[msg.conversationId] || 0) + 1,
-                  },
-                }));
-                emitIncomingChat({
-                  message: {
-                    id: msg.id,
-                    conversationId: msg.conversationId,
-                    userId: msg.userId,
-                    body: msg.body,
-                  },
-                  conversationTitle: conv.title,
-                  conversationType: conv.type,
-                  taskId: conv.taskId,
-                });
+                const notify = () => {
+                  set((ss) => ({
+                    unreadByConversation: {
+                      ...ss.unreadByConversation,
+                      [msg.conversationId]: (ss.unreadByConversation[msg.conversationId] || 0) + 1,
+                    },
+                  }));
+                  emitIncomingChat({
+                    message: {
+                      id: msg.id,
+                      conversationId: msg.conversationId,
+                      userId: msg.userId,
+                      body: msg.body,
+                    },
+                    conversationTitle: conv.title,
+                    conversationType: conv.type,
+                    taskId: conv.taskId,
+                  });
+                };
+
+                if (conv.type === 'task' && conv.taskId && uid) {
+                  getTaskChatRecipientIds(conv.taskId).then((allowedIds) => {
+                    if (allowedIds.includes(uid)) notify();
+                  });
+                  return;
+                }
+
+                notify();
               }
             });
             return { messagesByConversation: newMessages };
