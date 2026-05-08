@@ -190,13 +190,20 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {
+        const chatMeta = conversation ?? (await supabase
+          .from('conversations')
+          .select('type, task_id, workspace_id')
+          .eq('id', conversationId)
+          .maybeSingle()).data;
         // Determina quem deve receber notificação:
         // - Conversa de tarefa: apenas criador + responsáveis (assignees) da tarefa.
         // - Conversa de workspace/contexto: todos os participantes.
         // Mencionados (@) sempre recebem, independentemente.
         let recipientIds: string[] = [];
-        if (conversation?.type === 'task' && conversation.taskId) {
-          recipientIds = await getTaskChatRecipientIds(conversation.taskId);
+        const taskId = (chatMeta as any)?.taskId ?? (chatMeta as any)?.task_id;
+        const workspaceId = (chatMeta as any)?.workspaceId ?? (chatMeta as any)?.workspace_id;
+        if ((chatMeta as any)?.type === 'task' && taskId) {
+          recipientIds = await getTaskChatRecipientIds(taskId);
         } else {
           const { data: parts } = await supabase
             .from('conversation_participants')
@@ -215,10 +222,10 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             rows.push({
               user_id: id,
               type: 'chat_mention',
-              workspace_id: conversation?.workspaceId,
+              workspace_id: workspaceId,
               payload: {
                 conversation_id: conversationId,
-                task_id: conversation?.taskId,
+                task_id: taskId,
                 from_user: user.id,
                 snippet: text.slice(0, 140),
               },
@@ -227,10 +234,10 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             rows.push({
               user_id: id,
               type: 'chat_message',
-              workspace_id: conversation?.workspaceId,
+              workspace_id: workspaceId,
               payload: {
                 conversation_id: conversationId,
-                task_id: conversation?.taskId,
+                task_id: taskId,
                 from_user: user.id,
                 snippet: text.slice(0, 140),
               },
