@@ -14,6 +14,7 @@ import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
+import { getTaskChatRecipientIds } from '@/lib/taskChatRecipients';
 
 interface Props {
   conversationId: string;
@@ -195,16 +196,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         // Mencionados (@) sempre recebem, independentemente.
         let recipientIds: string[] = [];
         if (conversation?.type === 'task' && conversation.taskId) {
-          const [{ data: taskRow }, { data: assignees }] = await Promise.all([
-            supabase.from('tasks').select('user_id, created_by, assignee').eq('id', conversation.taskId).maybeSingle(),
-            supabase.from('task_assignees').select('user_id').eq('task_id', conversation.taskId),
-          ]);
-          const set = new Set<string>();
-          if (taskRow?.created_by) set.add(taskRow.created_by as string);
-          if (taskRow?.user_id) set.add(taskRow.user_id as string);
-          if (taskRow?.assignee) set.add(taskRow.assignee as string);
-          for (const a of assignees || []) if ((a as any).user_id) set.add((a as any).user_id);
-          recipientIds = [...set];
+          recipientIds = await getTaskChatRecipientIds(conversation.taskId);
         } else {
           const { data: parts } = await supabase
             .from('conversation_participants')
