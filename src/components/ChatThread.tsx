@@ -58,7 +58,7 @@ function getInitials(name: string | null | undefined) {
 function renderBodyWithMentions(body: string, members: { userId: string; display: string }[], myId: string | null) {
   // Substitui @nome por chip; destaca se for eu
   const parts: Array<{ type: 'text' | 'mention'; text: string; isMe?: boolean }> = [];
-  const regex = /@([A-Za-zÀ-ÿ0-9_.\-]+(?:\s[A-Za-zÀ-ÿ0-9_.\-]+)?)/g;
+  const regex = /@([A-Za-zÀ-ÿ0-9_.-]+(?:\s[A-Za-zÀ-ÿ0-9_.-]+)?)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(body)) !== null) {
@@ -147,7 +147,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
     if (!el) return;
     const cursor = el.selectionStart ?? value.length;
     const before = value.slice(0, cursor);
-    const m = before.match(/@([A-Za-zÀ-ÿ0-9_.\-]*)$/);
+    const m = before.match(/@([A-Za-zÀ-ÿ0-9_.-]*)$/);
     if (m) {
       setMentionState({ open: true, query: m[1], pos: cursor - m[0].length });
     } else {
