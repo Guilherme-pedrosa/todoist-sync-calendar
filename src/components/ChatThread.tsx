@@ -37,6 +37,18 @@ type ChatMeta = {
   workspace_id?: string | null;
 };
 
+type ChatNotificationRow = {
+  user_id: string;
+  type: 'chat_mention' | 'chat_message';
+  workspace_id?: string | null;
+  payload: {
+    conversation_id: string;
+    task_id?: string | null;
+    from_user: string;
+    snippet: string;
+  };
+};
+
 function getInitials(name: string | null | undefined) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -223,7 +235,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         // Mencionados são sempre notificados, mesmo fora dos responsáveis.
         const targetIds = new Set<string>([...recipientIds, ...mentionedIds]);
         const participantIds = [...targetIds].filter((id) => id !== user.id);
-        const rows: any[] = [];
+        const rows: ChatNotificationRow[] = [];
         for (const id of participantIds) {
           if (id === user.id) continue;
           if (mentionedSet.has(id)) {
