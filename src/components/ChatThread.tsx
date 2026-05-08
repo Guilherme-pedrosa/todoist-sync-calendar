@@ -29,6 +29,14 @@ interface MentionPick {
   display: string;
 }
 
+type ChatMeta = {
+  type?: string | null;
+  taskId?: string | null;
+  task_id?: string | null;
+  workspaceId?: string | null;
+  workspace_id?: string | null;
+};
+
 function getInitials(name: string | null | undefined) {
   if (!name) return '?';
   const parts = name.trim().split(/\s+/);
@@ -190,7 +198,7 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {
-        const chatMeta = conversation ?? (await supabase
+        const chatMeta: ChatMeta | null = conversation ?? (await supabase
           .from('conversations')
           .select('type, task_id, workspace_id')
           .eq('id', conversationId)
@@ -200,16 +208,16 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         // - Conversa de workspace/contexto: todos os participantes.
         // Mencionados (@) sempre recebem, independentemente.
         let recipientIds: string[] = [];
-        const taskId = (chatMeta as any)?.taskId ?? (chatMeta as any)?.task_id;
-        const workspaceId = (chatMeta as any)?.workspaceId ?? (chatMeta as any)?.workspace_id;
-        if ((chatMeta as any)?.type === 'task' && taskId) {
+        const taskId = chatMeta?.taskId ?? chatMeta?.task_id;
+        const workspaceId = chatMeta?.workspaceId ?? chatMeta?.workspace_id;
+        if (chatMeta?.type === 'task' && taskId) {
           recipientIds = await getTaskChatRecipientIds(taskId);
         } else {
           const { data: parts } = await supabase
             .from('conversation_participants')
             .select('user_id')
             .eq('conversation_id', conversationId);
-          recipientIds = (parts || []).map((p: any) => p.user_id as string);
+          recipientIds = (parts || []).map((p) => p.user_id as string);
         }
         const mentionedSet = new Set(mentionedIds);
         // Mencionados são sempre notificados, mesmo fora dos responsáveis.
