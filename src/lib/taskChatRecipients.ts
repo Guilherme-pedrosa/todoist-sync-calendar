@@ -6,6 +6,9 @@ function addUserId(ids: Set<string>, value: unknown) {
   if (typeof value === 'string' && UUID_RE.test(value)) ids.add(value);
 }
 
+type TaskOwnerRow = { user_id?: string | null; created_by?: string | null } | null;
+type TaskAssigneeRow = { user_id?: string | null; assignment_status?: string | null };
+
 export async function getTaskChatRecipientIds(taskId: string): Promise<string[]> {
   const [{ data: taskRow }, { data: assignees }] = await Promise.all([
     supabase.from('tasks').select('user_id, created_by').eq('id', taskId).maybeSingle(),
@@ -13,12 +16,14 @@ export async function getTaskChatRecipientIds(taskId: string): Promise<string[]>
   ]);
 
   const ids = new Set<string>();
-  addUserId(ids, (taskRow as any)?.created_by);
-  addUserId(ids, (taskRow as any)?.user_id);
+  const owner = taskRow as TaskOwnerRow;
+  addUserId(ids, owner?.created_by);
+  addUserId(ids, owner?.user_id);
 
   for (const assignee of assignees || []) {
-    if ((assignee as any).assignment_status === 'declined') continue;
-    addUserId(ids, (assignee as any).user_id);
+    const row = assignee as TaskAssigneeRow;
+    if (row.assignment_status === 'declined') continue;
+    addUserId(ids, row.user_id);
   }
 
   return [...ids];
