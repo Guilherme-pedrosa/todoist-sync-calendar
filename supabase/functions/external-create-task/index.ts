@@ -366,7 +366,7 @@ Deno.serve(async (req) => {
     const subTitle = readSubtaskTitle(item);
     if (!subTitle) continue;
     const subExternalRef = readSubtaskExternalRef(externalRef, item, index);
-    const subDueAt = parseDueAt(item?.due_at || item?.dueAt || item?.date || dueAt);
+    const subDueAt = isFleet ? null : parseDueAt(item?.due_at || item?.dueAt || item?.date || dueAt);
     const split = splitDueAt(subDueAt);
     const subCompletion = typeof item === 'object' && item !== null ? readCompleted(item) : null;
     const subPayload = {
