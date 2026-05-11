@@ -219,6 +219,14 @@ Deno.serve(async (req) => {
     return json({ error: 'Invalid date format' }, 400);
   }
 
+  // Tarefas da Frota nunca devem vir com data/horário automático — usuário define manualmente.
+  const isFleet =
+    /frota|fleet/i.test(syncSource || '') ||
+    /^\s*\[?\s*frota\b/i.test(title);
+  if (isFleet) {
+    dueAt = null;
+  }
+
   const projectId = body.project_id || keyRow.default_project_id;
   if (!projectId) {
     return json({ error: 'No project_id provided and no default project configured for this key' }, 400);
