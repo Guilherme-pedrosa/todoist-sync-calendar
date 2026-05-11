@@ -141,9 +141,8 @@ export function QuickAddDialog() {
     const ctx: { projectId?: string | null; date?: string | null } = {};
     if (location.pathname.startsWith('/projects/') && params.projectId) {
       ctx.projectId = params.projectId;
-    } else if (location.pathname.startsWith('/today')) {
-      ctx.date = format(new Date(), 'yyyy-MM-dd');
     }
+    // Não preenche data automaticamente — usuário escolhe.
     return ctx;
   }, [location.pathname, params.projectId]);
 
