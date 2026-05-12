@@ -1296,7 +1296,7 @@ export function TaskDetailPanel() {
               </div>
             </DetailRow>
 
-
+            <DetailRow icon={Flag} label="Prioridade">
               <Popover>
                 <PopoverTrigger asChild>
                   <button className={cn('w-full text-left text-sm hover:text-primary flex items-center gap-2', PRIORITY_COLOR[task.priority])}>
