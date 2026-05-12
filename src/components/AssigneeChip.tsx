@@ -76,12 +76,13 @@ export function AssigneeChip({ projectId, value, onChange, single, placeholder, 
   };
 
   const filled = value.length > 0;
+  const emptyLabel = placeholder || 'Responsável';
   const label =
     selectedMembers.length === 0
-      ? 'Responsável'
+      ? emptyLabel
       : selectedMembers.length === 1
-        ? (selectedMembers[0].displayName || selectedMembers[0].email || 'Responsável')
-        : `${selectedMembers.length} responsáveis`;
+        ? (selectedMembers[0].displayName || selectedMembers[0].email || emptyLabel)
+        : (pluralLabel ? pluralLabel(selectedMembers.length) : `${selectedMembers.length} responsáveis`);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
