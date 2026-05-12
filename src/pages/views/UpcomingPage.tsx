@@ -668,7 +668,6 @@ function WeekGrid({
                     key={`overdue-${t.id}`}
                     task={t}
                     occurrenceDate={t.dueDate!}
-                    isOverdue
                     onOpen={() => openTaskDetail(t.id)}
                     onStartDrag={(pointerOffsetMin) => {
                       setPreview((p) => ({
