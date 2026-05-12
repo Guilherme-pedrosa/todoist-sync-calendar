@@ -49,7 +49,7 @@ interface TaskState {
   // Atomic realtime apply actions (no refetch)
   applyTaskUpsertFromDb: (row: any) => void;
   applyTaskDelete: (id: string) => void;
-  applyTaskAssigneeChange: (taskId: string, userId: string, op: 'add' | 'remove') => void;
+  applyTaskAssigneeChange: (taskId: string, userId: string, op: 'add' | 'remove', role?: 'responsible' | 'informed') => void;
   applyTaskLabelChange: (taskId: string, labelId: string, op: 'add' | 'remove') => void;
   applyMeetingInvitationChange: (taskId: string, inviteeUserId: string | null, op: 'add' | 'remove') => void;
   applyProjectUpsertFromDb: (row: any) => void;
