@@ -205,7 +205,7 @@ export default function TodayPage() {
           ))}
         </div>
 
-        <AddTaskForm />
+        <AddTaskForm defaultDate={today} />
 
         {showCompleted && completedToday.length > 0 && (
           <div className="mt-4">
