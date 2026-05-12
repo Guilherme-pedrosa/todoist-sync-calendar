@@ -316,7 +316,7 @@ export default function UpcomingPage() {
       {mode === 'kanban' ? (
         <KanbanBoard tasks={upcoming} boardKey="upcoming" />
       ) : mode === 'week' || mode === 'day' ? (
-        <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
+        <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} overdueTasks={overdueTasks} />
       ) : (
         <ListView tasks={upcoming} />
       )}
