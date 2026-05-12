@@ -190,19 +190,33 @@ Deno.serve(async (req) => {
         .eq('type', 'overdue');
       const alreadyHas = new Set((existingOverdue || []).map((r: any) => r.task_id));
 
-      const userIds2 = Array.from(new Set(overdueTasks.map((t) => t.user_id)));
+      // Responsáveis por task (informados não recebem "atrasada")
+      const { data: ovAssignees } = await supabase
+        .from('task_assignees')
+        .select('task_id, user_id, role')
+        .in('task_id', taskIds);
+      const ovResponsiblesByTask = new Map<string, string[]>();
+      for (const a of ovAssignees || []) {
+        if ((a as any).role && (a as any).role !== 'responsible') continue;
+        const list = ovResponsiblesByTask.get((a as any).task_id) || [];
+        list.push((a as any).user_id);
+        ovResponsiblesByTask.set((a as any).task_id, list);
+      }
+
+      const allOvUserIds = Array.from(new Set([
+        ...overdueTasks.map((t) => t.user_id),
+        ...Array.from(ovResponsiblesByTask.values()).flat(),
+      ]));
       const { data: settings2 } = await supabase
         .from('user_settings')
         .select('user_id, notify_overdue, reminder_channels')
-        .in('user_id', userIds2);
+        .in('user_id', allOvUserIds);
       const set2 = new Map((settings2 || []).map((s: any) => [s.user_id, s]));
 
       const overdueNotifs: any[] = [];
       const overdueReminders: any[] = [];
       for (const t of overdueTasks) {
         if (alreadyHas.has(t.id)) continue;
-        const s = set2.get(t.user_id);
-        if (s && s.notify_overdue === false) continue;
 
         overdueReminders.push({
           task_id: t.id,
@@ -214,14 +228,21 @@ Deno.serve(async (req) => {
           relative_minutes: 0,
         });
 
-        const channels: string[] = s?.reminder_channels || ['push'];
-        if (channels.includes('push') || channels.includes('mobile')) {
-          overdueNotifs.push({
-            user_id: t.user_id,
-            type: 'task_overdue',
-            workspace_id: t.workspace_id,
-            payload: { task_id: t.id, task_title: t.title, due_at: t.due_at },
-          });
+        let recipients = ovResponsiblesByTask.get(t.id) || [];
+        if (recipients.length === 0 && t.user_id) recipients = [t.user_id];
+
+        for (const uid of recipients) {
+          const s = set2.get(uid);
+          if (s && s.notify_overdue === false) continue;
+          const channels: string[] = s?.reminder_channels || ['push'];
+          if (channels.includes('push') || channels.includes('mobile')) {
+            overdueNotifs.push({
+              user_id: uid,
+              type: 'task_overdue',
+              workspace_id: t.workspace_id,
+              payload: { task_id: t.id, task_title: t.title, due_at: t.due_at },
+            });
+          }
         }
       }
 
