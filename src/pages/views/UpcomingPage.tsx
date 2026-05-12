@@ -114,6 +114,20 @@ export default function UpcomingPage() {
     [visibleTasks]
   );
 
+  const overdueTasks = useMemo(() => {
+    const todayStr = localDateKey();
+    return visibleTasks
+      .filter(
+        (t) =>
+          !t.completed &&
+          !t.parentId &&
+          !!t.dueDate &&
+          t.dueDate < todayStr &&
+          !t.recurrenceRule
+      )
+      .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+  }, [visibleTasks]);
+
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
     [weekOffset]
