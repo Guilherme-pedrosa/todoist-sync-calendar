@@ -330,11 +330,23 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     // Assignees extras: o trigger trg_auto_add_task_owner_as_assignee insere o owner
     // automaticamente no banco; aqui adicionamos APENAS assignees adicionais (delegados).
-    const assigneeIds = (taskData.assigneeIds || []).filter((id) => id && id !== userId);
+    const requestedAssignees = taskData.assigneeIds || [];
+    const assigneeIds = requestedAssignees.filter((id) => id && id !== userId);
     if (assigneeIds.length > 0) {
       await supabase.from('task_assignees').insert(
         assigneeIds.map((uid) => ({ task_id: data.id, user_id: uid, assigned_by: userId }))
       );
+    }
+    // Se o criador delegou para outra(s) pessoa(s) e NÃO se incluiu como responsável,
+    // ele entra automaticamente como "informado" (em vez de continuar responsável pelo trigger).
+    const ownerDelegated =
+      assigneeIds.length > 0 && !requestedAssignees.includes(userId);
+    if (ownerDelegated) {
+      await supabase
+        .from('task_assignees')
+        .update({ role: 'informed' })
+        .eq('task_id', data.id)
+        .eq('user_id', userId);
     }
 
     // Reminders: cria um registro por antecedência configurada (ex.: [1440, 15] = 1 dia e 15 min antes).
@@ -377,11 +389,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       }
     }
 
-    const allAssignees = Array.from(new Set([userId, ...(taskData.assigneeIds || [])])).filter(Boolean) as string[];
+    const responsibleIds = ownerDelegated ? assigneeIds : Array.from(new Set([userId, ...assigneeIds]));
+    const informedFromOwner = ownerDelegated ? [userId] : [];
     const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
-      task_assignees: allAssignees.map((uid) => ({ user_id: uid, role: 'responsible' })),
+      task_assignees: [
+        ...responsibleIds.map((uid) => ({ user_id: uid, role: 'responsible' })),
+        ...informedFromOwner.map((uid) => ({ user_id: uid, role: 'informed' })),
+      ],
     });
     if (!newTask) return null;
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
