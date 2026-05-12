@@ -190,14 +190,18 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                   ? Undo2
                   : isCompleted
                     ? CheckCircle2
-                    : MessageSquare;
+                    : isUpdated
+                      ? Pencil
+                      : isAssigned && isInformed
+                        ? Eye
+                        : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
     : isChatMessage
       ? 'Nova mensagem'
     : isAssigned
-      ? 'Nova atividade atribuída a você'
+      ? (isInformed ? 'Você foi adicionado como informado' : 'Nova atividade atribuída a você')
       : isReminder
         ? 'Lembrete de tarefa'
         : isInvite
@@ -216,7 +220,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                       ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
                       : isCompleted
                         ? `${n.payload?.completed_by_name || 'Alguém'} concluiu a tarefa`
-                        : 'Notificação';
+                        : isUpdated
+                          ? `${n.payload?.updated_by_name || 'Alguém'} atualizou ${n.payload?.changed_field || 'a tarefa'}`
+                          : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 
