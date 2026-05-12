@@ -185,6 +185,7 @@ export function TaskDetailPanel() {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [informedIds, setInformedIds] = useState<string[]>([]);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
