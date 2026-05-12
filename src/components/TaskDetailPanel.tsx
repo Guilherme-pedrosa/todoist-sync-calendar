@@ -332,6 +332,7 @@ export function TaskDetailPanel() {
   useEffect(() => {
     if (!task?.id) {
       setAssigneeIds([]);
+      setInformedIds([]);
       setAssignedByMap({});
       return;
     }
@@ -339,16 +340,21 @@ export function TaskDetailPanel() {
     const refresh = async () => {
       const { data } = await supabase
         .from('task_assignees')
-        .select('user_id, assigned_by, assigned_at')
+        .select('user_id, assigned_by, assigned_at, role')
         .eq('task_id', task.id);
       if (!active || !data) return;
-      setAssigneeIds(data.map((r: any) => r.user_id));
+      const responsibles: string[] = [];
+      const informed: string[] = [];
       const map: Record<string, { byUserId: string | null; at: string | null }> = {};
       const byIds = new Set<string>();
       for (const r of data as any[]) {
+        if ((r.role ?? 'responsible') === 'informed') informed.push(r.user_id);
+        else responsibles.push(r.user_id);
         map[r.user_id] = { byUserId: r.assigned_by ?? null, at: r.assigned_at ?? null };
         if (r.assigned_by) byIds.add(r.assigned_by);
       }
+      setAssigneeIds(responsibles);
+      setInformedIds(informed);
       setAssignedByMap(map);
       if (byIds.size > 0) {
         const { data: profs } = await supabase
