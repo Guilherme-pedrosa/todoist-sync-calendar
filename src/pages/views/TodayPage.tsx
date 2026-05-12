@@ -159,6 +159,7 @@ export default function TodayPage() {
         <KanbanBoard
           tasks={[...overdue, ...todayTasks]}
           boardKey="today"
+          newTaskDefaults={{ defaultDate: today }}
         />
       ) : (
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3">
