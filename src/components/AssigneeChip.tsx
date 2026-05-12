@@ -14,6 +14,9 @@ interface Props {
   onChange: (ids: string[]) => void;
   /** Se true, aceita só 1 responsável (single-select) */
   single?: boolean;
+  /** Texto exibido quando vazio e no plural (default: Responsável/responsáveis) */
+  placeholder?: string;
+  pluralLabel?: (count: number) => string;
 }
 
 function getInitials(name: string | null | undefined) {
@@ -22,7 +25,7 @@ function getInitials(name: string | null | undefined) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export function AssigneeChip({ projectId, value, onChange, single }: Props) {
+export function AssigneeChip({ projectId, value, onChange, single, placeholder, pluralLabel }: Props) {
   const projects = useTaskStore((s) => s.projects);
   const project = useMemo(
     () => projects.find((p) => p.id === projectId),
@@ -73,12 +76,13 @@ export function AssigneeChip({ projectId, value, onChange, single }: Props) {
   };
 
   const filled = value.length > 0;
+  const emptyLabel = placeholder || 'Responsável';
   const label =
     selectedMembers.length === 0
-      ? 'Responsável'
+      ? emptyLabel
       : selectedMembers.length === 1
-        ? (selectedMembers[0].displayName || selectedMembers[0].email || 'Responsável')
-        : `${selectedMembers.length} responsáveis`;
+        ? (selectedMembers[0].displayName || selectedMembers[0].email || emptyLabel)
+        : (pluralLabel ? pluralLabel(selectedMembers.length) : `${selectedMembers.length} responsáveis`);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
