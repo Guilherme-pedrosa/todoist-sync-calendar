@@ -797,7 +797,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       const merged = mapDbTaskToTask({
         ...row,
         task_labels: row.task_labels ?? (existing ? existing.labels.map((id) => ({ label_id: id })) : []),
-        task_assignees: row.task_assignees ?? (existing ? existing.assigneeIds.map((id) => ({ user_id: id })) : []),
+        task_assignees: row.task_assignees ?? (existing
+          ? [
+              ...existing.assigneeIds.map((id) => ({ user_id: id, role: 'responsible' })),
+              ...(existing.informedIds || []).map((id) => ({ user_id: id, role: 'informed' })),
+            ]
+          : []),
         meeting_invitations:
           row.meeting_invitations ??
           (existing ? existing.meetingInviteeIds.map((id) => ({ invitee_user_id: id })) : []),
