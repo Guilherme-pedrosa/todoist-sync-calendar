@@ -142,7 +142,10 @@ export function QuickAddDialog() {
     if (location.pathname.startsWith('/projects/') && params.projectId) {
       ctx.projectId = params.projectId;
     }
-    // Não preenche data automaticamente — usuário escolhe.
+    // Em /today, pré-preencher data como hoje (usuário pode trocar).
+    if (location.pathname === '/today' || location.pathname === '/') {
+      ctx.date = format(new Date(), 'yyyy-MM-dd');
+    }
     return ctx;
   }, [location.pathname, params.projectId]);
 
