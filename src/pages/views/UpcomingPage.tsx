@@ -390,10 +390,12 @@ function WeekGrid({
   weekDays,
   hours,
   tasksByDay,
+  overdueTasks = [],
 }: {
   weekDays: Date[];
   hours: number[];
   tasksByDay: Map<string, Task[]>;
+  overdueTasks?: Task[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
