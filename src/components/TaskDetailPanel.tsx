@@ -1283,7 +1283,20 @@ export function TaskDetailPanel() {
               </div>
             </DetailRow>
 
-            <DetailRow icon={Flag} label="Prioridade">
+            <DetailRow icon={Eye} label="Informado">
+              <div className="space-y-1.5">
+                <AssigneeChip
+                  projectId={task.projectId ?? null}
+                  value={informedIds}
+                  onChange={handleInformedChange}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Recebem notificações e participam do chat, mas a tarefa não aparece na agenda deles.
+                </p>
+              </div>
+            </DetailRow>
+
+
               <Popover>
                 <PopoverTrigger asChild>
                   <button className={cn('w-full text-left text-sm hover:text-primary flex items-center gap-2', PRIORITY_COLOR[task.priority])}>
