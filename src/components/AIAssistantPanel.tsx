@@ -119,13 +119,26 @@ export function AIAssistantPanel() {
         className="w-full sm:max-w-[440px] p-0 flex flex-col"
       >
         <SheetHeader className="px-5 py-4 border-b border-border pt-[max(1rem,env(safe-area-inset-top))]">
-          <SheetTitle className="flex items-center gap-2 font-display">
-            <Sparkles className="h-5 w-5 text-primary shrink-0" />
-            Assistente IA
-          </SheetTitle>
-          <SheetDescription className="text-xs">
-            Powered by Gemini · Te ajuda a organizar seu dia
-          </SheetDescription>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={close}
+              aria-label="Voltar"
+              className="lg:hidden h-9 w-9 -ml-2 shrink-0"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <SheetTitle className="flex items-center gap-2 font-display">
+                <Sparkles className="h-5 w-5 text-primary shrink-0" />
+                Assistente IA
+              </SheetTitle>
+              <SheetDescription className="text-xs">
+                Powered by Gemini · Te ajuda a organizar seu dia
+              </SheetDescription>
+            </div>
+          </div>
         </SheetHeader>
 
         <AIAssistantErrorBoundary onReset={() => setTab(initialTab)}>
