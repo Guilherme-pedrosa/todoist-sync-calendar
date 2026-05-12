@@ -191,7 +191,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       supabase.from('labels').select('*').eq('user_id', userId),
       supabase
         .from('tasks')
-        .select('*, task_labels(label_id), task_assignees(user_id), meeting_invitations(invitee_user_id)')
+        .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
         .is('deleted_at', null),
     ]);
 
