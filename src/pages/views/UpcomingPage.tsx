@@ -654,12 +654,37 @@ function WeekGrid({
           </div>
           {weekDays.map((day) => {
             const k = format(day, 'yyyy-MM-dd');
+            const todayKey = localDateKey();
+            const isTodayCell = k === todayKey;
             const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
+            const overdueForCell = isTodayCell ? overdueTasks : [];
             return (
               <div
                 key={k}
                 className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
               >
+                {overdueForCell.map((t) => (
+                  <AllDayChip
+                    key={`overdue-${t.id}`}
+                    task={t}
+                    occurrenceDate={t.dueDate!}
+                    isOverdue
+                    onOpen={() => openTaskDetail(t.id)}
+                    onStartDrag={(pointerOffsetMin) => {
+                      setPreview((p) => ({
+                        ...p,
+                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                      }));
+                      setDrag({
+                        kind: 'move',
+                        taskId: t.id,
+                        pointerOffsetMin,
+                        durationMin: DEFAULT_DURATION,
+                        sourceDayKey: t.dueDate!,
+                      });
+                    }}
+                  />
+                ))}
                 {allDay.map((t) => (
                   <AllDayChip
                     key={t.id}
