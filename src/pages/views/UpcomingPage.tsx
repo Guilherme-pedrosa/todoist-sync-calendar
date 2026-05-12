@@ -1436,8 +1436,21 @@ function AllDayChip({
 }
 
 function ListView({ tasks }: { tasks: Task[] }) {
-  const grouped = useMemo(() => {
-    const sorted = [...tasks].sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+  const updateTask = useTaskStore((s) => s.updateTask);
+  const todayStr = localDateKey();
+
+  const { overdue, grouped } = useMemo(() => {
+    const overdue: Task[] = [];
+    const upcomingTasks: Task[] = [];
+    for (const t of tasks) {
+      if (!t.completed && t.dueDate && t.dueDate < todayStr) {
+        overdue.push(t);
+      } else {
+        upcomingTasks.push(t);
+      }
+    }
+    overdue.sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+    const sorted = [...upcomingTasks].sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
     const map: Record<string, Task[]> = {};
     for (const t of sorted) {
       const d = parseISO(t.dueDate!);
@@ -1445,11 +1458,47 @@ function ListView({ tasks }: { tasks: Task[] }) {
       if (!map[key]) map[key] = [];
       map[key].push(t);
     }
-    return map;
-  }, [tasks]);
+    return { overdue, grouped: map };
+  }, [tasks, todayStr]);
+
+  const [overdueOpen, setOverdueOpen] = useState(true);
+
+  const rescheduleAllOverdue = async () => {
+    await Promise.all(overdue.map((t) => updateTask(t.id, { dueDate: todayStr })));
+    toast.success('Tarefas atrasadas reagendadas para hoje');
+  };
 
   return (
     <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
+      {overdue.length > 0 && (
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-2">
+            <button
+              onClick={() => setOverdueOpen((o) => !o)}
+              className="flex items-center gap-2 text-sm font-semibold text-destructive hover:opacity-80 transition-opacity"
+            >
+              {overdueOpen ? <ChevronLeft className="h-3.5 w-3.5 rotate-[-90deg]" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              Atrasadas
+              <span className="text-xs font-normal opacity-70">({overdue.length})</span>
+            </button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={rescheduleAllOverdue}
+              className="ml-auto h-7 text-[11px] text-destructive hover:bg-destructive/10 px-2"
+            >
+              Reagendar p/ hoje
+            </Button>
+          </div>
+          {overdueOpen && (
+            <div className="mt-1">
+              {overdue.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {Object.entries(grouped).map(([group, groupTasks]) => (
         <div key={group} className="mb-4">
           <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-2 capitalize">
