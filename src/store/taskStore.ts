@@ -134,7 +134,8 @@ function mapDbTaskToTask(t: any): Task | null {
       : undefined,
 
     taskNumber: t.task_number ?? null,
-    assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
+    assigneeIds: (t.task_assignees || []).filter((a: any) => (a.role ?? 'responsible') !== 'informed').map((a: any) => a.user_id),
+    informedIds: (t.task_assignees || []).filter((a: any) => a.role === 'informed').map((a: any) => a.user_id),
     meetingInviteeIds: (t.meeting_invitations || [])
       .map((i: any) => i.invitee_user_id)
       .filter(Boolean),
