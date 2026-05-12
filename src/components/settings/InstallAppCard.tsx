@@ -150,6 +150,10 @@ function PushNotificationsCard({
       } catch {}
     } else if (state === 'denied') {
       toast.error('Permissão negada. Ative manualmente nas configurações do navegador.');
+    } else if (platform === 'ios' && !installed) {
+      toast.error('No iPhone, instale o app na tela inicial primeiro (Compartilhar → Adicionar à Tela de Início).');
+    } else {
+      toast.error('Não foi possível registrar este dispositivo. Verifique o console (F12).');
     }
   };
 
