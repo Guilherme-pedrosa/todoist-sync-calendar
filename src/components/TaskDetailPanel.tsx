@@ -426,7 +426,7 @@ export function TaskDetailPanel() {
         const rows: any[] = [];
         for (const tid of ids) {
           for (const uid of toAdd) {
-            rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id });
+            rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id, role: 'responsible' });
           }
         }
         await supabase
