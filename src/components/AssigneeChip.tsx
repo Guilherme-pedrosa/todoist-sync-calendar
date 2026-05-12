@@ -25,7 +25,7 @@ function getInitials(name: string | null | undefined) {
   return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
 }
 
-export function AssigneeChip({ projectId, value, onChange, single }: Props) {
+export function AssigneeChip({ projectId, value, onChange, single, placeholder, pluralLabel }: Props) {
   const projects = useTaskStore((s) => s.projects);
   const project = useMemo(
     () => projects.find((p) => p.id === projectId),
