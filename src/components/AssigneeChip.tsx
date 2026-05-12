@@ -14,6 +14,9 @@ interface Props {
   onChange: (ids: string[]) => void;
   /** Se true, aceita só 1 responsável (single-select) */
   single?: boolean;
+  /** Texto exibido quando vazio e no plural (default: Responsável/responsáveis) */
+  placeholder?: string;
+  pluralLabel?: (count: number) => string;
 }
 
 function getInitials(name: string | null | undefined) {
