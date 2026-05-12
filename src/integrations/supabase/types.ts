@@ -1547,6 +1547,7 @@ export type Database = {
           assignment_status: string
           responded_at: string | null
           response_reason: string | null
+          role: string
           task_id: string
           user_id: string
         }
@@ -1556,6 +1557,7 @@ export type Database = {
           assignment_status?: string
           responded_at?: string | null
           response_reason?: string | null
+          role?: string
           task_id: string
           user_id: string
         }
@@ -1565,6 +1567,7 @@ export type Database = {
           assignment_status?: string
           responded_at?: string | null
           response_reason?: string | null
+          role?: string
           task_id?: string
           user_id?: string
         }

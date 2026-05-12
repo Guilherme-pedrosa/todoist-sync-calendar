@@ -1,40 +1,52 @@
 ## Objetivo
-Quando uma tarefa é concluída por uma pessoa **diferente** do criador, enviar uma notificação ao criador (a pessoa que abriu/delegou) avisando que a tarefa foi feita.
+Adicionar um campo **"Informado"** nas tarefas, ao lado de "Responsável". Quem estiver listado como informado:
+- Recebe notificação (sino + push) ao ser delegado, ao haver atualização da tarefa e ao ser concluída.
+- É adicionado à conversa da tarefa (chat) e recebe mensagens de chat.
+- **NÃO** vê a tarefa na própria agenda (Hoje, Próximas, Kanban "Por pessoa", etc.).
 
-## Mudanças
+## 1. Banco de dados
+Reaproveitar `task_assignees` adicionando uma coluna `role`:
 
-### 1. Banco — novo trigger de conclusão (migration)
-Criar função `handle_task_completion_notification()` e trigger `AFTER UPDATE` em `public.tasks` que dispara quando `completed` muda de `false` → `true`.
+```sql
+ALTER TABLE public.task_assignees
+  ADD COLUMN role text NOT NULL DEFAULT 'responsible'
+  CHECK (role IN ('responsible','informed'));
+CREATE INDEX idx_task_assignees_role ON public.task_assignees(task_id, role);
+```
 
-Lógica:
-- Identifica o ator: `COALESCE(auth.uid(), NEW.user_id)`.
-- Se `ator = NEW.user_id` (criador concluiu a própria tarefa) → não faz nada.
-- Caso contrário, insere em `notifications`:
-  - `user_id` = `NEW.user_id` (criador)
-  - `workspace_id` = `NEW.workspace_id`
-  - `type` = `'task_completed'`
-  - `payload` = `{ task_id, task_title, completed_by, completed_by_name }` (nome buscado em `profiles`).
-- Em UPDATE inverso (true → false) nada acontece.
+Ajustes nos triggers existentes (mantendo nomes):
+- `handle_task_assignee_notification` → continua disparando para qualquer role; payload ganha `role` para o front diferenciar texto.
+- `handle_task_assignee_to_conversation` → continua adicionando informados ao conversation/chat.
+- `handle_task_completion_notification` (já existe) → notificar **criador + todos os informados** (exceto o ator).
+- Novo trigger `handle_task_update_notification` em `AFTER UPDATE OF title, description, due_date, due_time, priority, project_id ON tasks`: cria notification `task_updated` para todos os informados (≠ ator).
 
-### 2. Edge function `send-push`
-Adicionar branch para `notif.type === 'task_completed'`:
-- Título: `✅ Tarefa concluída`
-- Body: `"<Nome> finalizou: <task_title>"`
-- URL: `/today?task=<task_id>`
+## 2. Frontend — TaskDetailPanel
+- Nova `DetailRow icon={Eye} label="Informado"` logo abaixo de "Responsável".
+- Componente `<AssigneeChip />` reaproveitado, mas operando sobre `informedIds` (filtrar por `role`).
+- Persistência: insert/delete em `task_assignees` com `role='informed'`.
 
-### 3. Frontend
-- `src/store/notificationStore.ts`: incluir `'task_completed'` na lista de tipos relevantes.
-- `src/components/NotificationBell.tsx`: renderizar ícone/label próprio (`CheckCircle2`, "Tarefa concluída", abrir a tarefa).
-- `src/components/MentionNotifier.tsx`: toast para o tipo `task_completed` redirecionando para a tarefa.
+## 3. Frontend — agenda / filtros
+- `taskStore` separa `assigneeIds` (apenas role=responsible) e `informedIds` (apenas role=informed).
+- `TodayPage`, `UpcomingPage`, `KanbanBoard` (colunas por usuário), `WorkloadPage` continuam usando `assigneeIds` → informados não aparecem na agenda automaticamente.
+- `NotificationBell` ganha tipo `task_updated` e mantém `task_completed`/`task_assigned` (texto adaptado a `role: 'informed'` quando aplicável).
+
+## 4. Edge function `send-push`
+Adicionar branch para `task_updated`:
+- Título: `📝 Tarefa atualizada`
+- Body: `<task_title>` + breve descrição do campo alterado.
+- URL: `/today?task=<task_id>` (ou painel da tarefa).
+
+## 5. Chat
+`getTaskChatRecipientIds` já lê `task_assignees` inteira → informados já entram automaticamente. Sem alteração.
 
 ## Critérios de aceitação
-- C1: Usuário A cria tarefa e delega para B; B marca como concluída → A recebe notificação no sino + push em < 2s.
-- C2: A conclui a própria tarefa → nenhuma notificação extra.
-- C3: Reabrir + concluir de novo gera nova notificação.
-- C4: Notificação mostra nome legível (display_name → email prefix → "Usuário").
-- C5: Clicar abre o painel da tarefa correta.
+- C1: Adicionar usuário como Informado → ele recebe sino + push de "atribuição" (texto: "Você foi adicionado como informado").
+- C2: Editar tarefa (título/data/projeto) → informados recebem notificação `task_updated`.
+- C3: Concluir tarefa → informados + criador recebem `task_completed`.
+- C4: Tarefa não aparece na Hoje/Próximas/Kanban do informado.
+- C5: Conversa da tarefa inclui o informado e ele recebe mensagens.
 
 ## Detalhes técnicos
-- Trigger usa `SECURITY DEFINER` + `SET search_path = public` (padrão dos triggers existentes).
-- Sem alteração de RLS — `notifications` já permite insert quando `auth.uid() IS NOT NULL`.
-- Realtime já está ativo em `notifications` (usado pelo sino) — nada a configurar.
+- `role` default `responsible` mantém compatibilidade com todas as linhas atuais.
+- Filtros do front passam a usar `assigneeIds` (responsáveis) para agenda e `informedIds` para badges.
+- RLS de `task_assignees` continua igual (não depende de role).

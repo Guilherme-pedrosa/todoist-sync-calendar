@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX, CheckCircle2 } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX, CheckCircle2, Pencil, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,6 +49,7 @@ export function NotificationBell() {
         n.type === 'task_assignment_returned' ||
         n.type === 'task_reminder' ||
         n.type === 'task_completed' ||
+        n.type === 'task_updated' ||
         n.type === 'meeting_invite' ||
         n.type === 'meeting_accepted' ||
         n.type === 'meeting_declined' ||
@@ -156,6 +157,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const isAssignDeclined = n.type === 'task_assignment_declined';
   const isAssignReturned = n.type === 'task_assignment_returned';
   const isCompleted = n.type === 'task_completed';
+  const isUpdated = n.type === 'task_updated';
+  const isInformed = n.payload?.role === 'informed';
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
@@ -187,14 +190,18 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                   ? Undo2
                   : isCompleted
                     ? CheckCircle2
-                    : MessageSquare;
+                    : isUpdated
+                      ? Pencil
+                      : isAssigned && isInformed
+                        ? Eye
+                        : MessageSquare;
 
   const title = isMention
     ? 'Você foi mencionado'
     : isChatMessage
       ? 'Nova mensagem'
     : isAssigned
-      ? 'Nova atividade atribuída a você'
+      ? (isInformed ? 'Você foi adicionado como informado' : 'Nova atividade atribuída a você')
       : isReminder
         ? 'Lembrete de tarefa'
         : isInvite
@@ -213,7 +220,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                       ? `${n.payload?.responder_name || 'Responsável'} devolveu a tarefa`
                       : isCompleted
                         ? `${n.payload?.completed_by_name || 'Alguém'} concluiu a tarefa`
-                        : 'Notificação';
+                        : isUpdated
+                          ? `${n.payload?.updated_by_name || 'Alguém'} atualizou ${n.payload?.changed_field || 'a tarefa'}`
+                          : 'Notificação';
 
   const body = n.payload?.snippet || n.payload?.task_title || '';
 

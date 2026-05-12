@@ -28,6 +28,7 @@ import {
   Video,
   Undo2,
   ChevronRight,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -185,6 +186,7 @@ export function TaskDetailPanel() {
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [informedIds, setInformedIds] = useState<string[]>([]);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
@@ -331,6 +333,7 @@ export function TaskDetailPanel() {
   useEffect(() => {
     if (!task?.id) {
       setAssigneeIds([]);
+      setInformedIds([]);
       setAssignedByMap({});
       return;
     }
@@ -338,16 +341,21 @@ export function TaskDetailPanel() {
     const refresh = async () => {
       const { data } = await supabase
         .from('task_assignees')
-        .select('user_id, assigned_by, assigned_at')
+        .select('user_id, assigned_by, assigned_at, role')
         .eq('task_id', task.id);
       if (!active || !data) return;
-      setAssigneeIds(data.map((r: any) => r.user_id));
+      const responsibles: string[] = [];
+      const informed: string[] = [];
       const map: Record<string, { byUserId: string | null; at: string | null }> = {};
       const byIds = new Set<string>();
       for (const r of data as any[]) {
+        if ((r.role ?? 'responsible') === 'informed') informed.push(r.user_id);
+        else responsibles.push(r.user_id);
         map[r.user_id] = { byUserId: r.assigned_by ?? null, at: r.assigned_at ?? null };
         if (r.assigned_by) byIds.add(r.assigned_by);
       }
+      setAssigneeIds(responsibles);
+      setInformedIds(informed);
       setAssignedByMap(map);
       if (byIds.size > 0) {
         const { data: profs } = await supabase
@@ -419,7 +427,7 @@ export function TaskDetailPanel() {
         const rows: any[] = [];
         for (const tid of ids) {
           for (const uid of toAdd) {
-            rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id });
+            rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id, role: 'responsible' });
           }
         }
         await supabase
@@ -432,6 +440,46 @@ export function TaskDetailPanel() {
       setAssigneeIds(prev);
       useTaskStore.setState((state) => ({
         tasks: state.tasks.map((t) => (ids.includes(t.id) ? { ...t, assigneeIds: prev } : t)),
+      }));
+    }
+  };
+
+  const handleInformedChange = async (next: string[]) => {
+    if (!task) return;
+    const prev = informedIds;
+    setInformedIds(next);
+    useTaskStore.setState((state) => ({
+      tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, informedIds: next } : t)),
+    }));
+    const toAdd = next.filter((id) => !prev.includes(id));
+    const toRemove = prev.filter((id) => !next.includes(id));
+    try {
+      if (toRemove.length > 0) {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', task.id)
+          .in('user_id', toRemove)
+          .eq('role', 'informed');
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((uid) => ({
+          task_id: task.id,
+          user_id: uid,
+          assigned_by: user?.id,
+          role: 'informed',
+          assignment_status: 'accepted',
+        }));
+        await supabase
+          .from('task_assignees')
+          .upsert(rows as any, { onConflict: 'task_id,user_id' });
+      }
+    } catch (err) {
+      console.error('Failed to update informed', err);
+      toast.error('Falha ao atualizar informados');
+      setInformedIds(prev);
+      useTaskStore.setState((state) => ({
+        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, informedIds: prev } : t)),
       }));
     }
   };
@@ -1232,6 +1280,19 @@ export function TaskDetailPanel() {
                     </div>
                   </div>
                 )}
+              </div>
+            </DetailRow>
+
+            <DetailRow icon={Eye} label="Informado">
+              <div className="space-y-1.5">
+                <AssigneeChip
+                  projectId={task.projectId ?? null}
+                  value={informedIds}
+                  onChange={handleInformedChange}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Recebem notificações e participam do chat, mas a tarefa não aparece na agenda deles.
+                </p>
               </div>
             </DetailRow>
 

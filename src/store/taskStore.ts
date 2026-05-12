@@ -49,7 +49,7 @@ interface TaskState {
   // Atomic realtime apply actions (no refetch)
   applyTaskUpsertFromDb: (row: any) => void;
   applyTaskDelete: (id: string) => void;
-  applyTaskAssigneeChange: (taskId: string, userId: string, op: 'add' | 'remove') => void;
+  applyTaskAssigneeChange: (taskId: string, userId: string, op: 'add' | 'remove', role?: 'responsible' | 'informed') => void;
   applyTaskLabelChange: (taskId: string, labelId: string, op: 'add' | 'remove') => void;
   applyMeetingInvitationChange: (taskId: string, inviteeUserId: string | null, op: 'add' | 'remove') => void;
   applyProjectUpsertFromDb: (row: any) => void;
@@ -134,7 +134,8 @@ function mapDbTaskToTask(t: any): Task | null {
       : undefined,
 
     taskNumber: t.task_number ?? null,
-    assigneeIds: (t.task_assignees || []).map((a: any) => a.user_id),
+    assigneeIds: (t.task_assignees || []).filter((a: any) => (a.role ?? 'responsible') !== 'informed').map((a: any) => a.user_id),
+    informedIds: (t.task_assignees || []).filter((a: any) => a.role === 'informed').map((a: any) => a.user_id),
     meetingInviteeIds: (t.meeting_invitations || [])
       .map((i: any) => i.invitee_user_id)
       .filter(Boolean),
@@ -190,7 +191,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       supabase.from('labels').select('*').eq('user_id', userId),
       supabase
         .from('tasks')
-        .select('*, task_labels(label_id), task_assignees(user_id), meeting_invitations(invitee_user_id)')
+        .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
         .is('deleted_at', null),
     ]);
 
@@ -380,7 +381,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
-      task_assignees: allAssignees.map((uid) => ({ user_id: uid })),
+      task_assignees: allAssignees.map((uid) => ({ user_id: uid, role: 'responsible' })),
     });
     if (!newTask) return null;
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
@@ -796,7 +797,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       const merged = mapDbTaskToTask({
         ...row,
         task_labels: row.task_labels ?? (existing ? existing.labels.map((id) => ({ label_id: id })) : []),
-        task_assignees: row.task_assignees ?? (existing ? existing.assigneeIds.map((id) => ({ user_id: id })) : []),
+        task_assignees: row.task_assignees ?? (existing
+          ? [
+              ...existing.assigneeIds.map((id) => ({ user_id: id, role: 'responsible' })),
+              ...(existing.informedIds || []).map((id) => ({ user_id: id, role: 'informed' })),
+            ]
+          : []),
         meeting_invitations:
           row.meeting_invitations ??
           (existing ? existing.meetingInviteeIds.map((id) => ({ invitee_user_id: id })) : []),
@@ -816,10 +822,16 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
   },
 
-  applyTaskAssigneeChange: (taskId, userId, op) => {
+  applyTaskAssigneeChange: (taskId, userId, op, role = 'responsible') => {
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
+        if (role === 'informed') {
+          const set1 = new Set(t.informedIds || []);
+          if (op === 'add') set1.add(userId);
+          else set1.delete(userId);
+          return { ...t, informedIds: Array.from(set1) };
+        }
         const set1 = new Set(t.assigneeIds || []);
         if (op === 'add') set1.add(userId);
         else set1.delete(userId);

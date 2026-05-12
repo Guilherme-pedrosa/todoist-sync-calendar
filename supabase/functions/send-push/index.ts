@@ -154,6 +154,12 @@ Deno.serve(async (req) => {
         const who = p.completed_by_name || "Alguém";
         bodyText = `${who} finalizou: ${p.task_title || "tarefa"}`;
         if (p.task_id) urlPath = `/today?task=${p.task_id}`;
+      } else if (notif.type === "task_updated") {
+        title = "📝 Tarefa atualizada";
+        const who = p.updated_by_name || "Alguém";
+        const field = p.changed_field || "informação";
+        bodyText = `${who} alterou ${field}: ${p.task_title || "tarefa"}`;
+        if (p.task_id) urlPath = `/today?task=${p.task_id}`;
       } else if (p.title) {
         title = p.title;
         bodyText = p.body || p.message || bodyText;

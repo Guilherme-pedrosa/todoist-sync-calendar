@@ -60,9 +60,11 @@ function handleAssigneeEvent(payload: any) {
   const store = useTaskStore.getState();
   try {
     if (payload.eventType === 'INSERT') {
-      store.applyTaskAssigneeChange(payload.new.task_id, payload.new.user_id, 'add');
+      const role = (payload.new?.role ?? 'responsible') as 'responsible' | 'informed';
+      store.applyTaskAssigneeChange(payload.new.task_id, payload.new.user_id, 'add', role);
     } else if (payload.eventType === 'DELETE') {
-      store.applyTaskAssigneeChange(payload.old.task_id, payload.old.user_id, 'remove');
+      const role = (payload.old?.role ?? 'responsible') as 'responsible' | 'informed';
+      store.applyTaskAssigneeChange(payload.old.task_id, payload.old.user_id, 'remove', role);
     }
     // UPDATE on assignment_status doesn't change membership; ignore for store.
   } catch (e) {
