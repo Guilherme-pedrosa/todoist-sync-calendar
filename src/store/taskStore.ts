@@ -381,7 +381,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
-      task_assignees: allAssignees.map((uid) => ({ user_id: uid })),
+      task_assignees: allAssignees.map((uid) => ({ user_id: uid, role: 'responsible' })),
     });
     if (!newTask) return null;
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
