@@ -114,6 +114,20 @@ export default function UpcomingPage() {
     [visibleTasks]
   );
 
+  const overdueTasks = useMemo(() => {
+    const todayStr = localDateKey();
+    return visibleTasks
+      .filter(
+        (t) =>
+          !t.completed &&
+          !t.parentId &&
+          !!t.dueDate &&
+          t.dueDate < todayStr &&
+          !t.recurrenceRule
+      )
+      .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+  }, [visibleTasks]);
+
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
     [weekOffset]
@@ -316,7 +330,7 @@ export default function UpcomingPage() {
       {mode === 'kanban' ? (
         <KanbanBoard tasks={upcoming} boardKey="upcoming" />
       ) : mode === 'week' || mode === 'day' ? (
-        <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} />
+        <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} overdueTasks={overdueTasks} />
       ) : (
         <ListView tasks={upcoming} />
       )}
@@ -376,10 +390,12 @@ function WeekGrid({
   weekDays,
   hours,
   tasksByDay,
+  overdueTasks = [],
 }: {
   weekDays: Date[];
   hours: number[];
   tasksByDay: Map<string, Task[]>;
+  overdueTasks?: Task[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
@@ -638,12 +654,36 @@ function WeekGrid({
           </div>
           {weekDays.map((day) => {
             const k = format(day, 'yyyy-MM-dd');
+            const todayKey = localDateKey();
+            const isTodayCell = k === todayKey;
             const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
+            const overdueForCell = isTodayCell ? overdueTasks : [];
             return (
               <div
                 key={k}
                 className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
               >
+                {overdueForCell.map((t) => (
+                  <AllDayChip
+                    key={`overdue-${t.id}`}
+                    task={t}
+                    occurrenceDate={t.dueDate!}
+                    onOpen={() => openTaskDetail(t.id)}
+                    onStartDrag={(pointerOffsetMin) => {
+                      setPreview((p) => ({
+                        ...p,
+                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                      }));
+                      setDrag({
+                        kind: 'move',
+                        taskId: t.id,
+                        pointerOffsetMin,
+                        durationMin: DEFAULT_DURATION,
+                        sourceDayKey: t.dueDate!,
+                      });
+                    }}
+                  />
+                ))}
                 {allDay.map((t) => (
                   <AllDayChip
                     key={t.id}
