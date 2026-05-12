@@ -822,10 +822,16 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => ({ tasks: state.tasks.filter((t) => t.id !== id) }));
   },
 
-  applyTaskAssigneeChange: (taskId, userId, op) => {
+  applyTaskAssigneeChange: (taskId, userId, op, role = 'responsible') => {
     set((state) => ({
       tasks: state.tasks.map((t) => {
         if (t.id !== taskId) return t;
+        if (role === 'informed') {
+          const set1 = new Set(t.informedIds || []);
+          if (op === 'add') set1.add(userId);
+          else set1.delete(userId);
+          return { ...t, informedIds: Array.from(set1) };
+        }
         const set1 = new Set(t.assigneeIds || []);
         if (op === 'add') set1.add(userId);
         else set1.delete(userId);
