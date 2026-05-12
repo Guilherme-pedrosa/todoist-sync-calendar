@@ -1289,6 +1289,8 @@ export function TaskDetailPanel() {
                   projectId={task.projectId ?? null}
                   value={informedIds}
                   onChange={handleInformedChange}
+                  placeholder="Informado"
+                  pluralLabel={(n) => `${n} informados`}
                 />
                 <p className="text-[11px] text-muted-foreground">
                   Recebem notificações e participam do chat, mas a tarefa não aparece na agenda deles.
