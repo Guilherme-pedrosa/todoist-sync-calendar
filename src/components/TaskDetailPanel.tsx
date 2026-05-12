@@ -443,6 +443,46 @@ export function TaskDetailPanel() {
     }
   };
 
+  const handleInformedChange = async (next: string[]) => {
+    if (!task) return;
+    const prev = informedIds;
+    setInformedIds(next);
+    useTaskStore.setState((state) => ({
+      tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, informedIds: next } : t)),
+    }));
+    const toAdd = next.filter((id) => !prev.includes(id));
+    const toRemove = prev.filter((id) => !next.includes(id));
+    try {
+      if (toRemove.length > 0) {
+        await supabase
+          .from('task_assignees')
+          .delete()
+          .eq('task_id', task.id)
+          .in('user_id', toRemove)
+          .eq('role', 'informed');
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((uid) => ({
+          task_id: task.id,
+          user_id: uid,
+          assigned_by: user?.id,
+          role: 'informed',
+          assignment_status: 'accepted',
+        }));
+        await supabase
+          .from('task_assignees')
+          .upsert(rows as any, { onConflict: 'task_id,user_id' });
+      }
+    } catch (err) {
+      console.error('Failed to update informed', err);
+      toast.error('Falha ao atualizar informados');
+      setInformedIds(prev);
+      useTaskStore.setState((state) => ({
+        tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, informedIds: prev } : t)),
+      }));
+    }
+  };
+
   const handleReturnTask = async () => {
     if (!task || !user) return;
     if (!returnReason.trim()) {
