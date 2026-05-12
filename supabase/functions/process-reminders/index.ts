@@ -50,67 +50,75 @@ Deno.serve(async (req) => {
         .in('id', ids);
       if (updErr) throw updErr;
 
-      // Buscar settings dos usuários afetados (para saber canais e e-mail)
-      const userIds = Array.from(new Set(
-        dueValid.map((r) => {
-          const t = Array.isArray((r as any).tasks) ? (r as any).tasks[0] : (r as any).tasks;
-          return t?.user_id;
-        }).filter(Boolean)
+      // Buscar responsáveis (role='responsible') de cada task — informados NÃO recebem lembrete
+      const taskIdSet = Array.from(new Set(dueValid.map((r: any) => r.task_id).filter(Boolean)));
+      const { data: assigneeRows } = await supabase
+        .from('task_assignees')
+        .select('task_id, user_id, role')
+        .in('task_id', taskIdSet);
+      const responsiblesByTask = new Map<string, string[]>();
+      for (const a of assigneeRows || []) {
+        if ((a as any).role && (a as any).role !== 'responsible') continue;
+        const list = responsiblesByTask.get((a as any).task_id) || [];
+        list.push((a as any).user_id);
+        responsiblesByTask.set((a as any).task_id, list);
+      }
+
+      const allRecipientIds = Array.from(new Set(
+        Array.from(responsiblesByTask.values()).flat()
       ));
 
       const { data: settingsRows } = await supabase
         .from('user_settings')
         .select('user_id, reminder_channels, notify_on_reminders')
-        .in('user_id', userIds);
+        .in('user_id', allRecipientIds.length ? allRecipientIds : ['00000000-0000-0000-0000-000000000000']);
 
       const settingsByUser = new Map(
         (settingsRows || []).map((s: any) => [s.user_id, s])
       );
-
-      // Buscar e-mails dos usuários
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, display_name')
-        .in('user_id', userIds);
-      const profileByUser = new Map((profiles || []).map((p: any) => [p.user_id, p]));
 
       const notificationRows: any[] = [];
       const emailJobs: { userId: string; taskTitle: string; mins: number | null; dueAt: string | null }[] = [];
 
       for (const r of dueValid) {
         const task = Array.isArray((r as any).tasks) ? (r as any).tasks[0] : (r as any).tasks;
-        if (!task?.user_id || !task?.workspace_id) continue;
-        if (task.completed_at) continue; // tarefa já concluída — pular
+        if (!task?.workspace_id) continue;
+        if (task.completed_at) continue;
 
-        const settings = settingsByUser.get(task.user_id);
-        // Default: notificações de lembrete ligadas, canais ['push','email']
-        if (settings && settings.notify_on_reminders === false) continue;
+        // Fallback: se nenhuma linha em task_assignees tiver role='responsible',
+        // usa o owner (task.user_id) — comportamento legado.
+        let recipients = responsiblesByTask.get(r.task_id) || [];
+        if (recipients.length === 0 && task.user_id) recipients = [task.user_id];
 
-        const channels: string[] = settings?.reminder_channels || ['push', 'email'];
+        for (const uid of recipients) {
+          const settings = settingsByUser.get(uid);
+          if (settings && settings.notify_on_reminders === false) continue;
+          const channels: string[] = settings?.reminder_channels || ['push', 'email'];
 
-        if (channels.includes('push') || channels.includes('mobile')) {
-          notificationRows.push({
-            user_id: task.user_id,
-            type: 'task_reminder',
-            workspace_id: task.workspace_id,
-            payload: {
-              task_id: r.task_id,
-              task_title: task.title,
-              reminder_id: r.id,
-              trigger_at: r.trigger_at,
-              relative_minutes: r.relative_minutes,
-              due_at: task.due_at,
-            },
-          });
-        }
+          if (channels.includes('push') || channels.includes('mobile')) {
+            notificationRows.push({
+              user_id: uid,
+              type: 'task_reminder',
+              workspace_id: task.workspace_id,
+              payload: {
+                task_id: r.task_id,
+                task_title: task.title,
+                reminder_id: r.id,
+                trigger_at: r.trigger_at,
+                relative_minutes: r.relative_minutes,
+                due_at: task.due_at,
+              },
+            });
+          }
 
-        if (channels.includes('email')) {
-          emailJobs.push({
-            userId: task.user_id,
-            taskTitle: task.title,
-            mins: r.relative_minutes,
-            dueAt: task.due_at,
-          });
+          if (channels.includes('email')) {
+            emailJobs.push({
+              userId: uid,
+              taskTitle: task.title,
+              mins: r.relative_minutes,
+              dueAt: task.due_at,
+            });
+          }
         }
       }
 
@@ -122,8 +130,6 @@ Deno.serve(async (req) => {
       // Enfileirar e-mails (best-effort)
       for (const job of emailJobs) {
         try {
-          const profile = profileByUser.get(job.userId);
-          // Buscar email do auth.users via RPC simples
           const { data: authUser } = await supabase.auth.admin.getUserById(job.userId);
           const email = authUser?.user?.email;
           if (!email) continue;
