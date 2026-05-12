@@ -29,6 +29,7 @@ export interface Task {
   googleCalendarEventId?: string;
   taskNumber?: number | null;
   assigneeIds?: string[];
+  informedIds?: string[];
   meetingInviteeIds?: string[];
   sourceTaskId?: string;
   recurringCompletionId?: string;
