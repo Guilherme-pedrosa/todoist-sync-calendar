@@ -450,7 +450,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             };
             // unread bump se não for ativa nem própria
             getCurrentUserId().then((uid) => {
-              if (msg.userId !== uid && s.activeConversationId !== msg.conversationId) {
+              if (msg.userId !== uid && get().activeConversationId !== msg.conversationId) {
                 const notify = () => {
                   set((ss) => ({
                     unreadByConversation: {

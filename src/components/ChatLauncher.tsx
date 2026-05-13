@@ -29,11 +29,6 @@ export function ChatLauncher() {
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const tasks = useTaskStore((s) => s.tasks);
 
-  const totalUnread = useMemo(
-    () => Object.values(unread).reduce((a, b) => a + b, 0),
-    [unread]
-  );
-
   useEffect(() => {
     if (currentWorkspaceId) {
       fetchConversations(currentWorkspaceId);
@@ -71,6 +66,10 @@ export function ChatLauncher() {
       new Date(c.updatedAt).getTime() - new Date(c.createdAt).getTime() > 1000;
     return hasActivity || (unread[c.id] || 0) > 0;
   });
+  const visibleUnread = [...workspaceConvs, ...taskConvs].reduce(
+    (sum, c) => sum + (unread[c.id] || 0),
+    0
+  );
 
   return (
     <>
@@ -85,9 +84,9 @@ export function ChatLauncher() {
         aria-label="Abrir conversas"
       >
         <MessageSquare className="h-5 w-5" />
-        {totalUnread > 0 && (
+        {!open && visibleUnread > 0 && (
           <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold flex items-center justify-center animate-pulse">
-            {totalUnread > 99 ? '99+' : totalUnread}
+            {visibleUnread > 99 ? '99+' : visibleUnread}
           </span>
         )}
       </button>

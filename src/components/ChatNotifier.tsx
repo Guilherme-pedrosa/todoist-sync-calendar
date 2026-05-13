@@ -3,7 +3,8 @@ import { toast } from 'sonner';
 import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { onIncomingChatMessage } from '@/store/chatStore';
+import { onIncomingChatMessage, useChatStore } from '@/store/chatStore';
+import { useTaskStore } from '@/store/taskStore';
 import {
   maybeAutoRequestPermission,
   playChime,
@@ -24,10 +25,15 @@ export function ChatNotifier() {
     maybeAutoRequestPermission();
 
     const off = onIncomingChatMessage((e) => {
+      if (e.conversationType === 'task' && e.taskId) {
+        const task = useTaskStore.getState().tasks.find((t) => t.id === e.taskId);
+        if (!task || task.completed) return;
+      }
       const title =
         e.conversationTitle ||
         (e.conversationType === 'task' ? 'Conversa da tarefa' : 'Nova mensagem');
       const snippet = (e.message.body || '').replace(/\s+/g, ' ').slice(0, 140) || 'Nova mensagem';
+      if (useChatStore.getState().activeConversationId === e.message.conversationId) return;
 
       const open = () => {
         clearTabBlink();

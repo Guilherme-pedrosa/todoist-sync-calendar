@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { MessageSquare, AtSign, BellRing, CheckCircle2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useChatStore } from '@/store/chatStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
@@ -47,6 +48,14 @@ export function MentionNotifier() {
       seen.add(n.id);
       // Skip already-read (e.g. coming from initial fetch)
       if (n.readAt) continue;
+      if (
+        (n.type === 'chat_mention' || n.type === 'chat_message') &&
+        n.payload?.conversation_id &&
+        useChatStore.getState().activeConversationId === n.payload.conversation_id
+      ) {
+        void markRead(n.id);
+        continue;
+      }
       // Skip stale (>30s old at first mount)
       if (Date.now() - new Date(n.createdAt).getTime() > 30_000 && seen.size <= items.length) {
         continue;
