@@ -616,12 +616,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       },
     });
 
-    // Notify FleetDesk (fire-and-forget) so corrective tickets move to "Concluído"
+    // Notify external integrations (FleetDesk, WeDo CRM, …) — fire-and-forget
     supabase.functions
-      .invoke('fleetdesk-notify-status', {
+      .invoke('notify-external-status', {
         body: { task_id: id, completed, completed_at: completedAt },
       })
-      .catch((err) => console.warn('FleetDesk sync falhou:', err));
+      .catch((err) => console.warn('Sync externo falhou:', err));
 
   },
 
