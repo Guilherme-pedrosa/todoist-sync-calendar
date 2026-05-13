@@ -269,7 +269,7 @@ export default function ProductivityPage() {
   const triggerAggregate = async () => {
     setRefreshing(true);
     try {
-      const { data: j, error } = await supabase.rpc("run_activity_aggregate", { p_day: null });
+      const { data: j, error } = await supabase.rpc("run_activity_aggregate", {});
       if (error) throw error;
       const processed = typeof j === "object" && j && "processed" in j ? Number((j as any).processed || 0) : 0;
       toast.success(`Recalculado: ${processed} registros`);
