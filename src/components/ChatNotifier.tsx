@@ -4,6 +4,7 @@ import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { onIncomingChatMessage } from '@/store/chatStore';
+import { useChatStore } from '@/store/chatStore';
 import {
   maybeAutoRequestPermission,
   playChime,
@@ -28,6 +29,7 @@ export function ChatNotifier() {
         e.conversationTitle ||
         (e.conversationType === 'task' ? 'Conversa da tarefa' : 'Nova mensagem');
       const snippet = (e.message.body || '').replace(/\s+/g, ' ').slice(0, 140) || 'Nova mensagem';
+      if (useChatStore.getState().activeConversationId === e.message.conversationId) return;
 
       const open = () => {
         clearTabBlink();
