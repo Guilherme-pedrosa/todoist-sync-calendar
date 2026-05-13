@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspaceStore } from "@/store/workspaceStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Activity, CheckCircle2, Clock, MoonStar, Trophy, RefreshCw, Shield, UserPlus, Trash2, Crown, Sparkles, AlertTriangle, Lightbulb, TrendingUp } from "lucide-react";
+import { Loader2, Activity, CheckCircle2, Clock, MoonStar, RefreshCw, Shield, UserPlus, Trash2, Crown, Sparkles, AlertTriangle, Lightbulb, TrendingUp } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,8 +61,6 @@ const initials = (name: string | null) =>
 export default function ProductivityPage() {
   const { user } = useAuth();
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  const workspaces = useWorkspaceStore((s) => s.workspaces);
-  const currentWs = workspaces.find((w) => w.id === currentWorkspaceId);
 
   const [range, setRange] = useState<string>("7");
   const [stats, setStats] = useState<DailyStat[]>([]);
@@ -97,6 +95,7 @@ export default function ProductivityPage() {
   const [insight, setInsight] = useState<Insight | null>(null);
   const [insightLoading, setInsightLoading] = useState(false);
   const [insightGenerating, setInsightGenerating] = useState(false);
+  const realtimeReloadTimerRef = useRef<number | null>(null);
 
   const refreshAccess = async () => {
     if (!user) return;
@@ -198,9 +197,9 @@ export default function ProductivityPage() {
     await loadAdmins();
   };
 
-  const load = async () => {
+  const load = useCallback(async (showSpinner = true) => {
     if (!currentWorkspaceId) return;
-    setLoading(true);
+    if (showSpinner) setLoading(true);
     const days = Math.max(1, parseInt(range, 10));
     const since = new Date();
     since.setDate(since.getDate() - (days - 1));
@@ -232,33 +231,46 @@ export default function ProductivityPage() {
       setMembers([]);
     }
 
-    setLoading(false);
-  };
+    if (showSpinner) setLoading(false);
+  }, [currentWorkspaceId, range]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentWorkspaceId, range]);
+  }, [load]);
+
+  useEffect(() => {
+    if (!currentWorkspaceId || !isAdmin) return;
+
+    const channel = supabase
+      .channel(`productivity-stats-${currentWorkspaceId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_activity_stats", filter: `workspace_id=eq.${currentWorkspaceId}` },
+        () => {
+          if (realtimeReloadTimerRef.current) window.clearTimeout(realtimeReloadTimerRef.current);
+          realtimeReloadTimerRef.current = window.setTimeout(() => {
+            void load(false);
+          }, 500);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (realtimeReloadTimerRef.current) {
+        window.clearTimeout(realtimeReloadTimerRef.current);
+        realtimeReloadTimerRef.current = null;
+      }
+      void supabase.removeChannel(channel);
+    };
+  }, [currentWorkspaceId, isAdmin, load]);
 
   const triggerAggregate = async () => {
     setRefreshing(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activity-aggregate`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({}),
-        },
-      );
-      const j = await res.json();
-      if (!res.ok) throw new Error(j.error || "Falha ao recalcular");
-      toast.success(`Recalculado: ${j.processed} registros`);
+      const { data: j, error } = await supabase.rpc("run_activity_aggregate", {});
+      if (error) throw error;
+      const processed = typeof j === "object" && j && "processed" in j ? Number((j as any).processed || 0) : 0;
+      toast.success(`Recalculado: ${processed} registros`);
       await load();
     } catch (e: any) {
       toast.error(e.message);
