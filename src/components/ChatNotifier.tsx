@@ -3,8 +3,7 @@ import { toast } from 'sonner';
 import { MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { onIncomingChatMessage } from '@/store/chatStore';
-import { useChatStore } from '@/store/chatStore';
+import { onIncomingChatMessage, useChatStore } from '@/store/chatStore';
 import { useTaskStore } from '@/store/taskStore';
 import {
   maybeAutoRequestPermission,
