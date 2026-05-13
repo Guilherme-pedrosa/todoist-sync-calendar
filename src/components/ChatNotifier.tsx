@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { onIncomingChatMessage } from '@/store/chatStore';
 import { useChatStore } from '@/store/chatStore';
+import { useTaskStore } from '@/store/taskStore';
 import {
   maybeAutoRequestPermission,
   playChime,
@@ -25,6 +26,10 @@ export function ChatNotifier() {
     maybeAutoRequestPermission();
 
     const off = onIncomingChatMessage((e) => {
+      if (e.conversationType === 'task' && e.taskId) {
+        const task = useTaskStore.getState().tasks.find((t) => t.id === e.taskId);
+        if (!task || task.completed) return;
+      }
       const title =
         e.conversationTitle ||
         (e.conversationType === 'task' ? 'Conversa da tarefa' : 'Nova mensagem');
