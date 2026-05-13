@@ -226,17 +226,26 @@ export async function chatWithAssistant(opts: {
   extras?: ChatContextExtras;
 }) {
   const ctx = buildContext(opts.tasks, opts.projects);
-  const taskCatalog = opts.tasks
-    .filter((t) => !t.parentId)
-    .slice(0, 200)
+  // Ordena: pendentes primeiro, depois por data desc (mais recentes/relevantes no topo)
+  const sorted = [...opts.tasks].sort((a, b) => {
+    if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    const da = a.dueDate || a.createdAt || '';
+    const db = b.dueDate || b.createdAt || '';
+    return db.localeCompare(da);
+  });
+  const taskCatalog = sorted
+    .slice(0, 1500)
     .map((t) => ({
       id: t.id,
       title: t.title,
+      description: t.description ? t.description.slice(0, 280) : null,
+      labels: t.labels ?? [],
       date: t.dueDate ?? null,
       time: t.dueTime ?? null,
       priority: t.priority,
       project: opts.projects.find((p) => p.id === t.projectId)?.name ?? null,
       completed: t.completed,
+      parentId: t.parentId ?? null,
       assignees: t.assigneeIds ?? [],
     }));
   const projectCatalog = opts.projects.map((p) => ({ id: p.id, name: p.name, isInbox: !!(p as any).isInbox }));
