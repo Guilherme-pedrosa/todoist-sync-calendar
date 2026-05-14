@@ -450,11 +450,20 @@ function Cell({ label, qty, value }: { label: string; qty: number; value: number
   );
 }
 
-function ActivityStat({ label, qty, accent }: { label: string; qty: number; accent: string }) {
+function ActivityStat({ label, qty, accent, businessDays }: { label: string; qty: number; accent: string; businessDays?: number }) {
+  const avgQty = businessDays && businessDays > 0 ? Math.round((qty / businessDays) * 10) / 10 : null;
   return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+    <div className="rounded-lg border border-border p-3 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+      </div>
+      {avgQty !== null && (
+        <div className="shrink-0 text-right border-l border-border pl-3">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">média / dia útil</div>
+          <div className="text-lg font-display font-semibold text-foreground">{avgQty}</div>
+        </div>
+      )}
     </div>
   );
 }
