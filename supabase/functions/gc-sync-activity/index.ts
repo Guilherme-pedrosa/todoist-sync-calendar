@@ -171,6 +171,8 @@ async function runSync(supabase: any, data_inicio: string, data_fim: string) {
 
           if (mod === 'compras' && /para Finalizado/i.test(desc)) {
             b.entrada_notas++;
+          } else if (mod === 'compras' && /^Adicionou\s+(a\s+)?compra/i.test(desc)) {
+            b.abertura_compras++;
           } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
             b.separacao_pecas++;
           } else if (mod === 'ordens_servicos' && /para RETIRADA PELO TECNICO/i.test(desc)) {
