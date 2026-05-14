@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isBusinessDay } from "@/lib/businessDay";
 
 type Row = {
   day: string;
@@ -200,6 +201,19 @@ export function GcLogTab() {
     return Array.from(map.entries());
   }, [filteredRows]);
 
+  const businessDays = useMemo(() => {
+    if (!dateFrom || !dateTo) return 0;
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    let count = 0;
+    const d = new Date(from);
+    while (d <= to) {
+      if (isBusinessDay(new Date(d))) count++;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.max(1, count);
+  }, [dateFrom, dateTo]);
+
   const totals = useMemo(() => {
     return filteredRows.reduce((acc, r) => ({
       vendas_count: acc.vendas_count + r.vendas_count,
@@ -333,10 +347,10 @@ export function GcLogTab() {
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Documentos no período</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Vendas" qty={totals.vendas_count} value={totals.vendas_valor} accent="text-green-500" />
-          <Stat label="OS" qty={totals.os_count} value={totals.os_valor} accent="text-blue-500" />
-          <Stat label="Orçamentos" qty={totals.orcamentos_count} value={totals.orcamentos_valor} accent="text-amber-500" />
-          <Stat label="Notas Fiscais" qty={totals.nfs_count} value={totals.nfs_valor} accent="text-purple-500" />
+          <Stat label="Vendas" qty={totals.vendas_count} value={totals.vendas_valor} accent="text-green-500" businessDays={businessDays} />
+          <Stat label="OS" qty={totals.os_count} value={totals.os_valor} accent="text-blue-500" businessDays={businessDays} />
+          <Stat label="Orçamentos" qty={totals.orcamentos_count} value={totals.orcamentos_valor} accent="text-amber-500" businessDays={businessDays} />
+          <Stat label="Notas Fiscais" qty={totals.nfs_count} value={totals.nfs_valor} accent="text-purple-500" businessDays={businessDays} />
         </div>
       </Card>
 
@@ -344,13 +358,13 @@ export function GcLogTab() {
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Atividades operacionais no período</div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-          <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" />
-          <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" />
-          <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" />
-          <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" />
-          <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" />
-          <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" />
-          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" />
+          <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" businessDays={businessDays} />
+          <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" businessDays={businessDays} />
+          <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" businessDays={businessDays} />
+          <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" businessDays={businessDays} />
+          <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" businessDays={businessDays} />
+          <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" businessDays={businessDays} />
+          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" businessDays={businessDays} />
         </div>
       </Card>
 
@@ -403,12 +417,23 @@ export function GcLogTab() {
   );
 }
 
-function Stat({ label, qty, value, accent }: { label: string; qty: number; value: number; accent: string }) {
+function Stat({ label, qty, value, accent, businessDays }: { label: string; qty: number; value: number; accent: string; businessDays?: number }) {
+  const avgQty = businessDays && businessDays > 0 ? Math.round((qty / businessDays) * 10) / 10 : null;
+  const avgVal = businessDays && businessDays > 0 ? value / businessDays : null;
   return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
-      <div className="text-xs text-muted-foreground mt-0.5">{fmtBRL(value)}</div>
+    <div className="rounded-lg border border-border p-3 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+        <div className="text-xs text-muted-foreground mt-0.5">{fmtBRL(value)}</div>
+      </div>
+      {avgQty !== null && (
+        <div className="shrink-0 text-right border-l border-border pl-3">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">média / dia útil</div>
+          <div className="text-lg font-display font-semibold text-foreground">{avgQty}</div>
+          <div className="text-[10px] text-muted-foreground">{fmtBRL(avgVal ?? 0)}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -425,11 +450,20 @@ function Cell({ label, qty, value }: { label: string; qty: number; value: number
   );
 }
 
-function ActivityStat({ label, qty, accent }: { label: string; qty: number; accent: string }) {
+function ActivityStat({ label, qty, accent, businessDays }: { label: string; qty: number; accent: string; businessDays?: number }) {
+  const avgQty = businessDays && businessDays > 0 ? Math.round((qty / businessDays) * 10) / 10 : null;
   return (
-    <div className="rounded-lg border border-border p-3">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+    <div className="rounded-lg border border-border p-3 flex items-center gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+      </div>
+      {avgQty !== null && (
+        <div className="shrink-0 text-right border-l border-border pl-3">
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">média / dia útil</div>
+          <div className="text-lg font-display font-semibold text-foreground">{avgQty}</div>
+        </div>
+      )}
     </div>
   );
 }
