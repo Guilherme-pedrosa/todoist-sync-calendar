@@ -81,13 +81,14 @@ export function GcLogTab() {
 
   const sync = async () => {
     setSyncing(true);
-    const days = Math.max(1, Math.min(365, Math.ceil((dateTo?.getTime() ?? Date.now() - (dateFrom?.getTime() ?? Date.now())) / 86400000)));
+    const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
+    const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
     const { data, error } = await supabase.functions.invoke("gc-sync-activity", {
-      body: { days },
+      body: { data_inicio: fromStr, data_fim: toStr },
     });
     setSyncing(false);
     if (error) { toast.error("Falha na sincronização: " + error.message); return; }
-    toast.success(`Sincronizado: ${data?.buckets ?? 0} registros`);
+    toast.success(`Sincronizado: ${data?.buckets ?? 0} registros (${fromStr} → ${toStr})`);
     load();
   };
 

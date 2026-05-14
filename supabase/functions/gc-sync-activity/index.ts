@@ -72,12 +72,13 @@ function bkey(buckets: Map<string, Bucket>, day: string, uid: string, uname: str
 }
 
 function pickUser(row: any): { id: string; name: string } | null {
-  // Vendas/OS/Orçamentos: usa vendedor; senão técnico
   if (row.vendedor_id) return { id: String(row.vendedor_id), name: row.nome_vendedor || '' };
   if (row.tecnico_id) return { id: String(row.tecnico_id), name: row.nome_tecnico || '' };
   if (row.usuario_id) return { id: String(row.usuario_id), name: row.nome_usuario || '' };
   return null;
 }
+
+const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -90,14 +91,25 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+  // Aceita: { data_inicio, data_fim } OU { days } OU query ?days=N
+  let body: any = {};
+  try { body = await req.json(); } catch { /* sem body */ }
   const url = new URL(req.url);
-  const days = Math.min(Number(url.searchParams.get('days') ?? '7'), 60);
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(start.getDate() - days);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  const data_inicio = fmt(start);
-  const data_fim = fmt(today);
+
+  let data_inicio: string;
+  let data_fim: string;
+  if (body?.data_inicio && body?.data_fim) {
+    data_inicio = String(body.data_inicio);
+    data_fim = String(body.data_fim);
+  } else {
+    const daysRaw = Number(body?.days ?? url.searchParams.get('days') ?? '7');
+    const days = Math.max(1, Math.min(daysRaw, 730)); // cap 2 anos
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() - days);
+    data_inicio = fmt(start);
+    data_fim = fmt(today);
+  }
 
   const buckets = new Map<string, Bucket>();
 
@@ -136,9 +148,7 @@ Deno.serve(async (req) => {
 
   const rows = Array.from(buckets.values());
   if (rows.length > 0) {
-    // Limpa o range pra refletir o estado atual da API
     await supabase.from('gc_daily_activity').delete().gte('day', data_inicio).lte('day', data_fim);
-    // Insere em chunks
     const chunk = 500;
     for (let i = 0; i < rows.length; i += chunk) {
       const slice = rows.slice(i, i + chunk).map(r => ({ ...r, computed_at: new Date().toISOString() }));
