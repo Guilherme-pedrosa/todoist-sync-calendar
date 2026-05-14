@@ -131,7 +131,18 @@ export function GcLogTab() {
       orcamentos_valor: acc.orcamentos_valor + Number(r.orcamentos_valor),
       nfs_count: acc.nfs_count + r.nfs_count,
       nfs_valor: acc.nfs_valor + Number(r.nfs_valor),
-    }), { vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0, orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0 });
+      entrada_notas: acc.entrada_notas + (r.entrada_notas ?? 0),
+      separacao_pecas: acc.separacao_pecas + (r.separacao_pecas ?? 0),
+      entrega_pecas: acc.entrega_pecas + (r.entrega_pecas ?? 0),
+      tratativa_incorreta: acc.tratativa_incorreta + (r.tratativa_incorreta ?? 0),
+      cadastro_produto: acc.cadastro_produto + (r.cadastro_produto ?? 0),
+      abertura_os: acc.abertura_os + (r.abertura_os ?? 0),
+    }), {
+      vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0,
+      orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0,
+      entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
+    });
   }, [filteredRows]);
 
   return (
