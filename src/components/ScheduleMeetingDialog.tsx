@@ -58,9 +58,21 @@ export function ScheduleMeetingDialog({
   const today = new Date().toISOString().slice(0, 10);
   const projects = useTaskStore((s) => s.projects);
   const fetchData = useTaskStore((s) => s.fetchData);
-  const inboxId = useMemo(() => projects.find((p) => p.isInbox)?.id, [projects]);
-
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const inboxId = useMemo(() => {
+    const uid = user?.id;
+    // Prefer inbox in the current workspace, owned by the user
+    const ownInboxInWs = projects.find(
+      (p) => p.isInbox && (!currentWorkspaceId || p.workspaceId === currentWorkspaceId) && (!uid || p.userId === uid),
+    );
+    if (ownInboxInWs) return ownInboxInWs.id;
+    // Fallback: any inbox the user owns
+    const ownInbox = projects.find((p) => p.isInbox && (!uid || p.userId === uid));
+    if (ownInbox) return ownInbox.id;
+    // Last resort: first inbox
+    return projects.find((p) => p.isInbox)?.id;
+  }, [projects, currentWorkspaceId, user?.id]);
+
   const members = useWorkspaceStore((s) => s.members);
   const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
