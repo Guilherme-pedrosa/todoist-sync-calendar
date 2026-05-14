@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isBusinessDay } from "@/lib/businessDay";
 
 type Row = {
   day: string;
