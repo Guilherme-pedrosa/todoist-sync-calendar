@@ -156,39 +156,62 @@ Deno.serve(async (req) => {
         return hits >= need;
       });
       if (matched.length > 0) {
-        const tot = matched.reduce((acc: any, r: any) => {
-          acc.orc_count += r.orcamentos_count || 0;
-          acc.orc_valor += Number(r.orcamentos_valor || 0);
-          acc.os_count += r.os_count || 0;
-          acc.os_valor += Number(r.os_valor || 0);
-          acc.vendas_count += r.vendas_count || 0;
-          acc.vendas_valor += Number(r.vendas_valor || 0);
-          acc.nfs_count += r.nfs_count || 0;
-          acc.nfs_valor += Number(r.nfs_valor || 0);
-          acc.abertura_compras += r.abertura_compras || 0;
-          acc.abertura_os += r.abertura_os || 0;
-          acc.cadastro_produto += r.cadastro_produto || 0;
-          acc.tratativa_incorreta += r.tratativa_incorreta || 0;
-          acc.entrega_pecas += r.entrega_pecas || 0;
-          acc.separacao_pecas += r.separacao_pecas || 0;
-          acc.entrada_notas += r.entrada_notas || 0;
-          return acc;
-        }, { orc_count:0, orc_valor:0, os_count:0, os_valor:0, vendas_count:0, vendas_valor:0, nfs_count:0, nfs_valor:0, abertura_compras:0, abertura_os:0, cadastro_produto:0, tratativa_incorreta:0, entrega_pecas:0, separacao_pecas:0, entrada_notas:0 });
+        const sumKeys = ['orcamentos_count','orcamentos_valor','os_count','os_valor','vendas_count','vendas_valor','nfs_count','nfs_valor','abertura_compras','abertura_os','cadastro_produto','tratativa_incorreta','entrega_pecas','separacao_pecas','entrada_notas'];
+        const tot: any = Object.fromEntries(sumKeys.map(k => [k, 0]));
+        for (const r of matched) for (const k of sumKeys) tot[k] += Number(r[k] || 0);
+
+        // Conta dias úteis (Seg-Sex) no período
+        let businessDays = 0;
+        const d0 = new Date(periodStart + 'T12:00:00Z');
+        const d1 = new Date(periodEnd + 'T12:00:00Z');
+        for (let d = new Date(d0); d <= d1; d.setUTCDate(d.getUTCDate() + 1)) {
+          const wd = d.getUTCDay();
+          if (wd >= 1 && wd <= 5) businessDays++;
+        }
+        const bd = Math.max(1, businessDays);
+        const avg = (n: number) => (n / bd).toFixed(1);
+        const avgBRL = (n: number) => fmtBRL(n / bd);
+
+        // Breakdown por dia (somando linhas do mesmo dia caso haja duplicidade de nome GC)
+        const byDay = new Map<string, any>();
+        for (const r of matched) {
+          const cur = byDay.get(r.day) || Object.fromEntries(sumKeys.map(k => [k, 0]));
+          for (const k of sumKeys) cur[k] += Number(r[k] || 0);
+          byDay.set(r.day, cur);
+        }
+        const dayLines = [...byDay.entries()]
+          .sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([day, v]) => `  ${day}: orçamentos ${v.orcamentos_count} (${fmtBRL(v.orcamentos_valor)}) | OS ${v.os_count} | vendas ${v.vendas_count} | NF ${v.nfs_count} | abertura OS ${v.abertura_os} | ped.compra ${v.abertura_compras} | entrada notas ${v.entrada_notas} | separação ${v.separacao_pecas} | entrega ${v.entrega_pecas} | OS incorreta ${v.tratativa_incorreta} | cad.produto ${v.cadastro_produto}`)
+          .join('\n');
+
         const gcNames = [...new Set(matched.map((r: any) => r.gc_user_name))].join(', ');
         gcSummary = `
 
-GESTÃOCLICK (usuário(s) GC: ${gcNames}):
-- Orçamentos: ${tot.orc_count} (${fmtBRL(tot.orc_valor)})
-- OS: ${tot.os_count} (${fmtBRL(tot.os_valor)})
-- Vendas: ${tot.vendas_count} (${fmtBRL(tot.vendas_valor)})
-- NFs emitidas: ${tot.nfs_count} (${fmtBRL(tot.nfs_valor)})
-- Aberturas de compras: ${tot.abertura_compras}
-- Aberturas de OS: ${tot.abertura_os}
-- Cadastro de produto: ${tot.cadastro_produto}
-- Tratativas incorretas: ${tot.tratativa_incorreta}
-- Entrega de peças: ${tot.entrega_pecas}
-- Separação de peças: ${tot.separacao_pecas}
-- Entrada de notas: ${tot.entrada_notas}`;
+GESTÃOCLICK — usuário(s) GC casados por nome: ${gcNames}
+Dias úteis no período: ${bd}
+
+GLOSSÁRIO (importantíssimo, não confundir):
+- "Orçamentos" = quantidade de orçamentos CRIADOS pelo colaborador (endpoint /orcamentos do ERP).
+- "Abertura de OS" = orçamento que virou OS (evento de log "Aprovado - OS Gerada"). NÃO é o mesmo que "Orçamentos".
+- "Pedido de compra" = abertura de pedido de compra (log).
+- "OS incorreta" = tratativa de OS marcada como incorreta (log).
+- Demais campos vêm do log operacional do ERP.
+
+TOTAIS NO PERÍODO (e média/dia útil entre parênteses):
+- Vendas: ${tot.vendas_count} (${avg(tot.vendas_count)}/dia) — ${fmtBRL(tot.vendas_valor)} (${avgBRL(tot.vendas_valor)}/dia)
+- OS: ${tot.os_count} (${avg(tot.os_count)}/dia) — ${fmtBRL(tot.os_valor)} (${avgBRL(tot.os_valor)}/dia)
+- Orçamentos (criados): ${tot.orcamentos_count} (${avg(tot.orcamentos_count)}/dia) — ${fmtBRL(tot.orcamentos_valor)} (${avgBRL(tot.orcamentos_valor)}/dia)
+- Notas Fiscais: ${tot.nfs_count} (${avg(tot.nfs_count)}/dia) — ${fmtBRL(tot.nfs_valor)} (${avgBRL(tot.nfs_valor)}/dia)
+- Abertura de OS (orçamento → OS): ${tot.abertura_os} (${avg(tot.abertura_os)}/dia)
+- Pedido de compra: ${tot.abertura_compras} (${avg(tot.abertura_compras)}/dia)
+- Entrada de notas: ${tot.entrada_notas} (${avg(tot.entrada_notas)}/dia)
+- Separação de peças: ${tot.separacao_pecas} (${avg(tot.separacao_pecas)}/dia)
+- Entrega de peças: ${tot.entrega_pecas} (${avg(tot.entrega_pecas)}/dia)
+- OS incorreta: ${tot.tratativa_incorreta} (${avg(tot.tratativa_incorreta)}/dia)
+- Cadastro de produto: ${tot.cadastro_produto} (${avg(tot.cadastro_produto)}/dia)
+
+QUEBRA POR DIA:
+${dayLines}`;
       } else {
         gcSummary = `
 
@@ -211,7 +234,7 @@ MÉTRICAS:
 TOP DOMÍNIOS:
 ${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}${gcSummary}
 
-Gere análise em JSON conforme schema do system prompt. Considere a atividade no GestãoClick (se houver) ao avaliar produtividade real — tempo de tela é proxy, mas entregas no ERP são output concreto.`;
+Gere análise em JSON conforme schema do system prompt. Use os mesmos termos do GestãoClick acima — NÃO chame "Orçamentos criados" de "Abertura de OS" (são coisas diferentes). Cite números absolutos do período E média por dia útil quando relevante. Tempo de tela é proxy; entregas no ERP são output concreto.`;
 
     const aiRes = await fetch(AI_GATEWAY_URL, {
       method: 'POST',
