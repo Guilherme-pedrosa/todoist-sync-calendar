@@ -369,14 +369,15 @@ export function GcLogTab() {
                     <Cell label="Orçamentos" qty={r.orcamentos_count} value={r.orcamentos_valor} />
                     <Cell label="NFs" qty={r.nfs_count} value={r.nfs_valor} />
                   </div>
-                  {(r.entrada_notas + r.separacao_pecas + r.entrega_pecas + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os) > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 border-t border-border/50">
+                  {(r.entrada_notas + r.separacao_pecas + r.entrega_pecas + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os + (r.abertura_compras ?? 0)) > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 pt-1 border-t border-border/50">
                       <ActivityCell label="Entrada notas" qty={r.entrada_notas} />
                       <ActivityCell label="Separação" qty={r.separacao_pecas} />
                       <ActivityCell label="Entrega" qty={r.entrega_pecas} />
                       <ActivityCell label="OS incorreta" qty={r.tratativa_incorreta} />
                       <ActivityCell label="Cad. produto" qty={r.cadastro_produto} />
                       <ActivityCell label="Abertura OS" qty={r.abertura_os} />
+                      <ActivityCell label="Ped. compra" qty={r.abertura_compras ?? 0} />
                     </div>
                   )}
                 </div>
