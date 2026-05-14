@@ -26,6 +26,7 @@ interface Bucket {
   tratativa_incorreta: number;
   cadastro_produto: number;
   abertura_os: number;
+  abertura_compras: number;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
