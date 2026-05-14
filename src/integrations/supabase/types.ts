@@ -758,6 +758,54 @@ export type Database = {
           },
         ]
       }
+      gc_daily_activity: {
+        Row: {
+          computed_at: string
+          day: string
+          gc_user_id: string
+          gc_user_name: string
+          id: string
+          nfs_count: number
+          nfs_valor: number
+          orcamentos_count: number
+          orcamentos_valor: number
+          os_count: number
+          os_valor: number
+          vendas_count: number
+          vendas_valor: number
+        }
+        Insert: {
+          computed_at?: string
+          day: string
+          gc_user_id: string
+          gc_user_name: string
+          id?: string
+          nfs_count?: number
+          nfs_valor?: number
+          orcamentos_count?: number
+          orcamentos_valor?: number
+          os_count?: number
+          os_valor?: number
+          vendas_count?: number
+          vendas_valor?: number
+        }
+        Update: {
+          computed_at?: string
+          day?: string
+          gc_user_id?: string
+          gc_user_name?: string
+          id?: string
+          nfs_count?: number
+          nfs_valor?: number
+          orcamentos_count?: number
+          orcamentos_valor?: number
+          os_count?: number
+          os_valor?: number
+          vendas_count?: number
+          vendas_valor?: number
+        }
+        Relationships: []
+      }
       google_tokens: {
         Row: {
           access_token: string

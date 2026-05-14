@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { userDisplayName } from "@/lib/userDisplay";
+import { GcLogTab } from "@/components/productivity/GcLogTab";
 
 interface TopDomain { domain: string; seconds: number; category: string }
 interface DailyStat {
@@ -737,6 +738,7 @@ export default function ProductivityPage() {
                 <TabsTrigger value="heatmap">Heatmap</TabsTrigger>
                 <TabsTrigger value="sites">Sites</TabsTrigger>
                 <TabsTrigger value="daily">Dia a dia</TabsTrigger>
+                <TabsTrigger value="gclog">Log GC</TabsTrigger>
               </TabsList>
 
               {/* Ranking */}
@@ -915,6 +917,10 @@ export default function ProductivityPage() {
                     })
                   )}
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="gclog">
+                <GcLogTab />
               </TabsContent>
             </Tabs>
           </>
