@@ -12,6 +12,11 @@ const SECRET_TOKEN = Deno.env.get('GESTAOCLICK_SECRET_ACCESS_TOKEN')!;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gc-sync-activity`;
+
+// Tempo máximo de processamento por invocação antes de re-encadear
+const CHUNK_BUDGET_MS = 90_000;
+
 interface Bucket {
   day: string;
   gc_user_id: string;
@@ -62,21 +67,22 @@ async function* paginate(path: string, baseParams: Record<string, string | numbe
   }
 }
 
+function emptyBucket(day: string, uid: string, uname: string): Bucket {
+  return {
+    day, gc_user_id: uid, gc_user_name: uname || 'Sem nome',
+    vendas_count: 0, vendas_valor: 0,
+    os_count: 0, os_valor: 0,
+    orcamentos_count: 0, orcamentos_valor: 0,
+    nfs_count: 0, nfs_valor: 0,
+    entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
+    tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0, abertura_compras: 0,
+  };
+}
+
 function bkey(buckets: Map<string, Bucket>, day: string, uid: string, uname: string) {
   const k = `${day}|${uid}`;
   let b = buckets.get(k);
-  if (!b) {
-    b = {
-      day, gc_user_id: uid, gc_user_name: uname || 'Sem nome',
-      vendas_count: 0, vendas_valor: 0,
-      os_count: 0, os_valor: 0,
-      orcamentos_count: 0, orcamentos_valor: 0,
-      nfs_count: 0, nfs_valor: 0,
-      entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
-      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0, abertura_compras: 0,
-    };
-    buckets.set(k, b);
-  }
+  if (!b) { b = emptyBucket(day, uid, uname); buckets.set(k, b); }
   return b;
 }
 
@@ -89,77 +95,124 @@ function pickUser(row: any): { id: string; name: string } | null {
 
 const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
-async function runSync(supabase: any, data_inicio: string, data_fim: string) {
+function bucketsToObj(map: Map<string, Bucket>): Record<string, Bucket> {
+  const out: Record<string, Bucket> = {};
+  for (const [k, v] of map.entries()) out[k] = v;
+  return out;
+}
+function objToBuckets(obj: Record<string, Bucket> | null | undefined): Map<string, Bucket> {
+  const map = new Map<string, Bucket>();
+  if (!obj) return map;
+  for (const [k, v] of Object.entries(obj)) map.set(k, v);
+  return map;
+}
+
+function selfInvoke() {
+  // Re-invoca a própria função para continuar de onde parou
+  fetch(FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+    },
+    body: JSON.stringify({ continue: true }),
+  }).catch(e => console.error('self-invoke failed', e));
+}
+
+async function runSync(supabase: any) {
+  const startedAt = Date.now();
   const updateStatus = async (patch: Record<string, any>) => {
     await supabase.from('gc_sync_status').upsert({
       id: 'current', updated_at: new Date().toISOString(), ...patch,
     });
   };
 
-  await updateStatus({
-    status: 'running', stage: 'Conectando...', progress: 2,
-    data_inicio, data_fim, started_at: new Date().toISOString(),
-    finished_at: null, error: null, buckets: null, fetched: null,
-  });
+  // Carrega estado atual
+  const { data: state } = await supabase.from('gc_sync_status').select('*').eq('id', 'current').maybeSingle();
+  if (!state || state.status !== 'running') return;
+
+  const data_inicio: string = state.data_inicio;
+  const data_fim: string = state.data_fim;
+  let phase: string = state.phase || 'documents';
+  const buckets = objToBuckets(state.bucket_state);
 
   try {
-    const buckets = new Map<string, Bucket>();
-    const counts: Record<string, number> = {};
+    // FASE 1: documentos
+    if (phase === 'documents') {
+      const counts: Record<string, number> = (state.fetched as any) || {};
+      const sources = [
+        { path: '/vendas', kind: 'vendas' as const, label: 'vendas' },
+        { path: '/ordens_servicos', kind: 'os' as const, label: 'ordens de serviço' },
+        { path: '/orcamentos', kind: 'orcamentos' as const, label: 'orçamentos' },
+        { path: '/notas_fiscais_produtos', kind: 'nfs' as const, label: 'NFs produtos' },
+        { path: '/notas_fiscais_consumidores', kind: 'nfs' as const, label: 'NFCe' },
+        { path: '/notas_fiscais_servicos', kind: 'nfs' as const, label: 'NFSe' },
+      ];
+      for (let i = 0; i < sources.length; i++) {
+        const s = sources[i];
+        if (counts[s.path] !== undefined) continue;
+        await updateStatus({ stage: `Baixando ${s.label}...`, progress: 5 + Math.floor((i / sources.length) * 35) });
+        let n = 0;
+        try {
+          for await (const row of paginate(s.path, { data_inicio, data_fim })) {
+            const day: string = (row.data || row.data_emissao || row.data_envio || row.data_entrada || row.data_venda || row.data_cadastro || '').slice(0, 10);
+            if (!day) continue;
+            const u = pickUser(row);
+            if (!u) continue;
+            const valor = Number(row.valor_total ?? row.valor ?? 0) || 0;
+            const b = bkey(buckets, day, u.id, u.name);
+            if (s.kind === 'vendas') { b.vendas_count++; b.vendas_valor += valor; }
+            else if (s.kind === 'os') { b.os_count++; b.os_valor += valor; }
+            else if (s.kind === 'orcamentos') { b.orcamentos_count++; b.orcamentos_valor += valor; }
+            else if (s.kind === 'nfs') { b.nfs_count++; b.nfs_valor += valor; }
+            n++;
+          }
+        } catch (e) { console.error(`Falhou ${s.path}:`, e); }
+        counts[s.path] = n;
 
-    const sources = [
-      { path: '/vendas', kind: 'vendas' as const, label: 'vendas' },
-      { path: '/ordens_servicos', kind: 'os' as const, label: 'ordens de serviço' },
-      { path: '/orcamentos', kind: 'orcamentos' as const, label: 'orçamentos' },
-      { path: '/notas_fiscais_produtos', kind: 'nfs' as const, label: 'NFs produtos' },
-      { path: '/notas_fiscais_consumidores', kind: 'nfs' as const, label: 'NFCe' },
-      { path: '/notas_fiscais_servicos', kind: 'nfs' as const, label: 'NFSe' },
-    ];
-
-    // Documents (sequential to respect 3 req/s)
-    for (let i = 0; i < sources.length; i++) {
-      const s = sources[i];
-      await updateStatus({ stage: `Baixando ${s.label}...`, progress: 5 + Math.floor((i / sources.length) * 45) });
-      let n = 0;
-      try {
-        for await (const row of paginate(s.path, { data_inicio, data_fim })) {
-          const day: string = (row.data || row.data_emissao || row.data_envio || row.data_entrada || row.data_venda || row.data_cadastro || '').slice(0, 10);
-          if (!day) continue;
-          const u = pickUser(row);
-          if (!u) continue;
-          const valor = Number(row.valor_total ?? row.valor ?? 0) || 0;
-          const b = bkey(buckets, day, u.id, u.name);
-          if (s.kind === 'vendas') { b.vendas_count++; b.vendas_valor += valor; }
-          else if (s.kind === 'os') { b.os_count++; b.os_valor += valor; }
-          else if (s.kind === 'orcamentos') { b.orcamentos_count++; b.orcamentos_valor += valor; }
-          else if (s.kind === 'nfs') { b.nfs_count++; b.nfs_valor += valor; }
-          n++;
+        if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
+          await updateStatus({
+            stage: `Pausando p/ continuar... (${s.label} concluído)`,
+            bucket_state: bucketsToObj(buckets), fetched: counts, phase: 'documents',
+          });
+          selfInvoke();
+          return;
         }
-      } catch (e) {
-        console.error(`Falhou ${s.path}:`, e);
       }
-      counts[s.path] = n;
+      phase = 'usuarios';
+      await updateStatus({ phase, fetched: counts, bucket_state: bucketsToObj(buckets) });
     }
 
-    // Usuarios para mapear nome→id
-    await updateStatus({ stage: 'Baixando usuários...', progress: 52 });
-    const nameToId = new Map<string, string>();
-    try {
-      for await (const u of paginate('/usuarios', {})) {
-        const nome = String(u?.nome ?? '').trim();
-        const id = String(u?.id ?? '').trim();
-        if (nome && id) nameToId.set(nome.toLowerCase(), id);
-      }
-    } catch (e) { console.error('Falhou /usuarios:', e); }
+    // FASE 2: usuários
+    let nameToId = new Map<string, string>();
+    if (phase === 'usuarios') {
+      await updateStatus({ stage: 'Baixando usuários...', progress: 45 });
+      try {
+        for await (const u of paginate('/usuarios', {})) {
+          const nome = String(u?.nome ?? '').trim();
+          const id = String(u?.id ?? '').trim();
+          if (nome && id) nameToId.set(nome.toLowerCase(), id);
+        }
+      } catch (e) { console.error('Falhou /usuarios:', e); }
+      // guarda mapa em fetched._users
+      const counts = (state.fetched as any) || {};
+      counts._users = Object.fromEntries(nameToId);
+      phase = 'logs';
+      await updateStatus({ phase, fetched: counts, log_page: 1 });
+    } else {
+      const counts = (state.fetched as any) || {};
+      if (counts._users) nameToId = new Map(Object.entries(counts._users as Record<string, string>));
+    }
 
-    // Logs - mais demorado, atualiza progresso por página
-    await updateStatus({ stage: 'Processando logs de atividade...', progress: 56 });
-    let logsN = 0;
-    let logPage = 1;
-    try {
+    // FASE 3: logs (pode levar muitas invocações)
+    if (phase === 'logs') {
+      let logPage = state.log_page ?? 1;
+      let totalPages = state.log_total_pages ?? 0;
+
       while (true) {
         const json = await gcFetch('/logs', { data_inicio, data_fim, pagina: logPage });
         const data: any[] = json?.data ?? [];
-        const totalPages = Number(json?.meta?.total_paginas ?? 1);
+        if (!totalPages) totalPages = Number(json?.meta?.total_paginas ?? 1);
         for (const log of data) {
           const day: string = String(log?.cadastrado_em ?? '').slice(0, 10);
           const nome = String(log?.nome_usuario ?? '').trim();
@@ -183,22 +236,40 @@ async function runSync(supabase: any, data_inicio: string, data_fim: string) {
             b.cadastro_produto++;
           } else if ((mod === 'orcamentos' || mod === 'orcamentos_servicos') && /para Aprovado - OS Gerada/i.test(desc)) {
             b.abertura_os++;
-          } else {
-            continue;
           }
-          logsN++;
         }
-        const pct = 56 + Math.floor((logPage / Math.max(totalPages, 1)) * 36);
-        await updateStatus({ stage: `Logs ${logPage}/${totalPages}...`, progress: Math.min(pct, 92) });
         const next = json?.meta?.proxima_pagina;
-        if (!next) break;
+        const pct = 50 + Math.floor((logPage / Math.max(totalPages, 1)) * 42);
+        await updateStatus({
+          stage: `Logs ${logPage}/${totalPages}...`,
+          progress: Math.min(pct, 92),
+          log_page: logPage,
+          log_total_pages: totalPages,
+        });
+
+        if (!next) {
+          phase = 'persist';
+          break;
+        }
         logPage = Number(next);
+
+        if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
+          await updateStatus({
+            stage: `Pausando logs em ${logPage}/${totalPages}...`,
+            log_page: logPage,
+            log_total_pages: totalPages,
+            bucket_state: bucketsToObj(buckets),
+            phase: 'logs',
+          });
+          selfInvoke();
+          return;
+        }
         await sleep(350);
       }
-    } catch (e) { console.error('Falhou /logs:', e); }
-    counts['/logs'] = logsN;
+      await updateStatus({ phase, bucket_state: bucketsToObj(buckets) });
+    }
 
-    // Persistir
+    // FASE 4: persistir
     await updateStatus({ stage: 'Salvando no banco...', progress: 94 });
     const rows = Array.from(buckets.values());
     if (rows.length > 0) {
@@ -211,9 +282,13 @@ async function runSync(supabase: any, data_inicio: string, data_fim: string) {
       }
     }
 
+    const counts = (state.fetched as any) || {};
+    delete counts._users;
     await updateStatus({
       status: 'done', stage: 'Concluído', progress: 100,
-      buckets: rows.length, fetched: counts, finished_at: new Date().toISOString(),
+      buckets: rows.length, fetched: counts,
+      finished_at: new Date().toISOString(),
+      bucket_state: null, log_page: null, log_total_pages: null, phase: null,
     });
   } catch (e: any) {
     console.error('runSync fatal:', e);
@@ -239,6 +314,15 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { /* sem body */ }
   const url = new URL(req.url);
 
+  // Continuação de sync existente
+  if (body?.continue === true) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(runSync(supabase));
+    return new Response(JSON.stringify({ ok: true, continued: true }), {
+      status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
   let data_inicio: string;
   let data_fim: string;
   if (body?.data_inicio && body?.data_fim) {
@@ -254,16 +338,41 @@ Deno.serve(async (req) => {
     data_fim = fmt(today);
   }
 
-  // Verifica se já tem sync rodando
+  // Verifica se já tem sync rodando E vivo (atualizado nos últimos 3 min)
   const { data: cur } = await supabase.from('gc_sync_status').select('*').eq('id', 'current').maybeSingle();
   if (cur?.status === 'running') {
-    return new Response(JSON.stringify({ ok: true, already_running: true, status: cur }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    const updatedAt = cur.updated_at ? new Date(cur.updated_at).getTime() : 0;
+    const ageMs = Date.now() - updatedAt;
+    if (ageMs < 3 * 60 * 1000) {
+      return new Response(JSON.stringify({ ok: true, already_running: true, status: cur }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // sync travado → segue para reiniciar
+    console.log('Sync anterior travado, reiniciando');
   }
 
+  // Inicializa novo sync
+  await supabase.from('gc_sync_status').upsert({
+    id: 'current',
+    status: 'running',
+    stage: 'Conectando...',
+    progress: 2,
+    data_inicio, data_fim,
+    started_at: new Date().toISOString(),
+    finished_at: null,
+    error: null,
+    buckets: null,
+    fetched: {},
+    bucket_state: {},
+    log_page: null,
+    log_total_pages: null,
+    phase: 'documents',
+    updated_at: new Date().toISOString(),
+  });
+
   // @ts-ignore Deno EdgeRuntime global
-  EdgeRuntime.waitUntil(runSync(supabase, data_inicio, data_fim));
+  EdgeRuntime.waitUntil(runSync(supabase));
 
   return new Response(JSON.stringify({
     ok: true, started: true, range: { data_inicio, data_fim },

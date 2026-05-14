@@ -829,6 +829,7 @@ export type Database = {
       }
       gc_sync_status: {
         Row: {
+          bucket_state: Json | null
           buckets: number | null
           data_fim: string | null
           data_inicio: string | null
@@ -836,6 +837,9 @@ export type Database = {
           fetched: Json | null
           finished_at: string | null
           id: string
+          log_page: number | null
+          log_total_pages: number | null
+          phase: string | null
           progress: number
           stage: string | null
           started_at: string | null
@@ -843,6 +847,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          bucket_state?: Json | null
           buckets?: number | null
           data_fim?: string | null
           data_inicio?: string | null
@@ -850,6 +855,9 @@ export type Database = {
           fetched?: Json | null
           finished_at?: string | null
           id: string
+          log_page?: number | null
+          log_total_pages?: number | null
+          phase?: string | null
           progress?: number
           stage?: string | null
           started_at?: string | null
@@ -857,6 +865,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          bucket_state?: Json | null
           buckets?: number | null
           data_fim?: string | null
           data_inicio?: string | null
@@ -864,6 +873,9 @@ export type Database = {
           fetched?: Json | null
           finished_at?: string | null
           id?: string
+          log_page?: number | null
+          log_total_pages?: number | null
+          phase?: string | null
           progress?: number
           stage?: string | null
           started_at?: string | null
