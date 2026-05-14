@@ -94,13 +94,52 @@ export function GcLogTab() {
 
   const sync = async () => {
     setSyncing(true);
+    const started = Date.now();
+    setSyncStartedAt(started);
+    setSyncElapsed(0);
+    setSyncProgress(2);
+    setSyncStage("Conectando ao GestãoClick...");
     const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
     const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
+
+    const stages: Array<{ at: number; label: string; pct: number }> = [
+      { at: 1500, label: "Buscando usuários...", pct: 10 },
+      { at: 4000, label: "Baixando vendas...", pct: 22 },
+      { at: 9000, label: "Baixando ordens de serviço...", pct: 38 },
+      { at: 14000, label: "Baixando orçamentos...", pct: 52 },
+      { at: 19000, label: "Baixando notas fiscais...", pct: 64 },
+      { at: 25000, label: "Processando logs de atividade...", pct: 80 },
+      { at: 40000, label: "Agregando e salvando...", pct: 92 },
+    ];
+
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - started;
+      setSyncElapsed(Math.floor(elapsed / 1000));
+      const cur = [...stages].reverse().find((s) => elapsed >= s.at);
+      if (cur) {
+        setSyncStage(cur.label);
+        setSyncProgress((p) => (p < cur.pct ? Math.min(cur.pct, p + 1) : Math.min(95, p + 0.2)));
+      } else {
+        setSyncProgress((p) => Math.min(8, p + 0.3));
+      }
+    }, 250);
+
     const { data, error } = await supabase.functions.invoke("gc-sync-activity", {
       body: { data_inicio: fromStr, data_fim: toStr },
     });
+
+    clearInterval(tick);
+    setSyncProgress(100);
+    setSyncStage("Concluído");
     setSyncing(false);
-    if (error) { toast.error("Falha na sincronização: " + error.message); return; }
+    setSyncStartedAt(null);
+    if (error) {
+      toast.error("Falha na sincronização: " + error.message);
+      setSyncStage("Erro");
+      return;
+    }
+    setLastSyncAt(new Date());
+    setLastSyncBuckets(data?.buckets ?? 0);
     toast.success(`Sincronizado: ${data?.buckets ?? 0} registros (${fromStr} → ${toStr})`);
     load();
   };
