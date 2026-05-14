@@ -53,6 +53,12 @@ export function GcLogTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncStartedAt, setSyncStartedAt] = useState<number | null>(null);
+  const [syncElapsed, setSyncElapsed] = useState(0);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncStage, setSyncStage] = useState("");
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [lastSyncBuckets, setLastSyncBuckets] = useState<number | null>(null);
   const [preset, setPreset] = useState<string>("7");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 7));
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
