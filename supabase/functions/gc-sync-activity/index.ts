@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     let n = 0;
     try {
       for await (const row of paginate(s.path, { data_inicio, data_fim })) {
-        const day: string = (row.data || row.data_emissao || row.data_envio || '').slice(0, 10);
+        const day: string = (row.data || row.data_emissao || row.data_envio || row.data_entrada || row.data_venda || row.data_cadastro || '').slice(0, 10);
         if (!day) continue;
         const u = pickUser(row);
         if (!u) continue;
