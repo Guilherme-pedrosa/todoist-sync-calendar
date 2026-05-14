@@ -63,11 +63,11 @@ export function ScheduleMeetingDialog({
     const uid = user?.id;
     // Prefer inbox in the current workspace, owned by the user
     const ownInboxInWs = projects.find(
-      (p) => p.isInbox && (!currentWorkspaceId || p.workspaceId === currentWorkspaceId) && (!uid || p.userId === uid),
+      (p) => p.isInbox && (!currentWorkspaceId || p.workspaceId === currentWorkspaceId) && (!uid || p.ownerId === uid),
     );
     if (ownInboxInWs) return ownInboxInWs.id;
     // Fallback: any inbox the user owns
-    const ownInbox = projects.find((p) => p.isInbox && (!uid || p.userId === uid));
+    const ownInbox = projects.find((p) => p.isInbox && (!uid || p.ownerId === uid));
     if (ownInbox) return ownInbox.id;
     // Last resort: first inbox
     return projects.find((p) => p.isInbox)?.id;
