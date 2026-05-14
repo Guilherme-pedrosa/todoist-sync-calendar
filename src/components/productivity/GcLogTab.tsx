@@ -26,6 +26,7 @@ type Row = {
   tratativa_incorreta: number;
   cadastro_produto: number;
   abertura_os: number;
+  abertura_compras: number;
 };
 
 const fmtBRL = (n: number) =>
@@ -202,11 +203,12 @@ export function GcLogTab() {
       tratativa_incorreta: acc.tratativa_incorreta + (r.tratativa_incorreta ?? 0),
       cadastro_produto: acc.cadastro_produto + (r.cadastro_produto ?? 0),
       abertura_os: acc.abertura_os + (r.abertura_os ?? 0),
+      abertura_compras: acc.abertura_compras + (r.abertura_compras ?? 0),
     }), {
       vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0,
       orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0,
       entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
-      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0, abertura_compras: 0,
     });
   }, [filteredRows]);
 
@@ -328,13 +330,14 @@ export function GcLogTab() {
       {/* Totais do período - Atividades operacionais */}
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Atividades operacionais no período</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
           <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" />
           <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" />
           <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" />
           <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" />
           <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" />
           <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" />
+          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" />
         </div>
       </Card>
 
@@ -366,14 +369,15 @@ export function GcLogTab() {
                     <Cell label="Orçamentos" qty={r.orcamentos_count} value={r.orcamentos_valor} />
                     <Cell label="NFs" qty={r.nfs_count} value={r.nfs_valor} />
                   </div>
-                  {(r.entrada_notas + r.separacao_pecas + r.entrega_pecas + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os) > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 border-t border-border/50">
+                  {(r.entrada_notas + r.separacao_pecas + r.entrega_pecas + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os + (r.abertura_compras ?? 0)) > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2 pt-1 border-t border-border/50">
                       <ActivityCell label="Entrada notas" qty={r.entrada_notas} />
                       <ActivityCell label="Separação" qty={r.separacao_pecas} />
                       <ActivityCell label="Entrega" qty={r.entrega_pecas} />
                       <ActivityCell label="OS incorreta" qty={r.tratativa_incorreta} />
                       <ActivityCell label="Cad. produto" qty={r.cadastro_produto} />
                       <ActivityCell label="Abertura OS" qty={r.abertura_os} />
+                      <ActivityCell label="Ped. compra" qty={r.abertura_compras ?? 0} />
                     </div>
                   )}
                 </div>

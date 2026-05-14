@@ -760,6 +760,7 @@ export type Database = {
       }
       gc_daily_activity: {
         Row: {
+          abertura_compras: number
           abertura_os: number
           cadastro_produto: number
           computed_at: string
@@ -781,6 +782,7 @@ export type Database = {
           vendas_valor: number
         }
         Insert: {
+          abertura_compras?: number
           abertura_os?: number
           cadastro_produto?: number
           computed_at?: string
@@ -802,6 +804,7 @@ export type Database = {
           vendas_valor?: number
         }
         Update: {
+          abertura_compras?: number
           abertura_os?: number
           cadastro_produto?: number
           computed_at?: string

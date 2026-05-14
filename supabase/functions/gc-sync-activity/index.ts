@@ -26,6 +26,7 @@ interface Bucket {
   tratativa_incorreta: number;
   cadastro_produto: number;
   abertura_os: number;
+  abertura_compras: number;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -72,7 +73,7 @@ function bkey(buckets: Map<string, Bucket>, day: string, uid: string, uname: str
       orcamentos_count: 0, orcamentos_valor: 0,
       nfs_count: 0, nfs_valor: 0,
       entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
-      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0, abertura_compras: 0,
     };
     buckets.set(k, b);
   }
@@ -170,6 +171,8 @@ async function runSync(supabase: any, data_inicio: string, data_fim: string) {
 
           if (mod === 'compras' && /para Finalizado/i.test(desc)) {
             b.entrada_notas++;
+          } else if (mod === 'compras' && /^Adicionou\s+(a\s+)?compra/i.test(desc)) {
+            b.abertura_compras++;
           } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
             b.separacao_pecas++;
           } else if (mod === 'ordens_servicos' && /para RETIRADA PELO TECNICO/i.test(desc)) {
