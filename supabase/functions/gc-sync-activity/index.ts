@@ -312,7 +312,7 @@ async function runSync(supabase: any) {
           await selfInvoke();
           return;
         }
-        await sleep(350);
+        await sleep(75);
       }
       await updateStatus({ phase, bucket_state: bucketsToObj(buckets) });
     }
