@@ -917,6 +917,10 @@ export default function ProductivityPage() {
                   )}
                 </Card>
               </TabsContent>
+
+              <TabsContent value="gclog">
+                <GcLogTab />
+              </TabsContent>
             </Tabs>
           </>
         )}
