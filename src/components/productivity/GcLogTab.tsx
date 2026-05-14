@@ -201,6 +201,19 @@ export function GcLogTab() {
     return Array.from(map.entries());
   }, [filteredRows]);
 
+  const businessDays = useMemo(() => {
+    if (!dateFrom || !dateTo) return 0;
+    const from = new Date(dateFrom);
+    const to = new Date(dateTo);
+    let count = 0;
+    const d = new Date(from);
+    while (d <= to) {
+      if (isBusinessDay(new Date(d))) count++;
+      d.setDate(d.getDate() + 1);
+    }
+    return Math.max(1, count);
+  }, [dateFrom, dateTo]);
+
   const totals = useMemo(() => {
     return filteredRows.reduce((acc, r) => ({
       vendas_count: acc.vendas_count + r.vendas_count,
