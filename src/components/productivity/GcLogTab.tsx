@@ -311,7 +311,7 @@ function Stat({ label, qty, value, accent }: { label: string; qty: number; value
 
 function Cell({ label, qty, value }: { label: string; qty: number; value: number }) {
   return (
-    <div className="col-span-6 md:col-span-2">
+    <div>
       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className="text-sm">
         <span className="font-medium">{qty}</span>
@@ -319,4 +319,23 @@ function Cell({ label, qty, value }: { label: string; qty: number; value: number
       </div>
     </div>
   );
+}
+
+function ActivityStat({ label, qty, accent }: { label: string; qty: number; accent: string }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+    </div>
+  );
+}
+
+function ActivityCell({ label, qty }: { label: string; qty: number }) {
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-sm font-medium">{qty}</div>
+    </div>
+  );
+}
 }
