@@ -134,6 +134,67 @@ Deno.serve(async (req) => {
       .slice(0, 8);
 
     const fmtH = (s: number) => `${(s / 3600).toFixed(1)}h`;
+    const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+    // Buscar atividade GestãoClick correspondente ao colaborador (match por nome).
+    const norm = (s: string) => (s || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+    const profileTokens = norm(nome);
+    let gcSummary = '';
+    if (profileTokens.length > 0) {
+      const { data: gcRows } = await supabase
+        .from('gc_daily_activity')
+        .select('*')
+        .gte('day', periodStart)
+        .lte('day', periodEnd);
+      const matched = (gcRows || []).filter((r: any) => {
+        const tokens = norm(r.gc_user_name);
+        // exige pelo menos 2 tokens em comum (ou 1 se o nome só tem 1 token)
+        const need = Math.min(2, profileTokens.length);
+        const hits = profileTokens.filter(t => tokens.includes(t)).length;
+        return hits >= need;
+      });
+      if (matched.length > 0) {
+        const tot = matched.reduce((acc: any, r: any) => {
+          acc.orc_count += r.orcamentos_count || 0;
+          acc.orc_valor += Number(r.orcamentos_valor || 0);
+          acc.os_count += r.os_count || 0;
+          acc.os_valor += Number(r.os_valor || 0);
+          acc.vendas_count += r.vendas_count || 0;
+          acc.vendas_valor += Number(r.vendas_valor || 0);
+          acc.nfs_count += r.nfs_count || 0;
+          acc.nfs_valor += Number(r.nfs_valor || 0);
+          acc.abertura_compras += r.abertura_compras || 0;
+          acc.abertura_os += r.abertura_os || 0;
+          acc.cadastro_produto += r.cadastro_produto || 0;
+          acc.tratativa_incorreta += r.tratativa_incorreta || 0;
+          acc.entrega_pecas += r.entrega_pecas || 0;
+          acc.separacao_pecas += r.separacao_pecas || 0;
+          acc.entrada_notas += r.entrada_notas || 0;
+          return acc;
+        }, { orc_count:0, orc_valor:0, os_count:0, os_valor:0, vendas_count:0, vendas_valor:0, nfs_count:0, nfs_valor:0, abertura_compras:0, abertura_os:0, cadastro_produto:0, tratativa_incorreta:0, entrega_pecas:0, separacao_pecas:0, entrada_notas:0 });
+        const gcNames = [...new Set(matched.map((r: any) => r.gc_user_name))].join(', ');
+        gcSummary = `
+
+GESTÃOCLICK (usuário(s) GC: ${gcNames}):
+- Orçamentos: ${tot.orc_count} (${fmtBRL(tot.orc_valor)})
+- OS: ${tot.os_count} (${fmtBRL(tot.os_valor)})
+- Vendas: ${tot.vendas_count} (${fmtBRL(tot.vendas_valor)})
+- NFs emitidas: ${tot.nfs_count} (${fmtBRL(tot.nfs_valor)})
+- Aberturas de compras: ${tot.abertura_compras}
+- Aberturas de OS: ${tot.abertura_os}
+- Cadastro de produto: ${tot.cadastro_produto}
+- Tratativas incorretas: ${tot.tratativa_incorreta}
+- Entrega de peças: ${tot.entrega_pecas}
+- Separação de peças: ${tot.separacao_pecas}
+- Entrada de notas: ${tot.entrada_notas}`;
+      } else {
+        gcSummary = `
+
+GESTÃOCLICK: sem atividade encontrada para este colaborador no período.`;
+      }
+    }
 
     const userMessage = `Colaborador: ${nome}
 Período: ${periodStart} a ${periodEnd} (${periodDays} dias)
@@ -148,9 +209,9 @@ MÉTRICAS:
 - Tarefas concluídas: ${totalTasks}
 
 TOP DOMÍNIOS:
-${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}
+${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}${gcSummary}
 
-Gere análise em JSON conforme schema do system prompt.`;
+Gere análise em JSON conforme schema do system prompt. Considere a atividade no GestãoClick (se houver) ao avaliar produtividade real — tempo de tela é proxy, mas entregas no ERP são output concreto.`;
 
     const aiRes = await fetch(AI_GATEWAY_URL, {
       method: 'POST',
