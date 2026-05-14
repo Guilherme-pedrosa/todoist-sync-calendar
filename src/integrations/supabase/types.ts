@@ -760,8 +760,12 @@ export type Database = {
       }
       gc_daily_activity: {
         Row: {
+          abertura_os: number
+          cadastro_produto: number
           computed_at: string
           day: string
+          entrada_notas: number
+          entrega_pecas: number
           gc_user_id: string
           gc_user_name: string
           id: string
@@ -771,12 +775,18 @@ export type Database = {
           orcamentos_valor: number
           os_count: number
           os_valor: number
+          separacao_pecas: number
+          tratativa_incorreta: number
           vendas_count: number
           vendas_valor: number
         }
         Insert: {
+          abertura_os?: number
+          cadastro_produto?: number
           computed_at?: string
           day: string
+          entrada_notas?: number
+          entrega_pecas?: number
           gc_user_id: string
           gc_user_name: string
           id?: string
@@ -786,12 +796,18 @@ export type Database = {
           orcamentos_valor?: number
           os_count?: number
           os_valor?: number
+          separacao_pecas?: number
+          tratativa_incorreta?: number
           vendas_count?: number
           vendas_valor?: number
         }
         Update: {
+          abertura_os?: number
+          cadastro_produto?: number
           computed_at?: string
           day?: string
+          entrada_notas?: number
+          entrega_pecas?: number
           gc_user_id?: string
           gc_user_name?: string
           id?: string
@@ -801,6 +817,8 @@ export type Database = {
           orcamentos_valor?: number
           os_count?: number
           os_valor?: number
+          separacao_pecas?: number
+          tratativa_incorreta?: number
           vendas_count?: number
           vendas_valor?: number
         }

@@ -20,6 +20,12 @@ interface Bucket {
   os_count: number; os_valor: number;
   orcamentos_count: number; orcamentos_valor: number;
   nfs_count: number; nfs_valor: number;
+  entrada_notas: number;
+  separacao_pecas: number;
+  entrega_pecas: number;
+  tratativa_incorreta: number;
+  cadastro_produto: number;
+  abertura_os: number;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -65,6 +71,8 @@ function bkey(buckets: Map<string, Bucket>, day: string, uid: string, uname: str
       os_count: 0, os_valor: 0,
       orcamentos_count: 0, orcamentos_valor: 0,
       nfs_count: 0, nfs_valor: 0,
+      entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
     };
     buckets.set(k, b);
   }
@@ -145,6 +153,52 @@ Deno.serve(async (req) => {
     }
     counts[s.path] = n;
   }
+
+  // ===== Atividades operacionais via /logs =====
+  // Mapa nome→id de usuários do GC pra unificar com vendedor/tecnico
+  const nameToId = new Map<string, string>();
+  try {
+    for await (const u of paginate('/usuarios', {})) {
+      const nome = String(u?.nome ?? '').trim();
+      const id = String(u?.id ?? '').trim();
+      if (nome && id) nameToId.set(nome.toLowerCase(), id);
+    }
+  } catch (e) {
+    console.error('Falhou /usuarios:', e);
+  }
+
+  let logsN = 0;
+  try {
+    for await (const log of paginate('/logs', { data_inicio, data_fim })) {
+      const day: string = String(log?.cadastrado_em ?? '').slice(0, 10);
+      const nome = String(log?.nome_usuario ?? '').trim();
+      if (!day || !nome) continue;
+      const desc = String(log?.descricao ?? '');
+      const mod = String(log?.modulo ?? '');
+      const uid = nameToId.get(nome.toLowerCase()) ?? `nome:${nome}`;
+      const b = bkey(buckets, day, uid, nome);
+
+      if (mod === 'compras' && /para Finalizado/i.test(desc)) {
+        b.entrada_notas++;
+      } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
+        b.separacao_pecas++;
+      } else if (mod === 'ordens_servicos' && /para RETIRADA PELO TECNICO/i.test(desc)) {
+        b.entrega_pecas++;
+      } else if (mod === 'ordens_servicos' && /para AG CORRE[CÇ]/i.test(desc) && /DEVOLVIDO PELO T[EÉ]CNICO/i.test(desc)) {
+        b.tratativa_incorreta++;
+      } else if (mod === 'produtos' && /^Adicionou o produto/i.test(desc)) {
+        b.cadastro_produto++;
+      } else if (mod === 'orcamentos' && /para Aprovado - OS Gerada/i.test(desc)) {
+        b.abertura_os++;
+      } else {
+        continue;
+      }
+      logsN++;
+    }
+  } catch (e) {
+    console.error('Falhou /logs:', e);
+  }
+  counts['/logs'] = logsN;
 
   const rows = Array.from(buckets.values());
   if (rows.length > 0) {

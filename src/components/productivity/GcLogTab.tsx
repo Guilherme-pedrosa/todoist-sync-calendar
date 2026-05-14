@@ -19,6 +19,12 @@ type Row = {
   os_count: number; os_valor: number;
   orcamentos_count: number; orcamentos_valor: number;
   nfs_count: number; nfs_valor: number;
+  entrada_notas: number;
+  separacao_pecas: number;
+  entrega_pecas: number;
+  tratativa_incorreta: number;
+  cadastro_produto: number;
+  abertura_os: number;
 };
 
 const fmtBRL = (n: number) =>
@@ -125,7 +131,18 @@ export function GcLogTab() {
       orcamentos_valor: acc.orcamentos_valor + Number(r.orcamentos_valor),
       nfs_count: acc.nfs_count + r.nfs_count,
       nfs_valor: acc.nfs_valor + Number(r.nfs_valor),
-    }), { vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0, orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0 });
+      entrada_notas: acc.entrada_notas + (r.entrada_notas ?? 0),
+      separacao_pecas: acc.separacao_pecas + (r.separacao_pecas ?? 0),
+      entrega_pecas: acc.entrega_pecas + (r.entrega_pecas ?? 0),
+      tratativa_incorreta: acc.tratativa_incorreta + (r.tratativa_incorreta ?? 0),
+      cadastro_produto: acc.cadastro_produto + (r.cadastro_produto ?? 0),
+      abertura_os: acc.abertura_os + (r.abertura_os ?? 0),
+    }), {
+      vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0,
+      orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0,
+      entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
+    });
   }, [filteredRows]);
 
   return (
@@ -210,14 +227,27 @@ export function GcLogTab() {
         </Button>
       </Card>
 
-      {/* Totais do período */}
+      {/* Totais do período - Documentos */}
       <Card className="p-4">
-        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Totais do período</div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Documentos no período</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Stat label="Vendas" qty={totals.vendas_count} value={totals.vendas_valor} accent="text-green-500" />
           <Stat label="OS" qty={totals.os_count} value={totals.os_valor} accent="text-blue-500" />
           <Stat label="Orçamentos" qty={totals.orcamentos_count} value={totals.orcamentos_valor} accent="text-amber-500" />
           <Stat label="Notas Fiscais" qty={totals.nfs_count} value={totals.nfs_valor} accent="text-purple-500" />
+        </div>
+      </Card>
+
+      {/* Totais do período - Atividades operacionais */}
+      <Card className="p-4">
+        <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Atividades operacionais no período</div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" />
+          <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" />
+          <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" />
+          <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" />
+          <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" />
+          <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" />
         </div>
       </Card>
 
@@ -241,12 +271,24 @@ export function GcLogTab() {
             </div>
             <div className="divide-y divide-border">
               {dayRows.map(r => (
-                <div key={`${r.day}-${r.gc_user_id}`} className="px-4 py-3 grid grid-cols-12 gap-2 items-center text-sm">
-                  <div className="col-span-12 md:col-span-3 font-medium truncate">{r.gc_user_name}</div>
-                  <Cell label="Vendas" qty={r.vendas_count} value={r.vendas_valor} />
-                  <Cell label="OS" qty={r.os_count} value={r.os_valor} />
-                  <Cell label="Orçamentos" qty={r.orcamentos_count} value={r.orcamentos_valor} />
-                  <Cell label="NFs" qty={r.nfs_count} value={r.nfs_valor} />
+                <div key={`${r.day}-${r.gc_user_id}`} className="px-4 py-3 space-y-2">
+                  <div className="font-medium text-sm">{r.gc_user_name}</div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <Cell label="Vendas" qty={r.vendas_count} value={r.vendas_valor} />
+                    <Cell label="OS" qty={r.os_count} value={r.os_valor} />
+                    <Cell label="Orçamentos" qty={r.orcamentos_count} value={r.orcamentos_valor} />
+                    <Cell label="NFs" qty={r.nfs_count} value={r.nfs_valor} />
+                  </div>
+                  {(r.entrada_notas + r.separacao_pecas + r.entrega_pecas + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os) > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 pt-1 border-t border-border/50">
+                      <ActivityCell label="Entrada notas" qty={r.entrada_notas} />
+                      <ActivityCell label="Separação" qty={r.separacao_pecas} />
+                      <ActivityCell label="Entrega" qty={r.entrega_pecas} />
+                      <ActivityCell label="OS incorreta" qty={r.tratativa_incorreta} />
+                      <ActivityCell label="Cad. produto" qty={r.cadastro_produto} />
+                      <ActivityCell label="Abertura OS" qty={r.abertura_os} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -269,12 +311,30 @@ function Stat({ label, qty, value, accent }: { label: string; qty: number; value
 
 function Cell({ label, qty, value }: { label: string; qty: number; value: number }) {
   return (
-    <div className="col-span-6 md:col-span-2">
+    <div>
       <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
       <div className="text-sm">
         <span className="font-medium">{qty}</span>
         <span className="text-muted-foreground ml-2 text-xs">{fmtBRL(value)}</span>
       </div>
+    </div>
+  );
+}
+
+function ActivityStat({ label, qty, accent }: { label: string; qty: number; accent: string }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={`text-2xl font-display font-semibold ${accent}`}>{qty}</div>
+    </div>
+  );
+}
+
+function ActivityCell({ label, qty }: { label: string; qty: number }) {
+  return (
+    <div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</div>
+      <div className="text-sm font-medium">{qty}</div>
     </div>
   );
 }
