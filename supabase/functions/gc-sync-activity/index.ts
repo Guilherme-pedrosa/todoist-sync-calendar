@@ -210,13 +210,6 @@ Deno.serve(async (req) => {
       if (error) console.error('insert error', error);
     }
   }
-    const chunk = 500;
-    for (let i = 0; i < rows.length; i += chunk) {
-      const slice = rows.slice(i, i + chunk).map(r => ({ ...r, computed_at: new Date().toISOString() }));
-      const { error } = await supabase.from('gc_daily_activity').insert(slice);
-      if (error) console.error('insert error', error);
-    }
-  }
 
   return new Response(JSON.stringify({
     ok: true, range: { data_inicio, data_fim }, fetched: counts, buckets: rows.length,
