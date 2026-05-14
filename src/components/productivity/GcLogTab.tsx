@@ -273,6 +273,28 @@ export function GcLogTab() {
         </Button>
       </Card>
 
+      {/* Barra de status da sincronização */}
+      {(syncing || lastSyncAt) && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {syncing && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+              <span className="text-sm font-medium truncate">
+                {syncing ? syncStage || "Sincronizando..." : "Última sincronização concluída"}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground whitespace-nowrap">
+              {syncing
+                ? `${syncElapsed}s · ${Math.round(syncProgress)}%`
+                : lastSyncAt
+                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncBuckets ?? 0} registros`
+                  : ""}
+            </div>
+          </div>
+          <Progress value={syncing ? syncProgress : 100} className="h-2" />
+        </Card>
+      )}
+
       {/* Totais do período - Documentos */}
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Documentos no período</div>
