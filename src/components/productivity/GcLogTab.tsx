@@ -19,6 +19,12 @@ type Row = {
   os_count: number; os_valor: number;
   orcamentos_count: number; orcamentos_valor: number;
   nfs_count: number; nfs_valor: number;
+  entrada_notas: number;
+  separacao_pecas: number;
+  entrega_pecas: number;
+  tratativa_incorreta: number;
+  cadastro_produto: number;
+  abertura_os: number;
 };
 
 const fmtBRL = (n: number) =>
