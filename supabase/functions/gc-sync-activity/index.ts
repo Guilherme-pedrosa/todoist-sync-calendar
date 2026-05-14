@@ -33,7 +33,7 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 async function gcFetch(path: string, params: Record<string, string | number>) {
   const qs = new URLSearchParams(params as any).toString();
   const url = `${GC_BASE}${path}?${qs}`;
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 5; attempt++) {
     const r = await fetch(url, {
       headers: {
         'access-token': ACCESS_TOKEN,
@@ -57,7 +57,7 @@ async function* paginate(path: string, baseParams: Record<string, string | numbe
     const next = json?.meta?.proxima_pagina;
     if (!next) break;
     page = Number(next);
-    await sleep(400); // respect 3 req/s
+    await sleep(350);
   }
 }
 
@@ -88,6 +88,139 @@ function pickUser(row: any): { id: string; name: string } | null {
 
 const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
+async function runSync(supabase: any, data_inicio: string, data_fim: string) {
+  const updateStatus = async (patch: Record<string, any>) => {
+    await supabase.from('gc_sync_status').upsert({
+      id: 'current', updated_at: new Date().toISOString(), ...patch,
+    });
+  };
+
+  await updateStatus({
+    status: 'running', stage: 'Conectando...', progress: 2,
+    data_inicio, data_fim, started_at: new Date().toISOString(),
+    finished_at: null, error: null, buckets: null, fetched: null,
+  });
+
+  try {
+    const buckets = new Map<string, Bucket>();
+    const counts: Record<string, number> = {};
+
+    const sources = [
+      { path: '/vendas', kind: 'vendas' as const, label: 'vendas' },
+      { path: '/ordens_servicos', kind: 'os' as const, label: 'ordens de serviço' },
+      { path: '/orcamentos', kind: 'orcamentos' as const, label: 'orçamentos' },
+      { path: '/notas_fiscais_produtos', kind: 'nfs' as const, label: 'NFs produtos' },
+      { path: '/notas_fiscais_consumidores', kind: 'nfs' as const, label: 'NFCe' },
+      { path: '/notas_fiscais_servicos', kind: 'nfs' as const, label: 'NFSe' },
+    ];
+
+    // Documents (sequential to respect 3 req/s)
+    for (let i = 0; i < sources.length; i++) {
+      const s = sources[i];
+      await updateStatus({ stage: `Baixando ${s.label}...`, progress: 5 + Math.floor((i / sources.length) * 45) });
+      let n = 0;
+      try {
+        for await (const row of paginate(s.path, { data_inicio, data_fim })) {
+          const day: string = (row.data || row.data_emissao || row.data_envio || row.data_entrada || row.data_venda || row.data_cadastro || '').slice(0, 10);
+          if (!day) continue;
+          const u = pickUser(row);
+          if (!u) continue;
+          const valor = Number(row.valor_total ?? row.valor ?? 0) || 0;
+          const b = bkey(buckets, day, u.id, u.name);
+          if (s.kind === 'vendas') { b.vendas_count++; b.vendas_valor += valor; }
+          else if (s.kind === 'os') { b.os_count++; b.os_valor += valor; }
+          else if (s.kind === 'orcamentos') { b.orcamentos_count++; b.orcamentos_valor += valor; }
+          else if (s.kind === 'nfs') { b.nfs_count++; b.nfs_valor += valor; }
+          n++;
+        }
+      } catch (e) {
+        console.error(`Falhou ${s.path}:`, e);
+      }
+      counts[s.path] = n;
+    }
+
+    // Usuarios para mapear nome→id
+    await updateStatus({ stage: 'Baixando usuários...', progress: 52 });
+    const nameToId = new Map<string, string>();
+    try {
+      for await (const u of paginate('/usuarios', {})) {
+        const nome = String(u?.nome ?? '').trim();
+        const id = String(u?.id ?? '').trim();
+        if (nome && id) nameToId.set(nome.toLowerCase(), id);
+      }
+    } catch (e) { console.error('Falhou /usuarios:', e); }
+
+    // Logs - mais demorado, atualiza progresso por página
+    await updateStatus({ stage: 'Processando logs de atividade...', progress: 56 });
+    let logsN = 0;
+    let logPage = 1;
+    try {
+      while (true) {
+        const json = await gcFetch('/logs', { data_inicio, data_fim, pagina: logPage });
+        const data: any[] = json?.data ?? [];
+        const totalPages = Number(json?.meta?.total_paginas ?? 1);
+        for (const log of data) {
+          const day: string = String(log?.cadastrado_em ?? '').slice(0, 10);
+          const nome = String(log?.nome_usuario ?? '').trim();
+          if (!day || !nome) continue;
+          const desc = String(log?.descricao ?? '');
+          const mod = String(log?.modulo ?? '');
+          const uid = nameToId.get(nome.toLowerCase()) ?? `nome:${nome}`;
+          const b = bkey(buckets, day, uid, nome);
+
+          if (mod === 'compras' && /para Finalizado/i.test(desc)) {
+            b.entrada_notas++;
+          } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
+            b.separacao_pecas++;
+          } else if (mod === 'ordens_servicos' && /para RETIRADA PELO TECNICO/i.test(desc)) {
+            b.entrega_pecas++;
+          } else if (mod === 'ordens_servicos' && /para AG CORRE[CÇ]/i.test(desc) && /DEVOLVIDO PELO T[EÉ]CNICO/i.test(desc)) {
+            b.tratativa_incorreta++;
+          } else if (mod === 'produtos' && /^Adicionou o produto/i.test(desc)) {
+            b.cadastro_produto++;
+          } else if ((mod === 'orcamentos' || mod === 'orcamentos_servicos') && /para Aprovado - OS Gerada/i.test(desc)) {
+            b.abertura_os++;
+          } else {
+            continue;
+          }
+          logsN++;
+        }
+        const pct = 56 + Math.floor((logPage / Math.max(totalPages, 1)) * 36);
+        await updateStatus({ stage: `Logs ${logPage}/${totalPages}...`, progress: Math.min(pct, 92) });
+        const next = json?.meta?.proxima_pagina;
+        if (!next) break;
+        logPage = Number(next);
+        await sleep(350);
+      }
+    } catch (e) { console.error('Falhou /logs:', e); }
+    counts['/logs'] = logsN;
+
+    // Persistir
+    await updateStatus({ stage: 'Salvando no banco...', progress: 94 });
+    const rows = Array.from(buckets.values());
+    if (rows.length > 0) {
+      await supabase.from('gc_daily_activity').delete().gte('day', data_inicio).lte('day', data_fim);
+      const chunk = 500;
+      for (let i = 0; i < rows.length; i += chunk) {
+        const slice = rows.slice(i, i + chunk).map(r => ({ ...r, computed_at: new Date().toISOString() }));
+        const { error } = await supabase.from('gc_daily_activity').insert(slice);
+        if (error) console.error('insert error', error);
+      }
+    }
+
+    await updateStatus({
+      status: 'done', stage: 'Concluído', progress: 100,
+      buckets: rows.length, fetched: counts, finished_at: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    console.error('runSync fatal:', e);
+    await updateStatus({
+      status: 'error', stage: 'Erro', error: String(e?.message ?? e),
+      finished_at: new Date().toISOString(),
+    });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -99,7 +232,6 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-  // Aceita: { data_inicio, data_fim } OU { days } OU query ?days=N
   let body: any = {};
   try { body = await req.json(); } catch { /* sem body */ }
   const url = new URL(req.url);
@@ -111,7 +243,7 @@ Deno.serve(async (req) => {
     data_fim = String(body.data_fim);
   } else {
     const daysRaw = Number(body?.days ?? url.searchParams.get('days') ?? '7');
-    const days = Math.max(1, Math.min(daysRaw, 730)); // cap 2 anos
+    const days = Math.max(1, Math.min(daysRaw, 730));
     const today = new Date();
     const start = new Date(today);
     start.setDate(start.getDate() - days);
@@ -119,99 +251,18 @@ Deno.serve(async (req) => {
     data_fim = fmt(today);
   }
 
-  const buckets = new Map<string, Bucket>();
-
-  const sources = [
-    { path: '/vendas', kind: 'vendas' as const },
-    { path: '/ordens_servicos', kind: 'os' as const },
-    { path: '/orcamentos', kind: 'orcamentos' as const },
-    { path: '/notas_fiscais_produtos', kind: 'nfs' as const },
-    { path: '/notas_fiscais_consumidores', kind: 'nfs' as const },
-    { path: '/notas_fiscais_servicos', kind: 'nfs' as const },
-  ];
-
-  const counts: Record<string, number> = {};
-
-  for (const s of sources) {
-    let n = 0;
-    try {
-      for await (const row of paginate(s.path, { data_inicio, data_fim })) {
-        const day: string = (row.data || row.data_emissao || row.data_envio || row.data_entrada || row.data_venda || row.data_cadastro || '').slice(0, 10);
-        if (!day) continue;
-        const u = pickUser(row);
-        if (!u) continue;
-        const valor = Number(row.valor_total ?? row.valor ?? 0) || 0;
-        const b = bkey(buckets, day, u.id, u.name);
-        if (s.kind === 'vendas') { b.vendas_count++; b.vendas_valor += valor; }
-        else if (s.kind === 'os') { b.os_count++; b.os_valor += valor; }
-        else if (s.kind === 'orcamentos') { b.orcamentos_count++; b.orcamentos_valor += valor; }
-        else if (s.kind === 'nfs') { b.nfs_count++; b.nfs_valor += valor; }
-        n++;
-      }
-    } catch (e) {
-      console.error(`Falhou ${s.path}:`, e);
-    }
-    counts[s.path] = n;
+  // Verifica se já tem sync rodando
+  const { data: cur } = await supabase.from('gc_sync_status').select('*').eq('id', 'current').maybeSingle();
+  if (cur?.status === 'running') {
+    return new Response(JSON.stringify({ ok: true, already_running: true, status: cur }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
-  // ===== Atividades operacionais via /logs =====
-  // Mapa nome→id de usuários do GC pra unificar com vendedor/tecnico
-  const nameToId = new Map<string, string>();
-  try {
-    for await (const u of paginate('/usuarios', {})) {
-      const nome = String(u?.nome ?? '').trim();
-      const id = String(u?.id ?? '').trim();
-      if (nome && id) nameToId.set(nome.toLowerCase(), id);
-    }
-  } catch (e) {
-    console.error('Falhou /usuarios:', e);
-  }
-
-  let logsN = 0;
-  try {
-    for await (const log of paginate('/logs', { data_inicio, data_fim })) {
-      const day: string = String(log?.cadastrado_em ?? '').slice(0, 10);
-      const nome = String(log?.nome_usuario ?? '').trim();
-      if (!day || !nome) continue;
-      const desc = String(log?.descricao ?? '');
-      const mod = String(log?.modulo ?? '');
-      const uid = nameToId.get(nome.toLowerCase()) ?? `nome:${nome}`;
-      const b = bkey(buckets, day, uid, nome);
-
-      if (mod === 'compras' && /para Finalizado/i.test(desc)) {
-        b.entrada_notas++;
-      } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
-        b.separacao_pecas++;
-      } else if (mod === 'ordens_servicos' && /para RETIRADA PELO TECNICO/i.test(desc)) {
-        b.entrega_pecas++;
-      } else if (mod === 'ordens_servicos' && /para AG CORRE[CÇ]/i.test(desc) && /DEVOLVIDO PELO T[EÉ]CNICO/i.test(desc)) {
-        b.tratativa_incorreta++;
-      } else if (mod === 'produtos' && /^Adicionou o produto/i.test(desc)) {
-        b.cadastro_produto++;
-      } else if ((mod === 'orcamentos' || mod === 'orcamentos_servicos') && /para Aprovado - OS Gerada/i.test(desc)) {
-        b.abertura_os++;
-      } else {
-        continue;
-      }
-      logsN++;
-    }
-  } catch (e) {
-    console.error('Falhou /logs:', e);
-  }
-  counts['/logs'] = logsN;
-
-  const rows = Array.from(buckets.values());
-  if (rows.length > 0) {
-    await supabase.from('gc_daily_activity').delete().gte('day', data_inicio).lte('day', data_fim);
-    const chunk = 500;
-    for (let i = 0; i < rows.length; i += chunk) {
-      const slice = rows.slice(i, i + chunk).map(r => ({ ...r, computed_at: new Date().toISOString() }));
-      const { error } = await supabase.from('gc_daily_activity').insert(slice);
-      if (error) console.error('insert error', error);
-    }
-  }
+  // @ts-ignore Deno EdgeRuntime global
+  EdgeRuntime.waitUntil(runSync(supabase, data_inicio, data_fim));
 
   return new Response(JSON.stringify({
-    ok: true, range: { data_inicio, data_fim }, fetched: counts, buckets: rows.length,
-  }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    ok: true, started: true, range: { data_inicio, data_fim },
+  }), { status: 202, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 });
