@@ -2,9 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format, subDays } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 type Row = {
   day: string;
@@ -24,21 +29,47 @@ const fmtDay = (d: string) => {
   return `${day}/${m}/${y.slice(2)}`;
 };
 
+const toISODate = (d: Date | undefined) => d ? format(d, "yyyy-MM-dd") : "";
+
+const PRESET_DAYS: Record<string, number> = {
+  "1": 1,
+  "7": 7,
+  "14": 14,
+  "30": 30,
+  "60": 60,
+  "90": 90,
+  "180": 180,
+  "365": 365,
+};
+
 export function GcLogTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [days, setDays] = useState(7);
-  const [filter, setFilter] = useState("");
+  const [preset, setPreset] = useState<string>("7");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 7));
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
+  const [selectedUser, setSelectedUser] = useState<string>("all");
+
+  const applyPreset = (key: string) => {
+    setPreset(key);
+    if (key === "custom") return;
+    const days = PRESET_DAYS[key] ?? 7;
+    setDateFrom(subDays(new Date(), days));
+    setDateTo(new Date());
+  };
+
+  const isCustom = preset === "custom";
 
   const load = async () => {
     setLoading(true);
-    const since = new Date();
-    since.setDate(since.getDate() - days);
+    const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
+    const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
     const { data, error } = await supabase
       .from("gc_daily_activity")
       .select("*")
-      .gte("day", since.toISOString().slice(0, 10))
+      .gte("day", fromStr)
+      .lte("day", toStr)
       .order("day", { ascending: false })
       .order("gc_user_name", { ascending: true });
     if (error) toast.error("Erro ao carregar Log GC: " + error.message);
@@ -46,10 +77,11 @@ export function GcLogTab() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [days]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [dateFrom, dateTo]);
 
   const sync = async () => {
     setSyncing(true);
+    const days = Math.max(1, Math.min(365, Math.ceil((dateTo?.getTime() ?? Date.now() - (dateFrom?.getTime() ?? Date.now())) / 86400000)));
     const { data, error } = await supabase.functions.invoke("gc-sync-activity", {
       body: { days },
     });
@@ -59,23 +91,31 @@ export function GcLogTab() {
     load();
   };
 
+  const uniqueUsers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) {
+      if (!map.has(r.gc_user_id)) map.set(r.gc_user_id, r.gc_user_name);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    if (selectedUser === "all") return rows;
+    return rows.filter(r => r.gc_user_id === selectedUser);
+  }, [rows, selectedUser]);
+
   const grouped = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    const filtered = f
-      ? rows.filter(r => r.gc_user_name.toLowerCase().includes(f) || r.gc_user_id.includes(f))
-      : rows;
-    // Group by day
     const map = new Map<string, Row[]>();
-    for (const r of filtered) {
+    for (const r of filteredRows) {
       const arr = map.get(r.day) ?? [];
       arr.push(r);
       map.set(r.day, arr);
     }
     return Array.from(map.entries());
-  }, [rows, filter]);
+  }, [filteredRows]);
 
   const totals = useMemo(() => {
-    return rows.reduce((acc, r) => ({
+    return filteredRows.reduce((acc, r) => ({
       vendas_count: acc.vendas_count + r.vendas_count,
       vendas_valor: acc.vendas_valor + Number(r.vendas_valor),
       os_count: acc.os_count + r.os_count,
@@ -85,28 +125,83 @@ export function GcLogTab() {
       nfs_count: acc.nfs_count + r.nfs_count,
       nfs_valor: acc.nfs_valor + Number(r.nfs_valor),
     }), { vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0, orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0 });
-  }, [rows]);
+  }, [filteredRows]);
 
   return (
     <div className="space-y-4">
       {/* Controls */}
       <Card className="p-3 flex flex-wrap items-center gap-3">
-        <Input
-          placeholder="Filtrar por usuário..."
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          className="max-w-xs"
-        />
-        <select
-          value={days}
-          onChange={e => setDays(Number(e.target.value))}
-          className="bg-background border border-border rounded-md px-2 py-1 text-sm"
-        >
-          <option value={1}>Hoje + 1 dia</option>
-          <option value={7}>Últimos 7 dias</option>
-          <option value={14}>Últimos 14 dias</option>
-          <option value={30}>Últimos 30 dias</option>
-        </select>
+        {/* Preset */}
+        <Select value={preset} onValueChange={applyPreset}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Período" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="1">Hoje + 1 dia</SelectItem>
+            <SelectItem value="7">Últimos 7 dias</SelectItem>
+            <SelectItem value="14">Últimos 14 dias</SelectItem>
+            <SelectItem value="30">Últimos 30 dias</SelectItem>
+            <SelectItem value="60">Últimos 60 dias</SelectItem>
+            <SelectItem value="90">Últimos 90 dias</SelectItem>
+            <SelectItem value="180">Últimos 180 dias</SelectItem>
+            <SelectItem value="365">Últimos 365 dias</SelectItem>
+            <SelectItem value="custom">Personalizado</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Custom date range */}
+        {isCustom && (
+          <>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy", { locale: ptBR }) : <span>De</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateFrom}
+                  onSelect={(d) => { setDateFrom(d); if (d && dateTo && d > dateTo) setDateTo(d); }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateTo ? format(dateTo, "dd/MM/yyyy", { locale: ptBR }) : <span>Até</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dateTo}
+                  onSelect={(d) => { setDateTo(d); if (d && dateFrom && d < dateFrom) setDateFrom(d); }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </>
+        )}
+
+        {/* User filter */}
+        <Select value={selectedUser} onValueChange={setSelectedUser}>
+          <SelectTrigger className="w-[220px]">
+            <SelectValue placeholder="Filtrar por usuário" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os usuários</SelectItem>
+            {uniqueUsers.map(([uid, name]) => (
+              <SelectItem key={uid} value={uid}>{name || uid}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <div className="flex-1" />
         <Button size="sm" variant="outline" onClick={sync} disabled={syncing}>
           {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
