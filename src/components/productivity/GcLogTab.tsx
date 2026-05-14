@@ -203,11 +203,12 @@ export function GcLogTab() {
       tratativa_incorreta: acc.tratativa_incorreta + (r.tratativa_incorreta ?? 0),
       cadastro_produto: acc.cadastro_produto + (r.cadastro_produto ?? 0),
       abertura_os: acc.abertura_os + (r.abertura_os ?? 0),
+      abertura_compras: acc.abertura_compras + (r.abertura_compras ?? 0),
     }), {
       vendas_count: 0, vendas_valor: 0, os_count: 0, os_valor: 0,
       orcamentos_count: 0, orcamentos_valor: 0, nfs_count: 0, nfs_valor: 0,
       entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
-      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0, abertura_compras: 0,
     });
   }, [filteredRows]);
 
