@@ -26,6 +26,7 @@ type Row = {
   tratativa_incorreta: number;
   cadastro_produto: number;
   abertura_os: number;
+  abertura_compras: number;
 };
 
 const fmtBRL = (n: number) =>
