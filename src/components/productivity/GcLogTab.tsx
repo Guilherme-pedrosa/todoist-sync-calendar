@@ -330,13 +330,14 @@ export function GcLogTab() {
       {/* Totais do período - Atividades operacionais */}
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Atividades operacionais no período</div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
           <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" />
           <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" />
           <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" />
           <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" />
           <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" />
           <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" />
+          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" />
         </div>
       </Card>
 
