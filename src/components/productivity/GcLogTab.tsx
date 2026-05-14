@@ -92,56 +92,75 @@ export function GcLogTab() {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [dateFrom, dateTo]);
 
+  // Carrega status atual ao montar (caso outra aba tenha disparado)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.from("gc_sync_status").select("*").eq("id", "current").maybeSingle();
+      if (cancelled || !data) return;
+      if (data.status === "running") {
+        setSyncing(true);
+        setSyncStartedAt(data.started_at ? new Date(data.started_at).getTime() : Date.now());
+        setSyncStage(data.stage ?? "Sincronizando...");
+        setSyncProgress(data.progress ?? 0);
+      } else if (data.finished_at) {
+        setLastSyncAt(new Date(data.finished_at));
+        setLastSyncBuckets(data.buckets ?? 0);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Polling enquanto está sincronizando
+  useEffect(() => {
+    if (!syncing) return;
+    const tick = setInterval(() => {
+      if (syncStartedAt) setSyncElapsed(Math.floor((Date.now() - syncStartedAt) / 1000));
+    }, 500);
+    const poll = setInterval(async () => {
+      const { data } = await supabase.from("gc_sync_status").select("*").eq("id", "current").maybeSingle();
+      if (!data) return;
+      setSyncStage(data.stage ?? "");
+      setSyncProgress(data.progress ?? 0);
+      if (data.status === "done") {
+        setSyncProgress(100);
+        setSyncing(false);
+        setSyncStartedAt(null);
+        setLastSyncAt(data.finished_at ? new Date(data.finished_at) : new Date());
+        setLastSyncBuckets(data.buckets ?? 0);
+        toast.success(`Sincronizado: ${data.buckets ?? 0} registros`);
+        load();
+      } else if (data.status === "error") {
+        setSyncing(false);
+        setSyncStartedAt(null);
+        toast.error("Falha na sincronização: " + (data.error ?? "erro desconhecido"));
+      }
+    }, 2000);
+    return () => { clearInterval(tick); clearInterval(poll); };
+    // eslint-disable-next-line
+  }, [syncing, syncStartedAt]);
+
   const sync = async () => {
+    const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
+    const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
+
     setSyncing(true);
     const started = Date.now();
     setSyncStartedAt(started);
     setSyncElapsed(0);
     setSyncProgress(2);
-    setSyncStage("Conectando ao GestãoClick...");
-    const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
-    const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
+    setSyncStage("Iniciando...");
 
-    const stages: Array<{ at: number; label: string; pct: number }> = [
-      { at: 1500, label: "Buscando usuários...", pct: 10 },
-      { at: 4000, label: "Baixando vendas...", pct: 22 },
-      { at: 9000, label: "Baixando ordens de serviço...", pct: 38 },
-      { at: 14000, label: "Baixando orçamentos...", pct: 52 },
-      { at: 19000, label: "Baixando notas fiscais...", pct: 64 },
-      { at: 25000, label: "Processando logs de atividade...", pct: 80 },
-      { at: 40000, label: "Agregando e salvando...", pct: 92 },
-    ];
-
-    const tick = setInterval(() => {
-      const elapsed = Date.now() - started;
-      setSyncElapsed(Math.floor(elapsed / 1000));
-      const cur = [...stages].reverse().find((s) => elapsed >= s.at);
-      if (cur) {
-        setSyncStage(cur.label);
-        setSyncProgress((p) => (p < cur.pct ? Math.min(cur.pct, p + 1) : Math.min(95, p + 0.2)));
-      } else {
-        setSyncProgress((p) => Math.min(8, p + 0.3));
-      }
-    }, 250);
-
-    const { data, error } = await supabase.functions.invoke("gc-sync-activity", {
+    const { error } = await supabase.functions.invoke("gc-sync-activity", {
       body: { data_inicio: fromStr, data_fim: toStr },
     });
 
-    clearInterval(tick);
-    setSyncProgress(100);
-    setSyncStage("Concluído");
-    setSyncing(false);
-    setSyncStartedAt(null);
     if (error) {
-      toast.error("Falha na sincronização: " + error.message);
+      setSyncing(false);
+      setSyncStartedAt(null);
       setSyncStage("Erro");
-      return;
+      toast.error("Falha ao iniciar sincronização: " + error.message);
     }
-    setLastSyncAt(new Date());
-    setLastSyncBuckets(data?.buckets ?? 0);
-    toast.success(`Sincronizado: ${data?.buckets ?? 0} registros (${fromStr} → ${toStr})`);
-    load();
   };
 
   const uniqueUsers = useMemo(() => {
