@@ -207,27 +207,25 @@ export function ScheduleMeetingDialog({
         }
         taskId = updated.id as string;
       } else {
-        // Cria nova tarefa-reunião
-        const { data: created, error: insertError } = await supabase
-          .from('tasks')
-          .insert({
-            user_id: currentUserId,
-            created_by: currentUserId,
-            project_id: inboxId!,
-            title: title.trim(),
-            description: description.trim() || null,
-            due_date: date,
-            due_time: time,
-            duration_minutes: duration,
-            priority: 3,
-            is_meeting: true,
-          } as any)
-          .select('id, workspace_id')
-          .single();
+        // Cria nova tarefa-reunião usando RPC seguro (resolve workspace_id e RLS)
+        const inboxProject = projects.find((p) => p.id === inboxId);
+        const wsId = inboxProject?.workspaceId || currentWorkspaceId || null;
+        const { data: created, error: insertError } = await supabase.rpc('create_task_secure', {
+          p_workspace_id: wsId as any,
+          p_project_id: inboxId!,
+          p_title: title.trim(),
+          p_description: description.trim() || null,
+          p_priority: 3,
+          p_due_date: date,
+          p_due_time: time,
+          p_duration_minutes: duration,
+        });
         if (insertError || !created) {
           throw insertError || new Error('Falha ao criar reunião');
         }
-        taskId = created.id as string;
+        taskId = (created as any).id as string;
+        // Marca como reunião
+        await supabase.from('tasks').update({ is_meeting: true } as any).eq('id', taskId);
       }
 
       // 2) Cria os convites
