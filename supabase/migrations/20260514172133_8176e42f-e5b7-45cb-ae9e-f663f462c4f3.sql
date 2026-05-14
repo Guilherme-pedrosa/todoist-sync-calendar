@@ -1,0 +1,1 @@
+ALTER TABLE public.gc_daily_activity ADD COLUMN IF NOT EXISTS abertura_compras integer NOT NULL DEFAULT 0;
