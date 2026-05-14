@@ -209,9 +209,9 @@ MÉTRICAS:
 - Tarefas concluídas: ${totalTasks}
 
 TOP DOMÍNIOS:
-${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}
+${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}${gcSummary}
 
-Gere análise em JSON conforme schema do system prompt.`;
+Gere análise em JSON conforme schema do system prompt. Considere a atividade no GestãoClick (se houver) ao avaliar produtividade real — tempo de tela é proxy, mas entregas no ERP são output concreto.`;
 
     const aiRes = await fetch(AI_GATEWAY_URL, {
       method: 'POST',
