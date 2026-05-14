@@ -16,6 +16,7 @@ const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gc-sync-activity`;
 
 // Tempo máximo de processamento por invocação antes de re-encadear
 const CHUNK_BUDGET_MS = 90_000;
+const LOG_CHUNK_DAYS = 30;
 
 interface Bucket {
   day: string;
@@ -95,6 +96,26 @@ function pickUser(row: any): { id: string; name: string } | null {
 
 const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDaysIso(value: string, days: number) {
+  const d = parseIsoDate(value);
+  d.setUTCDate(d.getUTCDate() + days);
+  return fmt(d);
+}
+
+const minIso = (a: string, b: string) => (a <= b ? a : b);
+
+function sumBucketActivity(rows: Bucket[]) {
+  return rows.reduce((total, r) => total
+    + r.vendas_count + r.os_count + r.orcamentos_count + r.nfs_count
+    + r.entrada_notas + r.separacao_pecas + r.entrega_pecas
+    + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os + r.abertura_compras, 0);
+}
+
 function bucketsToObj(map: Map<string, Bucket>): Record<string, Bucket> {
   const out: Record<string, Bucket> = {};
   for (const [k, v] of map.entries()) out[k] = v;
@@ -107,16 +128,17 @@ function objToBuckets(obj: Record<string, Bucket> | null | undefined): Map<strin
   return map;
 }
 
-function selfInvoke() {
+async function selfInvoke() {
   // Re-invoca a própria função para continuar de onde parou
-  fetch(FUNCTION_URL, {
+  const response = await fetch(FUNCTION_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SERVICE_ROLE}`,
     },
     body: JSON.stringify({ continue: true }),
-  }).catch(e => console.error('self-invoke failed', e));
+  });
+  if (!response.ok) console.error('self-invoke failed', response.status, await response.text());
 }
 
 async function runSync(supabase: any) {
@@ -175,7 +197,7 @@ async function runSync(supabase: any) {
             stage: `Pausando p/ continuar... (${s.label} concluído)`,
             bucket_state: bucketsToObj(buckets), fetched: counts, phase: 'documents',
           });
-          selfInvoke();
+          await selfInvoke();
           return;
         }
       }
@@ -206,11 +228,13 @@ async function runSync(supabase: any) {
 
     // FASE 3: logs (pode levar muitas invocações)
     if (phase === 'logs') {
+      let logFrom = state.log_range_start || data_inicio;
       let logPage = state.log_page ?? 1;
       let totalPages = state.log_total_pages ?? 0;
 
       while (true) {
-        const json = await gcFetch('/logs', { data_inicio, data_fim, pagina: logPage });
+        const logTo = minIso(addDaysIso(logFrom, LOG_CHUNK_DAYS - 1), data_fim);
+        const json = await gcFetch('/logs', { data_inicio: logFrom, data_fim: logTo, pagina: logPage });
         const data: any[] = json?.data ?? [];
         if (!totalPages) totalPages = Number(json?.meta?.total_paginas ?? 1);
         for (const log of data) {
@@ -239,32 +263,56 @@ async function runSync(supabase: any) {
           }
         }
         const next = json?.meta?.proxima_pagina;
-        const pct = 50 + Math.floor((logPage / Math.max(totalPages, 1)) * 42);
+        const totalDays = Math.max(1, Math.ceil((parseIsoDate(data_fim).getTime() - parseIsoDate(data_inicio).getTime()) / 86_400_000) + 1);
+        const completedDays = Math.max(0, Math.floor((parseIsoDate(logFrom).getTime() - parseIsoDate(data_inicio).getTime()) / 86_400_000));
+        const chunkPct = (logPage / Math.max(totalPages, 1)) * LOG_CHUNK_DAYS;
+        const pct = 50 + Math.floor(((completedDays + chunkPct) / totalDays) * 42);
         await updateStatus({
-          stage: `Logs ${logPage}/${totalPages}...`,
+          stage: `Logs ${logFrom} a ${logTo} · página ${logPage}/${totalPages}...`,
           progress: Math.min(pct, 92),
           log_page: logPage,
           log_total_pages: totalPages,
+          log_range_start: logFrom,
         });
 
         if (!next) {
-          phase = 'persist';
-          break;
+          const nextRangeStart = addDaysIso(logTo, 1);
+          if (nextRangeStart > data_fim) {
+            phase = 'persist';
+            break;
+          }
+          logFrom = nextRangeStart;
+          logPage = 1;
+          totalPages = 0;
+          await updateStatus({
+            stage: `Avançando logs para ${logFrom}...`,
+            log_page: 1,
+            log_total_pages: null,
+            log_range_start: logFrom,
+            bucket_state: bucketsToObj(buckets),
+            phase: 'logs',
+          });
+          if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
+            await selfInvoke();
+            return;
+          }
+          continue;
         }
         logPage = Number(next);
 
         if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
           await updateStatus({
-            stage: `Pausando logs em ${logPage}/${totalPages}...`,
+            stage: `Pausando logs em ${logFrom} · página ${logPage}/${totalPages}...`,
             log_page: logPage,
             log_total_pages: totalPages,
+            log_range_start: logFrom,
             bucket_state: bucketsToObj(buckets),
             phase: 'logs',
           });
-          selfInvoke();
+          await selfInvoke();
           return;
         }
-        await sleep(350);
+        await sleep(75);
       }
       await updateStatus({ phase, bucket_state: bucketsToObj(buckets) });
     }
@@ -284,11 +332,12 @@ async function runSync(supabase: any) {
 
     const counts = (state.fetched as any) || {};
     delete counts._users;
+    const activityTotal = sumBucketActivity(rows);
     await updateStatus({
       status: 'done', stage: 'Concluído', progress: 100,
-      buckets: rows.length, fetched: counts,
+      buckets: rows.length, activity_total: activityTotal, fetched: counts,
       finished_at: new Date().toISOString(),
-      bucket_state: null, log_page: null, log_total_pages: null, phase: null,
+      bucket_state: null, log_page: null, log_total_pages: null, log_range_start: null, phase: null,
     });
   } catch (e: any) {
     console.error('runSync fatal:', e);
@@ -367,7 +416,9 @@ Deno.serve(async (req) => {
     bucket_state: {},
     log_page: null,
     log_total_pages: null,
+    log_range_start: null,
     phase: 'documents',
+    activity_total: null,
     updated_at: new Date().toISOString(),
   });
 

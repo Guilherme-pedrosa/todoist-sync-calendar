@@ -60,6 +60,7 @@ export function GcLogTab() {
   const [syncStage, setSyncStage] = useState("");
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const [lastSyncBuckets, setLastSyncBuckets] = useState<number | null>(null);
+  const [lastSyncActivities, setLastSyncActivities] = useState<number | null>(null);
   const [preset, setPreset] = useState<string>("7");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 7));
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
@@ -79,15 +80,25 @@ export function GcLogTab() {
     setLoading(true);
     const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
     const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
-    const { data, error } = await supabase
-      .from("gc_daily_activity")
-      .select("*")
-      .gte("day", fromStr)
-      .lte("day", toStr)
-      .order("day", { ascending: false })
-      .order("gc_user_name", { ascending: true });
-    if (error) toast.error("Erro ao carregar Log GC: " + error.message);
-    else setRows((data as Row[]) ?? []);
+    const pageSize = 1000;
+    const allRows: Row[] = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("gc_daily_activity")
+        .select("*")
+        .gte("day", fromStr)
+        .lte("day", toStr)
+        .order("day", { ascending: false })
+        .order("gc_user_name", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        toast.error("Erro ao carregar Log GC: " + error.message);
+        break;
+      }
+      allRows.push(...((data as Row[]) ?? []));
+      if (!data || data.length < pageSize) break;
+    }
+    setRows(allRows);
     setLoading(false);
   };
 
@@ -107,6 +118,7 @@ export function GcLogTab() {
       } else if (data.finished_at) {
         setLastSyncAt(new Date(data.finished_at));
         setLastSyncBuckets(data.buckets ?? 0);
+        setLastSyncActivities((data as any).activity_total ?? null);
       }
     })();
     return () => { cancelled = true; };
@@ -129,7 +141,8 @@ export function GcLogTab() {
         setSyncStartedAt(null);
         setLastSyncAt(data.finished_at ? new Date(data.finished_at) : new Date());
         setLastSyncBuckets(data.buckets ?? 0);
-        toast.success(`Sincronizado: ${data.buckets ?? 0} registros`);
+        setLastSyncActivities((data as any).activity_total ?? null);
+        toast.success(`Sincronizado: ${(data as any).activity_total ?? 0} atividades em ${data.buckets ?? 0} linhas consolidadas`);
         load();
       } else if (data.status === "error") {
         setSyncing(false);
@@ -308,7 +321,7 @@ export function GcLogTab() {
               {syncing
                 ? `${syncElapsed}s · ${Math.round(syncProgress)}%`
                 : lastSyncAt
-                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncBuckets ?? 0} registros`
+                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncActivities ?? 0} atividades · ${lastSyncBuckets ?? 0} linhas`
                   : ""}
             </div>
           </div>
