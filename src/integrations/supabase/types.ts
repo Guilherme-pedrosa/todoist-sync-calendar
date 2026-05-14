@@ -824,6 +824,51 @@ export type Database = {
         }
         Relationships: []
       }
+      gc_sync_status: {
+        Row: {
+          buckets: number | null
+          data_fim: string | null
+          data_inicio: string | null
+          error: string | null
+          fetched: Json | null
+          finished_at: string | null
+          id: string
+          progress: number
+          stage: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          buckets?: number | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          error?: string | null
+          fetched?: Json | null
+          finished_at?: string | null
+          id: string
+          progress?: number
+          stage?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          buckets?: number | null
+          data_fim?: string | null
+          data_inicio?: string | null
+          error?: string | null
+          fetched?: Json | null
+          finished_at?: string | null
+          id?: string
+          progress?: number
+          stage?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       google_tokens: {
         Row: {
           access_token: string
