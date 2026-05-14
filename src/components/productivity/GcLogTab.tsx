@@ -321,7 +321,7 @@ export function GcLogTab() {
               {syncing
                 ? `${syncElapsed}s · ${Math.round(syncProgress)}%`
                 : lastSyncAt
-                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncBuckets ?? 0} registros`
+                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncActivities ?? 0} atividades · ${lastSyncBuckets ?? 0} linhas`
                   : ""}
             </div>
           </div>
