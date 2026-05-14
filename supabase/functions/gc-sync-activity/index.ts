@@ -71,6 +71,8 @@ function bkey(buckets: Map<string, Bucket>, day: string, uid: string, uname: str
       os_count: 0, os_valor: 0,
       orcamentos_count: 0, orcamentos_valor: 0,
       nfs_count: 0, nfs_valor: 0,
+      entrada_notas: 0, separacao_pecas: 0, entrega_pecas: 0,
+      tratativa_incorreta: 0, cadastro_produto: 0, abertura_os: 0,
     };
     buckets.set(k, b);
   }
