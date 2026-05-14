@@ -197,7 +197,7 @@ async function runSync(supabase: any) {
             stage: `Pausando p/ continuar... (${s.label} concluído)`,
             bucket_state: bucketsToObj(buckets), fetched: counts, phase: 'documents',
           });
-          selfInvoke();
+          await selfInvoke();
           return;
         }
       }
@@ -332,11 +332,12 @@ async function runSync(supabase: any) {
 
     const counts = (state.fetched as any) || {};
     delete counts._users;
+    const activityTotal = sumBucketActivity(rows);
     await updateStatus({
       status: 'done', stage: 'Concluído', progress: 100,
-      buckets: rows.length, fetched: counts,
+      buckets: rows.length, activity_total: activityTotal, fetched: counts,
       finished_at: new Date().toISOString(),
-      bucket_state: null, log_page: null, log_total_pages: null, phase: null,
+      bucket_state: null, log_page: null, log_total_pages: null, log_range_start: null, phase: null,
     });
   } catch (e: any) {
     console.error('runSync fatal:', e);
@@ -415,7 +416,9 @@ Deno.serve(async (req) => {
     bucket_state: {},
     log_page: null,
     log_total_pages: null,
+    log_range_start: null,
     phase: 'documents',
+    activity_total: null,
     updated_at: new Date().toISOString(),
   });
 
