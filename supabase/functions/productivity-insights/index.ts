@@ -234,7 +234,7 @@ MÉTRICAS:
 TOP DOMÍNIOS:
 ${topDomains.map(d => `- ${d.domain}: ${fmtH(d.seconds)} (${d.category})`).join('\n')}${gcSummary}
 
-Gere análise em JSON conforme schema do system prompt. Considere a atividade no GestãoClick (se houver) ao avaliar produtividade real — tempo de tela é proxy, mas entregas no ERP são output concreto.`;
+Gere análise em JSON conforme schema do system prompt. Use os mesmos termos do GestãoClick acima — NÃO chame "Orçamentos criados" de "Abertura de OS" (são coisas diferentes). Cite números absolutos do período E média por dia útil quando relevante. Tempo de tela é proxy; entregas no ERP são output concreto.`;
 
     const aiRes = await fetch(AI_GATEWAY_URL, {
       method: 'POST',
