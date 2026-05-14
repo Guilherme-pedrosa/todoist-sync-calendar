@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
         b.tratativa_incorreta++;
       } else if (mod === 'produtos' && /^Adicionou o produto/i.test(desc)) {
         b.cadastro_produto++;
-      } else if (mod === 'orcamentos' && /para Aprovado - OS Gerada/i.test(desc)) {
+      } else if ((mod === 'orcamentos' || mod === 'orcamentos_servicos') && /para Aprovado - OS Gerada/i.test(desc)) {
         b.abertura_os++;
       } else {
         continue;
