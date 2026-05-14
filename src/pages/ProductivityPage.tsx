@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { userDisplayName } from "@/lib/userDisplay";
+import { GcLogTab } from "@/components/productivity/GcLogTab";
 
 interface TopDomain { domain: string; seconds: number; category: string }
 interface DailyStat {
