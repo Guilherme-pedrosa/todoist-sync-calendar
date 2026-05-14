@@ -228,11 +228,13 @@ async function runSync(supabase: any) {
 
     // FASE 3: logs (pode levar muitas invocações)
     if (phase === 'logs') {
+      let logFrom = state.log_range_start || data_inicio;
+      const logTo = minIso(addDaysIso(logFrom, LOG_CHUNK_DAYS - 1), data_fim);
       let logPage = state.log_page ?? 1;
       let totalPages = state.log_total_pages ?? 0;
 
       while (true) {
-        const json = await gcFetch('/logs', { data_inicio, data_fim, pagina: logPage });
+        const json = await gcFetch('/logs', { data_inicio: logFrom, data_fim: logTo, pagina: logPage });
         const data: any[] = json?.data ?? [];
         if (!totalPages) totalPages = Number(json?.meta?.total_paginas ?? 1);
         for (const log of data) {
@@ -261,29 +263,53 @@ async function runSync(supabase: any) {
           }
         }
         const next = json?.meta?.proxima_pagina;
-        const pct = 50 + Math.floor((logPage / Math.max(totalPages, 1)) * 42);
+        const totalDays = Math.max(1, Math.ceil((parseIsoDate(data_fim).getTime() - parseIsoDate(data_inicio).getTime()) / 86_400_000) + 1);
+        const completedDays = Math.max(0, Math.floor((parseIsoDate(logFrom).getTime() - parseIsoDate(data_inicio).getTime()) / 86_400_000));
+        const chunkPct = (logPage / Math.max(totalPages, 1)) * LOG_CHUNK_DAYS;
+        const pct = 50 + Math.floor(((completedDays + chunkPct) / totalDays) * 42);
         await updateStatus({
-          stage: `Logs ${logPage}/${totalPages}...`,
+          stage: `Logs ${logFrom} a ${logTo} · página ${logPage}/${totalPages}...`,
           progress: Math.min(pct, 92),
           log_page: logPage,
           log_total_pages: totalPages,
+          log_range_start: logFrom,
         });
 
         if (!next) {
-          phase = 'persist';
-          break;
+          const nextRangeStart = addDaysIso(logTo, 1);
+          if (nextRangeStart > data_fim) {
+            phase = 'persist';
+            break;
+          }
+          logFrom = nextRangeStart;
+          logPage = 1;
+          totalPages = 0;
+          await updateStatus({
+            stage: `Avançando logs para ${logFrom}...`,
+            log_page: 1,
+            log_total_pages: null,
+            log_range_start: logFrom,
+            bucket_state: bucketsToObj(buckets),
+            phase: 'logs',
+          });
+          if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
+            await selfInvoke();
+            return;
+          }
+          continue;
         }
         logPage = Number(next);
 
         if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
           await updateStatus({
-            stage: `Pausando logs em ${logPage}/${totalPages}...`,
+            stage: `Pausando logs em ${logFrom} · página ${logPage}/${totalPages}...`,
             log_page: logPage,
             log_total_pages: totalPages,
+            log_range_start: logFrom,
             bucket_state: bucketsToObj(buckets),
             phase: 'logs',
           });
-          selfInvoke();
+          await selfInvoke();
           return;
         }
         await sleep(350);
