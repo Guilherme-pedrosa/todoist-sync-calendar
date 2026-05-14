@@ -16,6 +16,7 @@ const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gc-sync-activity`;
 
 // Tempo máximo de processamento por invocação antes de re-encadear
 const CHUNK_BUDGET_MS = 90_000;
+const LOG_CHUNK_DAYS = 30;
 
 interface Bucket {
   day: string;
@@ -95,6 +96,26 @@ function pickUser(row: any): { id: string; name: string } | null {
 
 const fmt = (d: Date) => d.toISOString().slice(0, 10);
 
+function parseIsoDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function addDaysIso(value: string, days: number) {
+  const d = parseIsoDate(value);
+  d.setUTCDate(d.getUTCDate() + days);
+  return fmt(d);
+}
+
+const minIso = (a: string, b: string) => (a <= b ? a : b);
+
+function sumBucketActivity(rows: Bucket[]) {
+  return rows.reduce((total, r) => total
+    + r.vendas_count + r.os_count + r.orcamentos_count + r.nfs_count
+    + r.entrada_notas + r.separacao_pecas + r.entrega_pecas
+    + r.tratativa_incorreta + r.cadastro_produto + r.abertura_os + r.abertura_compras, 0);
+}
+
 function bucketsToObj(map: Map<string, Bucket>): Record<string, Bucket> {
   const out: Record<string, Bucket> = {};
   for (const [k, v] of map.entries()) out[k] = v;
@@ -107,16 +128,17 @@ function objToBuckets(obj: Record<string, Bucket> | null | undefined): Map<strin
   return map;
 }
 
-function selfInvoke() {
+async function selfInvoke() {
   // Re-invoca a própria função para continuar de onde parou
-  fetch(FUNCTION_URL, {
+  const response = await fetch(FUNCTION_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SERVICE_ROLE}`,
     },
     body: JSON.stringify({ continue: true }),
-  }).catch(e => console.error('self-invoke failed', e));
+  });
+  if (!response.ok) console.error('self-invoke failed', response.status, await response.text());
 }
 
 async function runSync(supabase: any) {
