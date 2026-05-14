@@ -347,10 +347,10 @@ export function GcLogTab() {
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Documentos no período</div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Vendas" qty={totals.vendas_count} value={totals.vendas_valor} accent="text-green-500" />
-          <Stat label="OS" qty={totals.os_count} value={totals.os_valor} accent="text-blue-500" />
-          <Stat label="Orçamentos" qty={totals.orcamentos_count} value={totals.orcamentos_valor} accent="text-amber-500" />
-          <Stat label="Notas Fiscais" qty={totals.nfs_count} value={totals.nfs_valor} accent="text-purple-500" />
+          <Stat label="Vendas" qty={totals.vendas_count} value={totals.vendas_valor} accent="text-green-500" businessDays={businessDays} />
+          <Stat label="OS" qty={totals.os_count} value={totals.os_valor} accent="text-blue-500" businessDays={businessDays} />
+          <Stat label="Orçamentos" qty={totals.orcamentos_count} value={totals.orcamentos_valor} accent="text-amber-500" businessDays={businessDays} />
+          <Stat label="Notas Fiscais" qty={totals.nfs_count} value={totals.nfs_valor} accent="text-purple-500" businessDays={businessDays} />
         </div>
       </Card>
 
@@ -358,13 +358,13 @@ export function GcLogTab() {
       <Card className="p-4">
         <div className="text-xs text-muted-foreground uppercase tracking-wide mb-3">Atividades operacionais no período</div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-          <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" />
-          <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" />
-          <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" />
-          <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" />
-          <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" />
-          <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" />
-          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" />
+          <ActivityStat label="Entrada de notas" qty={totals.entrada_notas} accent="text-emerald-500" businessDays={businessDays} />
+          <ActivityStat label="Separação de peças" qty={totals.separacao_pecas} accent="text-cyan-500" businessDays={businessDays} />
+          <ActivityStat label="Entrega de peças" qty={totals.entrega_pecas} accent="text-indigo-500" businessDays={businessDays} />
+          <ActivityStat label="OS incorreta" qty={totals.tratativa_incorreta} accent="text-rose-500" businessDays={businessDays} />
+          <ActivityStat label="Cadastro de produto" qty={totals.cadastro_produto} accent="text-fuchsia-500" businessDays={businessDays} />
+          <ActivityStat label="Abertura de OS" qty={totals.abertura_os} accent="text-orange-500" businessDays={businessDays} />
+          <ActivityStat label="Pedido de compra" qty={totals.abertura_compras} accent="text-amber-500" businessDays={businessDays} />
         </div>
       </Card>
 
