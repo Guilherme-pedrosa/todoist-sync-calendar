@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, CalendarIcon } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -52,6 +53,12 @@ export function GcLogTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncStartedAt, setSyncStartedAt] = useState<number | null>(null);
+  const [syncElapsed, setSyncElapsed] = useState(0);
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [syncStage, setSyncStage] = useState("");
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [lastSyncBuckets, setLastSyncBuckets] = useState<number | null>(null);
   const [preset, setPreset] = useState<string>("7");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 7));
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
@@ -87,13 +94,52 @@ export function GcLogTab() {
 
   const sync = async () => {
     setSyncing(true);
+    const started = Date.now();
+    setSyncStartedAt(started);
+    setSyncElapsed(0);
+    setSyncProgress(2);
+    setSyncStage("Conectando ao GestãoClick...");
     const fromStr = toISODate(dateFrom) || format(subDays(new Date(), 7), "yyyy-MM-dd");
     const toStr = toISODate(dateTo) || format(new Date(), "yyyy-MM-dd");
+
+    const stages: Array<{ at: number; label: string; pct: number }> = [
+      { at: 1500, label: "Buscando usuários...", pct: 10 },
+      { at: 4000, label: "Baixando vendas...", pct: 22 },
+      { at: 9000, label: "Baixando ordens de serviço...", pct: 38 },
+      { at: 14000, label: "Baixando orçamentos...", pct: 52 },
+      { at: 19000, label: "Baixando notas fiscais...", pct: 64 },
+      { at: 25000, label: "Processando logs de atividade...", pct: 80 },
+      { at: 40000, label: "Agregando e salvando...", pct: 92 },
+    ];
+
+    const tick = setInterval(() => {
+      const elapsed = Date.now() - started;
+      setSyncElapsed(Math.floor(elapsed / 1000));
+      const cur = [...stages].reverse().find((s) => elapsed >= s.at);
+      if (cur) {
+        setSyncStage(cur.label);
+        setSyncProgress((p) => (p < cur.pct ? Math.min(cur.pct, p + 1) : Math.min(95, p + 0.2)));
+      } else {
+        setSyncProgress((p) => Math.min(8, p + 0.3));
+      }
+    }, 250);
+
     const { data, error } = await supabase.functions.invoke("gc-sync-activity", {
       body: { data_inicio: fromStr, data_fim: toStr },
     });
+
+    clearInterval(tick);
+    setSyncProgress(100);
+    setSyncStage("Concluído");
     setSyncing(false);
-    if (error) { toast.error("Falha na sincronização: " + error.message); return; }
+    setSyncStartedAt(null);
+    if (error) {
+      toast.error("Falha na sincronização: " + error.message);
+      setSyncStage("Erro");
+      return;
+    }
+    setLastSyncAt(new Date());
+    setLastSyncBuckets(data?.buckets ?? 0);
     toast.success(`Sincronizado: ${data?.buckets ?? 0} registros (${fromStr} → ${toStr})`);
     load();
   };
@@ -226,6 +272,28 @@ export function GcLogTab() {
           <span className="ml-2">Sincronizar GC</span>
         </Button>
       </Card>
+
+      {/* Barra de status da sincronização */}
+      {(syncing || lastSyncAt) && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              {syncing && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
+              <span className="text-sm font-medium truncate">
+                {syncing ? syncStage || "Sincronizando..." : "Última sincronização concluída"}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground whitespace-nowrap">
+              {syncing
+                ? `${syncElapsed}s · ${Math.round(syncProgress)}%`
+                : lastSyncAt
+                  ? `${format(lastSyncAt, "dd/MM/yy HH:mm:ss")} · ${lastSyncBuckets ?? 0} registros`
+                  : ""}
+            </div>
+          </div>
+          <Progress value={syncing ? syncProgress : 100} className="h-2" />
+        </Card>
+      )}
 
       {/* Totais do período - Documentos */}
       <Card className="p-4">
