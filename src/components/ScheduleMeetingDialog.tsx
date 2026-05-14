@@ -58,9 +58,21 @@ export function ScheduleMeetingDialog({
   const today = new Date().toISOString().slice(0, 10);
   const projects = useTaskStore((s) => s.projects);
   const fetchData = useTaskStore((s) => s.fetchData);
-  const inboxId = useMemo(() => projects.find((p) => p.isInbox)?.id, [projects]);
-
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const inboxId = useMemo(() => {
+    const uid = user?.id;
+    // Prefer inbox in the current workspace, owned by the user
+    const ownInboxInWs = projects.find(
+      (p) => p.isInbox && (!currentWorkspaceId || p.workspaceId === currentWorkspaceId) && (!uid || p.ownerId === uid),
+    );
+    if (ownInboxInWs) return ownInboxInWs.id;
+    // Fallback: any inbox the user owns
+    const ownInbox = projects.find((p) => p.isInbox && (!uid || p.ownerId === uid));
+    if (ownInbox) return ownInbox.id;
+    // Last resort: first inbox
+    return projects.find((p) => p.isInbox)?.id;
+  }, [projects, currentWorkspaceId, user?.id]);
+
   const members = useWorkspaceStore((s) => s.members);
   const membersWorkspaceId = useWorkspaceStore((s) => s.membersWorkspaceId);
   const fetchMembers = useWorkspaceStore((s) => s.fetchMembers);
@@ -195,27 +207,25 @@ export function ScheduleMeetingDialog({
         }
         taskId = updated.id as string;
       } else {
-        // Cria nova tarefa-reunião
-        const { data: created, error: insertError } = await supabase
-          .from('tasks')
-          .insert({
-            user_id: currentUserId,
-            created_by: currentUserId,
-            project_id: inboxId!,
-            title: title.trim(),
-            description: description.trim() || null,
-            due_date: date,
-            due_time: time,
-            duration_minutes: duration,
-            priority: 3,
-            is_meeting: true,
-          } as any)
-          .select('id, workspace_id')
-          .single();
+        // Cria nova tarefa-reunião usando RPC seguro (resolve workspace_id e RLS)
+        const inboxProject = projects.find((p) => p.id === inboxId);
+        const wsId = inboxProject?.workspaceId || currentWorkspaceId || null;
+        const { data: created, error: insertError } = await supabase.rpc('create_task_secure', {
+          p_workspace_id: wsId as any,
+          p_project_id: inboxId!,
+          p_title: title.trim(),
+          p_description: description.trim() || null,
+          p_priority: 3,
+          p_due_date: date,
+          p_due_time: time,
+          p_duration_minutes: duration,
+        });
         if (insertError || !created) {
           throw insertError || new Error('Falha ao criar reunião');
         }
-        taskId = created.id as string;
+        taskId = (created as any).id as string;
+        // Marca como reunião
+        await supabase.from('tasks').update({ is_meeting: true } as any).eq('id', taskId);
       }
 
       // 2) Cria os convites
