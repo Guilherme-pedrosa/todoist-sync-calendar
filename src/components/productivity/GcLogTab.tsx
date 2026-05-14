@@ -338,4 +338,3 @@ function ActivityCell({ label, qty }: { label: string; qty: number }) {
     </div>
   );
 }
-}
