@@ -229,11 +229,11 @@ async function runSync(supabase: any) {
     // FASE 3: logs (pode levar muitas invocações)
     if (phase === 'logs') {
       let logFrom = state.log_range_start || data_inicio;
-      const logTo = minIso(addDaysIso(logFrom, LOG_CHUNK_DAYS - 1), data_fim);
       let logPage = state.log_page ?? 1;
       let totalPages = state.log_total_pages ?? 0;
 
       while (true) {
+        const logTo = minIso(addDaysIso(logFrom, LOG_CHUNK_DAYS - 1), data_fim);
         const json = await gcFetch('/logs', { data_inicio: logFrom, data_fim: logTo, pagina: logPage });
         const data: any[] = json?.data ?? [];
         if (!totalPages) totalPages = Number(json?.meta?.total_paginas ?? 1);
