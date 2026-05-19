@@ -57,8 +57,9 @@ export default function ConversationsPage() {
       .filter((c) => {
         if (c.type !== 'task' || !c.taskId) return false;
         const t = taskById.get(c.taskId);
-        // Só mostra se task carregada e NÃO concluída.
-        return !!t && !t.completed;
+        // Mostra se a task NÃO está explicitamente concluída.
+        // (inclui casos em que a task ainda não foi carregada no store)
+        return !t?.completed;
       })
       .sort(sortChats);
   }, [conversations, taskById, unread]);
@@ -68,8 +69,8 @@ export default function ConversationsPage() {
       .filter((c) => {
         if (c.type !== 'task' || !c.taskId) return false;
         const t = taskById.get(c.taskId);
-        // Concluídas OU órfãs (task fora de escopo) → histórico.
-        return !t || t.completed;
+        // Só joga em "Concluídas" quando temos certeza de que está concluída.
+        return !!t && t.completed;
       })
       .sort(sortChats);
   }, [conversations, taskById, unread]);
