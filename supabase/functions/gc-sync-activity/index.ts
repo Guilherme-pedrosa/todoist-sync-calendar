@@ -250,9 +250,9 @@ async function runSync(supabase: any) {
           const uid = nameToId.get(nome.toLowerCase()) ?? `nome:${nome}`;
           const b = bkey(buckets, day, uid, nome);
 
-          if (mod === 'compras' && /para Finalizado/i.test(desc)) {
+          if ((mod === 'compras' || mod === 'compras_produtos') && /para Finalizado/i.test(desc)) {
             b.entrada_notas++;
-          } else if (mod === 'compras' && /^Adicionou\s+(a\s+)?compra/i.test(desc)) {
+          } else if ((mod === 'compras' || mod === 'compras_produtos') && /^Adicionou\s+(a\s+)?compra/i.test(desc)) {
             b.abertura_compras++;
           } else if (mod === 'ordens_servicos' && /para PEDIDO CONFERIDO AGUARDANDO EXECU/i.test(desc)) {
             b.separacao_pecas++;
