@@ -231,6 +231,8 @@ export default function ProjectPage() {
         onToggleSidebar={toggleSidebar}
       />
 
+      <ProjectAnnouncementsBoard projectId={project.id} projectName={project.name} />
+
       <BoardGroupToolbar
         projectId={projectId!}
         value={boardGroup}
