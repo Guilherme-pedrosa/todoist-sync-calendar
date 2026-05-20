@@ -72,6 +72,7 @@ export default function ProjectPage() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const boardGroupKey = `taskflow.kanban.group.${projectId}`;
   const isFleetProject = (project?.name || '').toUpperCase().includes('FROTA');
   type BoardGroup = 'manual' | 'assignee' | 'vehicle';
