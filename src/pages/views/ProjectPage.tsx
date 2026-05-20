@@ -262,6 +262,12 @@ export default function ProjectPage() {
           isPersonalWorkspace={!!projectWorkspace?.isPersonal}
         />
       )}
+      <ProjectAnnouncementsDialog
+        open={announcementsOpen}
+        onOpenChange={setAnnouncementsOpen}
+        projectId={project.id}
+        projectName={project.name}
+      />
     </div>
   );
 }
