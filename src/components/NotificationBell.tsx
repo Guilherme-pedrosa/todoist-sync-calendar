@@ -160,6 +160,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const isAssignReturned = n.type === 'task_assignment_returned';
   const isCompleted = n.type === 'task_completed';
   const isUpdated = n.type === 'task_updated';
+  const isAnnouncement = n.type === 'project_announcement';
   const isInformed = n.payload?.role === 'informed';
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
