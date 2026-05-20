@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2 } from 'lucide-react';
+import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2, Megaphone } from 'lucide-react';
+import { ProjectAnnouncementsDialog } from '@/components/ProjectAnnouncements';
 import { TaskList } from '@/components/TaskList';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
@@ -71,6 +72,7 @@ export default function ProjectPage() {
   const [sections, setSections] = useState<SectionRow[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const boardGroupKey = `taskflow.kanban.group.${projectId}`;
   const isFleetProject = (project?.name || '').toUpperCase().includes('FROTA');
   type BoardGroup = 'manual' | 'assignee' | 'vehicle';
@@ -158,6 +160,7 @@ export default function ProjectPage() {
           onDelete={() => setConfirmDelete(true)}
           onEdit={() => toast.info('Editar projeto: use o menu da barra lateral')}
           onShare={() => setShareOpen(true)}
+          onAnnouncements={() => setAnnouncementsOpen(true)}
           onToggleSidebar={toggleSidebar}
         />
         <div className="flex-1 overflow-hidden">
@@ -183,6 +186,12 @@ export default function ProjectPage() {
             isPersonalWorkspace={!!projectWorkspace?.isPersonal}
           />
         )}
+        <ProjectAnnouncementsDialog
+          open={announcementsOpen}
+          onOpenChange={setAnnouncementsOpen}
+          projectId={project.id}
+          projectName={project.name}
+        />
       </div>
     );
   }
@@ -207,6 +216,7 @@ export default function ProjectPage() {
         onDelete={() => setConfirmDelete(true)}
         onEdit={() => toast.info('Editar projeto: use o menu da barra lateral')}
         onShare={() => setShareOpen(true)}
+        onAnnouncements={() => setAnnouncementsOpen(true)}
         onToggleSidebar={toggleSidebar}
       />
 
@@ -252,6 +262,12 @@ export default function ProjectPage() {
           isPersonalWorkspace={!!projectWorkspace?.isPersonal}
         />
       )}
+      <ProjectAnnouncementsDialog
+        open={announcementsOpen}
+        onOpenChange={setAnnouncementsOpen}
+        projectId={project.id}
+        projectName={project.name}
+      />
     </div>
   );
 }
@@ -306,6 +322,7 @@ function ProjectHeader({
   onDelete,
   onEdit,
   onShare,
+  onAnnouncements,
   onToggleSidebar,
 }: any) {
   return (
@@ -372,6 +389,17 @@ function ProjectHeader({
             <KanbanSquare className="h-3.5 w-3.5" /> Quadro
           </button>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5"
+          onClick={onAnnouncements}
+        >
+          <Megaphone className="h-3.5 w-3.5" /> Avisos
+        </Button>
+
+
 
         <Button
           variant="default"

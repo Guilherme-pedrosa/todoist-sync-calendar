@@ -1243,6 +1243,36 @@ export type Database = {
         }
         Relationships: []
       }
+      project_announcements: {
+        Row: {
+          attachments: Json
+          content: string
+          created_at: string
+          id: string
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json
+          content?: string
+          created_at?: string
+          id?: string
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attachments?: Json
+          content?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       project_members: {
         Row: {
           added_at: string
