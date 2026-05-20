@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX, CheckCircle2, Pencil, Eye } from 'lucide-react';
+import { Bell, BellRing, AtSign, MessageSquare, CheckCheck, BellOff, CalendarCheck, CalendarX, Video, Check, X, Loader2, CalendarClock, Undo2, UserCheck, UserX, CheckCircle2, Pencil, Eye, Megaphone } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,6 +42,8 @@ export function NotificationBell() {
     setOpen(false);
     if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
       navigate(`/conversations/${n.payload.conversation_id}`);
+    } else if (n.type === 'project_announcement' && n.payload?.project_id) {
+      navigate(`/projects/${n.payload.project_id}?avisos=1`);
     } else if (
       (n.type === 'task_assigned' ||
         n.type === 'task_assignment_accepted' ||
@@ -158,6 +160,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const isAssignReturned = n.type === 'task_assignment_returned';
   const isCompleted = n.type === 'task_completed';
   const isUpdated = n.type === 'task_updated';
+  const isAnnouncement = n.type === 'project_announcement';
   const isInformed = n.payload?.role === 'informed';
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -174,6 +177,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
   const Icon = isMention
     ? AtSign
+    : isAnnouncement
+      ? Megaphone
     : isInvite
       ? Video
       : isAccepted
@@ -198,6 +203,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
   const title = isMention
     ? 'Você foi mencionado'
+    : isAnnouncement
+      ? `${n.payload?.author_name || 'Alguém'} publicou um aviso em ${n.payload?.project_name || 'um projeto'}`
     : isChatMessage
       ? 'Nova mensagem'
     : isAssigned

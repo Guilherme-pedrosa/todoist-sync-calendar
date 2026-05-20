@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2, Megaphone } from 'lucide-react';
 import { ProjectAnnouncementsDialog } from '@/components/ProjectAnnouncements';
 import { TaskList } from '@/components/TaskList';
@@ -90,6 +90,16 @@ export default function ProjectPage() {
       setView(project.viewType);
     }
   }, [project?.viewType]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('avisos') === '1') {
+      setAnnouncementsOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('avisos');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!projectId) return;
