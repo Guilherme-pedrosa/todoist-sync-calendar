@@ -234,13 +234,17 @@ async function runSync(supabase: any) {
 
       while (true) {
         const logTo = minIso(addDaysIso(logFrom, LOG_CHUNK_DAYS - 1), data_fim);
-        const json = await gcFetch('/logs', { data_inicio: logFrom, data_fim: logTo, pagina: logPage });
+        // GC trata data_fim como meia-noite (exclusivo). Pedimos +1 dia p/ incluir o dia inteiro de logTo.
+        const apiDataFim = addDaysIso(logTo, 1);
+        const json = await gcFetch('/logs', { data_inicio: logFrom, data_fim: apiDataFim, pagina: logPage });
         const data: any[] = json?.data ?? [];
         if (!totalPages) totalPages = Number(json?.meta?.total_paginas ?? 1);
         for (const log of data) {
           const day: string = String(log?.cadastrado_em ?? '').slice(0, 10);
           const nome = String(log?.nome_usuario ?? '').trim();
           if (!day || !nome) continue;
+          // Descarta logs fora do range real (ex.: registros do dia seguinte que vieram por causa do +1)
+          if (day < logFrom || day > logTo) continue;
           const desc = String(log?.descricao ?? '');
           const mod = String(log?.modulo ?? '');
           const uid = nameToId.get(nome.toLowerCase()) ?? `nome:${nome}`;
