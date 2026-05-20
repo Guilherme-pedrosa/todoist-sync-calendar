@@ -1247,6 +1247,7 @@ export type Database = {
         Row: {
           attachments: Json
           content: string
+          content_below: string | null
           created_at: string
           id: string
           project_id: string
@@ -1256,6 +1257,7 @@ export type Database = {
         Insert: {
           attachments?: Json
           content?: string
+          content_below?: string | null
           created_at?: string
           id?: string
           project_id: string
@@ -1265,6 +1267,7 @@ export type Database = {
         Update: {
           attachments?: Json
           content?: string
+          content_below?: string | null
           created_at?: string
           id?: string
           project_id?: string
