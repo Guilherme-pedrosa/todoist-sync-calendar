@@ -396,11 +396,14 @@ function AnnouncementCard({
       </div>
       {a.content && <p className="text-sm whitespace-pre-wrap mb-2">{a.content}</p>}
       {a.attachments.length > 0 && (
-        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 mb-2">
           {a.attachments.map((att, i) => (
             <AttachmentTile key={i} att={att} />
           ))}
         </div>
+      )}
+      {a.content_below && (
+        <p className="text-sm whitespace-pre-wrap text-foreground/90">{a.content_below}</p>
       )}
     </div>
   );
