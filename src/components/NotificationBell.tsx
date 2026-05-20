@@ -177,6 +177,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
   const Icon = isMention
     ? AtSign
+    : isAnnouncement
+      ? Megaphone
     : isInvite
       ? Video
       : isAccepted
@@ -201,6 +203,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
 
   const title = isMention
     ? 'Você foi mencionado'
+    : isAnnouncement
+      ? `${n.payload?.author_name || 'Alguém'} publicou um aviso em ${n.payload?.project_name || 'um projeto'}`
     : isChatMessage
       ? 'Nova mensagem'
     : isAssigned
