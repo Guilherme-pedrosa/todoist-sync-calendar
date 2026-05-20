@@ -36,6 +36,7 @@ type Announcement = {
   project_id: string;
   user_id: string;
   content: string;
+  content_below?: string | null;
   attachments: Attachment[];
   created_at: string;
   project_name?: string;
