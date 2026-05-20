@@ -36,6 +36,7 @@ type Announcement = {
   project_id: string;
   user_id: string;
   content: string;
+  content_below?: string | null;
   attachments: Attachment[];
   created_at: string;
   project_name?: string;
@@ -77,11 +78,30 @@ export function ProjectAnnouncementsDialog({
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState('');
+  const [contentBelow, setContentBelow] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [authorViewId, setAuthorViewId] = useState<string | null>(null);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const imgs: File[] = [];
+    for (const item of Array.from(e.clipboardData?.items ?? [])) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) {
+          const ext = (f.type.split('/')[1] || 'png').split('+')[0];
+          imgs.push(new File([f], f.name && f.name !== 'image.png' ? f.name : `colado-${Date.now()}.${ext}`, { type: f.type }));
+        }
+      }
+    }
+    if (imgs.length) {
+      e.preventDefault();
+      setFiles((cur) => [...cur, ...imgs]);
+      toast.success(`${imgs.length} imagem(ns) coladas`);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -128,7 +148,7 @@ export function ProjectAnnouncementsDialog({
   }, [items, search]);
 
   const handlePost = async () => {
-    if (!content.trim() && files.length === 0) {
+    if (!content.trim() && !contentBelow.trim() && files.length === 0) {
       toast.error('Escreva uma mensagem ou anexe um arquivo');
       return;
     }
@@ -160,10 +180,12 @@ export function ProjectAnnouncementsDialog({
         project_id: projectId,
         user_id: userId,
         content: content.trim(),
+        content_below: contentBelow.trim() || null,
         attachments: uploaded as any,
-      });
+      } as any);
       if (error) throw error;
       setContent('');
+      setContentBelow('');
       setFiles([]);
       toast.success('Aviso publicado');
     } catch (e: any) {
@@ -198,28 +220,51 @@ export function ProjectAnnouncementsDialog({
           </DialogHeader>
 
           {/* Composer */}
-          <div className="p-4 border-b bg-muted/30 space-y-2">
+          <div className="p-4 border-b bg-muted/30 space-y-2" onPaste={handlePaste}>
             <Textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Escreva um aviso para o projeto..."
-              className="min-h-[70px] resize-none bg-background"
+              placeholder="Escreva um texto acima da imagem... (Ctrl+V para colar imagem)"
+              className="min-h-[60px] resize-none bg-background"
             />
+
             {files.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {files.map((f, i) => (
-                  <div key={i} className="text-xs bg-background border rounded px-2 py-1 flex items-center gap-2">
-                    <span className="truncate max-w-[160px]">{f.name}</span>
-                    <button
-                      onClick={() => setFiles((arr) => arr.filter((_, j) => j !== i))}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {files.map((f, i) => {
+                  const isImg = f.type.startsWith('image/');
+                  const url = isImg ? URL.createObjectURL(f) : null;
+                  return (
+                    <div key={i} className="relative border rounded-md overflow-hidden bg-background group">
+                      {isImg && url ? (
+                        <img src={url} alt={f.name} className="h-24 w-full object-cover" />
+                      ) : (
+                        <div className="h-24 w-full flex flex-col items-center justify-center p-2 text-xs">
+                          <FileText className="h-5 w-5 mb-1 text-muted-foreground" />
+                          <span className="truncate w-full text-center">{f.name}</span>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setFiles((arr) => arr.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/90 border flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Remover"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
+
+            {(files.length > 0 || contentBelow) && (
+              <Textarea
+                value={contentBelow}
+                onChange={(e) => setContentBelow(e.target.value)}
+                placeholder="Escreva um texto abaixo da imagem..."
+                className="min-h-[50px] resize-none bg-background"
+              />
+            )}
+
             <div className="flex items-center justify-between">
               <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
                 <Paperclip className="h-4 w-4" />
@@ -351,11 +396,14 @@ function AnnouncementCard({
       </div>
       {a.content && <p className="text-sm whitespace-pre-wrap mb-2">{a.content}</p>}
       {a.attachments.length > 0 && (
-        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 mb-2">
           {a.attachments.map((att, i) => (
             <AttachmentTile key={i} att={att} />
           ))}
         </div>
+      )}
+      {a.content_below && (
+        <p className="text-sm whitespace-pre-wrap text-foreground/90">{a.content_below}</p>
       )}
     </div>
   );
