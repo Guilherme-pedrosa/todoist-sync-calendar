@@ -42,6 +42,8 @@ export function NotificationBell() {
     setOpen(false);
     if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
       navigate(`/conversations/${n.payload.conversation_id}`);
+    } else if (n.type === 'project_announcement' && n.payload?.project_id) {
+      navigate(`/projects/${n.payload.project_id}?avisos=1`);
     } else if (
       (n.type === 'task_assigned' ||
         n.type === 'task_assignment_accepted' ||
