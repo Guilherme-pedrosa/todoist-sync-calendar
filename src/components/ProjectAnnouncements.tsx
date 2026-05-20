@@ -64,16 +64,14 @@ async function attachAuthors(rows: any[]): Promise<Announcement[]> {
   }));
 }
 
-export function ProjectAnnouncementsDialog({
-  open,
-  onOpenChange,
+export function ProjectAnnouncementsFeed({
   projectId,
-  projectName,
+  variant = 'dialog',
+  maxFeedHeight,
 }: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
   projectId: string;
-  projectName: string;
+  variant?: 'dialog' | 'inline';
+  maxFeedHeight?: string;
 }) {
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,11 +118,10 @@ export function ProjectAnnouncementsDialog({
   }, [projectId]);
 
   useEffect(() => {
-    if (!open) return;
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
     load();
     const ch = supabase
-      .channel(`pa-${projectId}`)
+      .channel(`pa-${projectId}-${variant}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'project_announcements', filter: `project_id=eq.${projectId}` },
@@ -134,7 +131,7 @@ export function ProjectAnnouncementsDialog({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [open, projectId, load]);
+  }, [projectId, load, variant]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -208,129 +205,117 @@ export function ProjectAnnouncementsDialog({
     toast.success('Aviso excluído');
   };
 
+  const feedHeight = maxFeedHeight ?? (variant === 'inline' ? 'max-h-[420px]' : '');
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
-          <DialogHeader className="p-5 pb-3 border-b">
-            <DialogTitle className="flex items-center gap-2">
-              <Megaphone className="h-5 w-5 text-primary" />
-              Avisos — {projectName}
-            </DialogTitle>
-          </DialogHeader>
+      <div className="p-4 border-b bg-muted/30 space-y-2" onPaste={handlePaste}>
+        <Textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Escreva um texto acima da imagem... (Ctrl+V para colar imagem)"
+          className="min-h-[60px] resize-none bg-background"
+        />
 
-          {/* Composer */}
-          <div className="p-4 border-b bg-muted/30 space-y-2" onPaste={handlePaste}>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Escreva um texto acima da imagem... (Ctrl+V para colar imagem)"
-              className="min-h-[60px] resize-none bg-background"
-            />
-
-            {files.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {files.map((f, i) => {
-                  const isImg = f.type.startsWith('image/');
-                  const url = isImg ? URL.createObjectURL(f) : null;
-                  return (
-                    <div key={i} className="relative border rounded-md overflow-hidden bg-background group">
-                      {isImg && url ? (
-                        <img src={url} alt={f.name} className="h-24 w-full object-cover" />
-                      ) : (
-                        <div className="h-24 w-full flex flex-col items-center justify-center p-2 text-xs">
-                          <FileText className="h-5 w-5 mb-1 text-muted-foreground" />
-                          <span className="truncate w-full text-center">{f.name}</span>
-                        </div>
-                      )}
-                      <button
-                        onClick={() => setFiles((arr) => arr.filter((_, j) => j !== i))}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/90 border flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                        aria-label="Remover"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+        {files.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {files.map((f, i) => {
+              const isImg = f.type.startsWith('image/');
+              const url = isImg ? URL.createObjectURL(f) : null;
+              return (
+                <div key={i} className="relative border rounded-md overflow-hidden bg-background group">
+                  {isImg && url ? (
+                    <img src={url} alt={f.name} className="h-24 w-full object-cover" />
+                  ) : (
+                    <div className="h-24 w-full flex flex-col items-center justify-center p-2 text-xs">
+                      <FileText className="h-5 w-5 mb-1 text-muted-foreground" />
+                      <span className="truncate w-full text-center">{f.name}</span>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {(files.length > 0 || contentBelow) && (
-              <Textarea
-                value={contentBelow}
-                onChange={(e) => setContentBelow(e.target.value)}
-                placeholder="Escreva um texto abaixo da imagem..."
-                className="min-h-[50px] resize-none bg-background"
-              />
-            )}
-
-            <div className="flex items-center justify-between">
-              <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
-                <Paperclip className="h-4 w-4" />
-                Anexar arquivos
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    const list = Array.from(e.target.files ?? []);
-                    setFiles((cur) => [...cur, ...list]);
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <Button size="sm" onClick={handlePost} disabled={posting} className="gap-1.5">
-                <Send className="h-3.5 w-3.5" />
-                {posting ? 'Publicando...' : 'Publicar'}
-              </Button>
-            </div>
+                  )}
+                  <button
+                    onClick={() => setFiles((arr) => arr.filter((_, j) => j !== i))}
+                    className="absolute top-1 right-1 h-6 w-6 rounded-full bg-background/90 border flex items-center justify-center text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    aria-label="Remover"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
+        )}
 
-          {/* Search */}
-          <div className="px-4 py-2 border-b bg-background">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar avisos por texto, autor ou anexo..."
-                className="pl-8 h-8 text-sm"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
+        {(files.length > 0 || contentBelow) && (
+          <Textarea
+            value={contentBelow}
+            onChange={(e) => setContentBelow(e.target.value)}
+            placeholder="Escreva um texto abaixo da imagem..."
+            className="min-h-[50px] resize-none bg-background"
+          />
+        )}
 
-          {/* Feed */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {loading && <p className="text-sm text-muted-foreground text-center py-6">Carregando...</p>}
-            {!loading && filtered.length === 0 && (
-              <div className="text-center py-10 text-muted-foreground">
-                <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                <p className="text-sm">
-                  {search ? 'Nenhum aviso encontrado.' : 'Nenhum aviso ainda. Seja o primeiro a publicar!'}
-                </p>
-              </div>
-            )}
-            {filtered.map((a) => (
-              <AnnouncementCard
-                key={a.id}
-                a={a}
-                isMine={me === a.user_id}
-                onDelete={() => handleDelete(a)}
-                onAuthorClick={() => setAuthorViewId(a.user_id)}
-              />
-            ))}
+        <div className="flex items-center justify-between">
+          <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer">
+            <Paperclip className="h-4 w-4" />
+            Anexar arquivos
+            <input
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const list = Array.from(e.target.files ?? []);
+                setFiles((cur) => [...cur, ...list]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <Button size="sm" onClick={handlePost} disabled={posting} className="gap-1.5">
+            <Send className="h-3.5 w-3.5" />
+            {posting ? 'Publicando...' : 'Publicar'}
+          </Button>
+        </div>
+      </div>
+
+      <div className="px-4 py-2 border-b bg-background">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar avisos por texto, autor ou anexo..."
+            className="pl-8 h-8 text-sm"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className={`${variant === 'dialog' ? 'flex-1' : ''} overflow-y-auto ${feedHeight} p-4 space-y-3`}>
+        {loading && <p className="text-sm text-muted-foreground text-center py-6">Carregando...</p>}
+        {!loading && filtered.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground">
+            <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-40" />
+            <p className="text-sm">
+              {search ? 'Nenhum aviso encontrado.' : 'Nenhum aviso ainda. Seja o primeiro a publicar!'}
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+        {filtered.map((a) => (
+          <AnnouncementCard
+            key={a.id}
+            a={a}
+            isMine={me === a.user_id}
+            onDelete={() => handleDelete(a)}
+            onAuthorClick={() => setAuthorViewId(a.user_id)}
+          />
+        ))}
+      </div>
 
       {authorViewId && (
         <AuthorAnnouncementsDialog
@@ -340,6 +325,77 @@ export function ProjectAnnouncementsDialog({
         />
       )}
     </>
+  );
+}
+
+export function ProjectAnnouncementsDialog({
+  open,
+  onOpenChange,
+  projectId,
+  projectName,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  projectId: string;
+  projectName: string;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="p-5 pb-3 border-b">
+          <DialogTitle className="flex items-center gap-2">
+            <Megaphone className="h-5 w-5 text-primary" />
+            Avisos — {projectName}
+          </DialogTitle>
+        </DialogHeader>
+        {open && <ProjectAnnouncementsFeed projectId={projectId} variant="dialog" />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Painel inline (card recolhível) para exibir o mural de avisos diretamente
+ * na tela do projeto, visível a todos que entrarem.
+ */
+export function ProjectAnnouncementsBoard({
+  projectId,
+  projectName,
+}: {
+  projectId: string;
+  projectName: string;
+}) {
+  const storageKey = `taskflow.avisos.open.${projectId}`;
+  const [open, setOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const v = window.localStorage.getItem(storageKey);
+    return v === null ? true : v === '1';
+  });
+  const toggle = () => {
+    setOpen((cur) => {
+      const next = !cur;
+      if (typeof window !== 'undefined') window.localStorage.setItem(storageKey, next ? '1' : '0');
+      return next;
+    });
+  };
+  return (
+    <section className="mx-4 sm:mx-6 mt-3 mb-2 border rounded-xl bg-card overflow-hidden shrink-0">
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between gap-2 px-4 py-2.5 hover:bg-muted/40 transition-colors"
+      >
+        <span className="flex items-center gap-2 font-display font-semibold text-sm">
+          <Megaphone className="h-4 w-4 text-primary" />
+          Avisos — {projectName}
+        </span>
+        <span className="text-xs text-muted-foreground">{open ? 'Ocultar ▲' : 'Mostrar ▼'}</span>
+      </button>
+      {open && (
+        <div className="border-t flex flex-col">
+          <ProjectAnnouncementsFeed projectId={projectId} variant="inline" />
+        </div>
+      )}
+    </section>
   );
 }
 
