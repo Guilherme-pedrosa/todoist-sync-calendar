@@ -322,6 +322,7 @@ function ProjectHeader({
   onDelete,
   onEdit,
   onShare,
+  onAnnouncements,
   onToggleSidebar,
 }: any) {
   return (
