@@ -148,7 +148,7 @@ export function ProjectAnnouncementsDialog({
   }, [items, search]);
 
   const handlePost = async () => {
-    if (!content.trim() && files.length === 0) {
+    if (!content.trim() && !contentBelow.trim() && files.length === 0) {
       toast.error('Escreva uma mensagem ou anexe um arquivo');
       return;
     }
@@ -180,10 +180,12 @@ export function ProjectAnnouncementsDialog({
         project_id: projectId,
         user_id: userId,
         content: content.trim(),
+        content_below: contentBelow.trim() || null,
         attachments: uploaded as any,
-      });
+      } as any);
       if (error) throw error;
       setContent('');
+      setContentBelow('');
       setFiles([]);
       toast.success('Aviso publicado');
     } catch (e: any) {
