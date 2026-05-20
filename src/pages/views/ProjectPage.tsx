@@ -173,6 +173,7 @@ export default function ProjectPage() {
           onAnnouncements={() => setAnnouncementsOpen(true)}
           onToggleSidebar={toggleSidebar}
         />
+        <ProjectAnnouncementsBoard projectId={project.id} projectName={project.name} />
         <div className="flex-1 overflow-hidden">
           <TaskList view="project" projectId={projectId} />
         </div>
