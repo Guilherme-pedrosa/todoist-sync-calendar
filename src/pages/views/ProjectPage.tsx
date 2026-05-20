@@ -91,6 +91,16 @@ export default function ProjectPage() {
     }
   }, [project?.viewType]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('avisos') === '1') {
+      setAnnouncementsOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete('avisos');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!projectId) return;
     let active = true;
