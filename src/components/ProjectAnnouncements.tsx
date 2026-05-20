@@ -78,11 +78,30 @@ export function ProjectAnnouncementsDialog({
   const [items, setItems] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState('');
+  const [contentBelow, setContentBelow] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [posting, setPosting] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [authorViewId, setAuthorViewId] = useState<string | null>(null);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const imgs: File[] = [];
+    for (const item of Array.from(e.clipboardData?.items ?? [])) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const f = item.getAsFile();
+        if (f) {
+          const ext = (f.type.split('/')[1] || 'png').split('+')[0];
+          imgs.push(new File([f], f.name && f.name !== 'image.png' ? f.name : `colado-${Date.now()}.${ext}`, { type: f.type }));
+        }
+      }
+    }
+    if (imgs.length) {
+      e.preventDefault();
+      setFiles((cur) => [...cur, ...imgs]);
+      toast.success(`${imgs.length} imagem(ns) coladas`);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
