@@ -216,6 +216,7 @@ export default function ProjectPage() {
         onDelete={() => setConfirmDelete(true)}
         onEdit={() => toast.info('Editar projeto: use o menu da barra lateral')}
         onShare={() => setShareOpen(true)}
+        onAnnouncements={() => setAnnouncementsOpen(true)}
         onToggleSidebar={toggleSidebar}
       />
 
