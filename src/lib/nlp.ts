@@ -260,6 +260,7 @@ export function parseNlp(input: string): ParsedNlp {
   let durationMinutes: number | undefined;
   let hasTime = false;
   const timeRange = extractTimeRange(working);
+  let matchedTimeRange = false;
   try {
     const results = ptParser.parse(working, new Date(), { forwardDate: true });
     if (results.length > 0) {
@@ -281,6 +282,7 @@ export function parseNlp(input: string): ParsedNlp {
         dueTime = timeRange.dueTime;
         durationMinutes = timeRange.durationMinutes;
         hasTime = true;
+        matchedTimeRange = true;
         matchedRanges.push({ start: Math.min(range.start, timeRange.start), end: Math.max(range.end, timeRange.end), type: 'date' });
       } else {
         matchedRanges.push({ ...range, type: 'date' });
@@ -290,7 +292,7 @@ export function parseNlp(input: string): ParsedNlp {
     // ignore
   }
 
-  if (!dueDate && timeRange) {
+  if (!dueDate && timeRange && !matchedTimeRange) {
     dueTime = timeRange.dueTime;
     durationMinutes = timeRange.durationMinutes;
     hasTime = true;
