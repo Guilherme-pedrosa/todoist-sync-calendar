@@ -13,6 +13,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Inbox,
   CalendarDays,
@@ -22,48 +23,129 @@ import {
   Plus,
   Hash,
   Tag,
-  Filter as FilterIcon,
   CheckSquare,
+  Loader2,
 } from 'lucide-react';
+
+type RemoteTask = {
+  id: string;
+  title: string;
+  description: string | null;
+  completed: boolean;
+  project_id: string | null;
+  user_id: string | null;
+  due_date: string | null;
+};
 
 export function CommandPalette() {
   const navigate = useNavigate();
   const open = useCommandPaletteStore((s) => s.open);
   const setOpen = useCommandPaletteStore((s) => s.setOpen);
-  const tasks = useTaskStore((s) => s.tasks);
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openDetail = useTaskDetailStore((s) => s.open);
 
   const [query, setQuery] = useState('');
+  const [remoteTasks, setRemoteTasks] = useState<RemoteTask[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
-    if (!open) setQuery('');
+    if (!open) {
+      setQuery('');
+      setRemoteTasks([]);
+    }
   }, [open]);
 
-  const matchedTasks = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return tasks
-      .filter((t) => !t.completed && t.title.toLowerCase().includes(q))
-      .slice(0, 8);
-  }, [tasks, query]);
+  // Debounced server search across ALL accessible tasks (own + shared, active + completed)
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setRemoteTasks([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const handle = setTimeout(async () => {
+      const escaped = q.replace(/[%_,]/g, (m) => `\\${m}`);
+      const pattern = `%${escaped}%`;
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, title, description, completed, project_id, user_id, due_date')
+        .is('deleted_at', null)
+        .or(`title.ilike.${pattern},description.ilike.${pattern}`)
+        .order('completed', { ascending: true })
+        .order('updated_at', { ascending: false })
+        .limit(50);
+      if (!error) setRemoteTasks((data as RemoteTask[]) || []);
+      setSearching(false);
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  const projectById = useMemo(() => {
+    const m = new Map<string, (typeof projects)[number]>();
+    projects.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [projects]);
+
+  const { activeTasks, completedTasks } = useMemo(() => {
+    const a: RemoteTask[] = [];
+    const c: RemoteTask[] = [];
+    remoteTasks.forEach((t) => (t.completed ? c.push(t) : a.push(t)));
+    return { activeTasks: a, completedTasks: c };
+  }, [remoteTasks]);
 
   const go = (path: string) => {
     setOpen(false);
     navigate(path);
   };
 
+  const renderTask = (t: RemoteTask, completed = false) => {
+    const proj = t.project_id ? projectById.get(t.project_id) : null;
+    return (
+      <CommandItem
+        key={t.id}
+        value={`task-${t.id}-${t.title}`}
+        onSelect={() => {
+          setOpen(false);
+          openDetail(t.id);
+        }}
+      >
+        {completed ? (
+          <CheckCircle2 className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+        ) : (
+          <CheckSquare className="h-4 w-4 mr-2 text-muted-foreground shrink-0" />
+        )}
+        <span className={`truncate ${completed ? 'line-through text-muted-foreground' : ''}`}>
+          {t.title}
+        </span>
+        {proj && (
+          <span className="ml-auto pl-2 text-[10px] text-muted-foreground truncate max-w-[40%]">
+            {proj.isInbox ? 'Caixa de Entrada' : proj.name}
+          </span>
+        )}
+      </CommandItem>
+    );
+  };
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Buscar tarefas, projetos, etiquetas ou ações…"
+        placeholder="Buscar tudo: tarefas (ativas/concluídas), projetos, etiquetas…"
         value={query}
         onValueChange={setQuery}
       />
       <CommandList>
-        <CommandEmpty>Nenhum resultado.</CommandEmpty>
+        <CommandEmpty>
+          {searching ? (
+            <span className="flex items-center justify-center gap-2 py-2">
+              <Loader2 className="h-3 w-3 animate-spin" /> Buscando…
+            </span>
+          ) : (
+            'Nenhum resultado.'
+          )}
+        </CommandEmpty>
 
         <CommandGroup heading="Ações">
           <CommandItem
@@ -103,38 +185,31 @@ export function CommandPalette() {
           </CommandItem>
         </CommandGroup>
 
-        {matchedTasks.length > 0 && (
+        {activeTasks.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Tarefas">
-              {matchedTasks.map((t) => (
-                <CommandItem
-                  key={t.id}
-                  value={`task-${t.id}-${t.title}`}
-                  onSelect={() => {
-                    setOpen(false);
-                    openDetail(t.id);
-                  }}
-                >
-                  <CheckSquare className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <span className="truncate">{t.title}</span>
-                </CommandItem>
-              ))}
+            <CommandGroup heading={`Tarefas ativas (${activeTasks.length})`}>
+              {activeTasks.map((t) => renderTask(t, false))}
             </CommandGroup>
           </>
         )}
 
-        {projects.length > 0 && (
+        {completedTasks.length > 0 && (
+          <>
+            <CommandSeparator />
+            <CommandGroup heading={`Concluídas (${completedTasks.length})`}>
+              {completedTasks.map((t) => renderTask(t, true))}
+            </CommandGroup>
+          </>
+        )}
+
+        {projects.length > 0 && query && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Projetos">
               {projects
-                .filter((p) =>
-                  query
-                    ? p.name.toLowerCase().includes(query.toLowerCase())
-                    : true
-                )
-                .slice(0, 6)
+                .filter((p) => p.name.toLowerCase().includes(query.toLowerCase()))
+                .slice(0, 10)
                 .map((p) => (
                   <CommandItem
                     key={p.id}
@@ -153,15 +228,13 @@ export function CommandPalette() {
           </>
         )}
 
-        {labels.length > 0 && (
+        {labels.length > 0 && query && (
           <>
             <CommandSeparator />
             <CommandGroup heading="Etiquetas">
               {labels
-                .filter((l) =>
-                  query ? l.name.toLowerCase().includes(query.toLowerCase()) : true
-                )
-                .slice(0, 6)
+                .filter((l) => l.name.toLowerCase().includes(query.toLowerCase()))
+                .slice(0, 10)
                 .map((l) => (
                   <CommandItem
                     key={l.id}
