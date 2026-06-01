@@ -1332,7 +1332,7 @@ function EventBlock({
           onClick={(e) => {
             e.stopPropagation();
             if (isHistoricalCompletion) return;
-            completeTask(task.id);
+            completeTask(task.id, { occurrenceDate: dayKey });
           }}
           className={cn(
             'mt-[1px] h-[18px] w-[18px] shrink-0 rounded-full border-2 flex items-center justify-center transition-colors hover:scale-110',
