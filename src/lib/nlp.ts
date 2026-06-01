@@ -35,7 +35,7 @@ function parseTimeParts(hour: string, minuteA?: string, minuteB?: string) {
 }
 
 function extractTimeRange(text: string) {
-  const time = String.raw`(\d{1,2})(?:(?::([0-5]\d))|h\s*([0-5]\d)?)`;
+  const time = String.raw`(\d{1,2})(?:(?::([0-5]\d))|h\s*([0-5]\d)?)?`;
   const re = new RegExp(String.raw`\b(?:d[aeo]s?\s*)?${time}\s*(?:a|as|à|às|ate|até|\-|–)\s*${time}\b`, 'i');
   const m = re.exec(text);
   if (!m) return null;
@@ -260,12 +260,19 @@ export function parseNlp(input: string): ParsedNlp {
   let durationMinutes: number | undefined;
   let hasTime = false;
   const timeRange = extractTimeRange(working);
+  let matchedTimeRange = false;
   try {
     const results = ptParser.parse(working, new Date(), { forwardDate: true });
     if (results.length > 0) {
       const r = results[0];
       const d = r.start.date();
-      dueDate = format(d, 'yyyy-MM-dd');
+      const knownValues = (r.start as any).knownValues ?? {};
+      const hasExplicitDate =
+        knownValues.day !== undefined ||
+        knownValues.month !== undefined ||
+        knownValues.year !== undefined ||
+        knownValues.weekday !== undefined;
+      if (hasExplicitDate) dueDate = format(d, 'yyyy-MM-dd');
       hasTime = r.start.isCertain('hour');
       if (hasTime) {
         dueTime = format(d, 'HH:mm');
@@ -275,6 +282,7 @@ export function parseNlp(input: string): ParsedNlp {
         dueTime = timeRange.dueTime;
         durationMinutes = timeRange.durationMinutes;
         hasTime = true;
+        matchedTimeRange = true;
         matchedRanges.push({ start: Math.min(range.start, timeRange.start), end: Math.max(range.end, timeRange.end), type: 'date' });
       } else {
         matchedRanges.push({ ...range, type: 'date' });
@@ -284,7 +292,7 @@ export function parseNlp(input: string): ParsedNlp {
     // ignore
   }
 
-  if (!dueDate && timeRange) {
+  if (!dueDate && timeRange && !matchedTimeRange) {
     dueTime = timeRange.dueTime;
     durationMinutes = timeRange.durationMinutes;
     hasTime = true;
