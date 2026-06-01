@@ -611,7 +611,7 @@ export function TaskDetailPanel() {
     recurrenceRule: task.recurrenceRule,
   };
 
-  const persistTitle = () => {
+  const persistTitle = async () => {
     const rawTitle = titleDraft.trim();
     if (!rawTitle) return;
     const parsed = parseNlp(rawTitle);
@@ -624,8 +624,15 @@ export function TaskDetailPanel() {
     if (parsed.recurrenceRule) updates.recurrenceRule = parsed.recurrenceRule;
     if (parsed.priority) updates.priority = parsed.priority;
     if (Object.keys(updates).length > 0) {
-      updateTask(task.id, updates);
-      setTitleDraft(nextTitle);
+      try {
+        await updateTask(task.id, updates);
+        setTitleDraft(nextTitle);
+      } catch (err) {
+        toast.error('Não foi possível alterar o nome da tarefa', {
+          description: err instanceof Error ? err.message : undefined,
+        });
+        setTitleDraft(task.title);
+      }
     }
   };
   const persistDesc = () => {
