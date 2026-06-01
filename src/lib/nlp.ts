@@ -265,7 +265,13 @@ export function parseNlp(input: string): ParsedNlp {
     if (results.length > 0) {
       const r = results[0];
       const d = r.start.date();
-      dueDate = format(d, 'yyyy-MM-dd');
+      const knownValues = (r.start as any).knownValues ?? {};
+      const hasExplicitDate =
+        knownValues.day !== undefined ||
+        knownValues.month !== undefined ||
+        knownValues.year !== undefined ||
+        knownValues.weekday !== undefined;
+      if (hasExplicitDate) dueDate = format(d, 'yyyy-MM-dd');
       hasTime = r.start.isCertain('hour');
       if (hasTime) {
         dueTime = format(d, 'HH:mm');
