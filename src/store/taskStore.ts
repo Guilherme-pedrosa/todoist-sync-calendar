@@ -553,10 +553,20 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     // mas continuam no banco para impedir ressurreição via integrações externas
     // e para permitir undo restaurando deleted_at = null.
     const idsToDelete = [id, ...childIds];
-    await supabase
+    const { data: deletedRows, error: deleteError } = await supabase
       .from('tasks')
       .update({ deleted_at: now })
-      .in('id', idsToDelete);
+      .in('id', idsToDelete)
+      .select('id');
+
+    if (deleteError || (deletedRows?.length ?? 0) !== idsToDelete.length) {
+      console.error('deleteTask error', { deleteError, idsToDelete, deletedRows });
+      toast.error('Não foi possível excluir a tarefa', {
+        description: 'A exclusão não foi confirmada no banco. A tarefa não será removida da tela para não voltar depois.',
+      });
+      throw deleteError ?? new Error('Exclusão não confirmada no banco');
+    }
+
     set((state) => ({
       tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
     }));
