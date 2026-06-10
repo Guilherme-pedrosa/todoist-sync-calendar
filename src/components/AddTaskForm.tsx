@@ -77,22 +77,55 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
 
   const handleSubmit = async () => {
     if (submitting) return;
-    const finalTitle = (parsed?.cleanedTitle || title).trim();
-    if (!finalTitle) return;
+    // Multi-line paste → one task per non-empty line (Todoist behavior)
+    const lines = title
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) return;
     setSubmitting(true);
     try {
-      await addTask({
-        title: finalTitle,
-        description: description.trim() || undefined,
-        priority,
-        dueDate: date.date,
-        dueTime: date.time,
-        durationMinutes: date.durationMinutes ?? null,
-        recurrenceRule: date.recurrenceRule || null,
-        projectId,
-        parentId: defaultParentId,
-        labels: selectedLabels,
-      });
+      if (lines.length > 1) {
+        for (const line of lines) {
+          const lineParsed = parseNlp(line);
+          const lineTitle = (lineParsed.cleanedTitle || line).trim();
+          if (!lineTitle) continue;
+          const matchedLabels = lineParsed.labelTokens.length
+            ? allLabels
+                .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+                .map((l) => l.id)
+            : [];
+          const lineProject = lineParsed.projectToken
+            ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
+            : undefined;
+          await addTask({
+            title: lineTitle,
+            priority: lineParsed.priority || priority,
+            dueDate: lineParsed.dueDate || date.date,
+            dueTime: lineParsed.dueTime || date.time,
+            durationMinutes: lineParsed.durationMinutes ?? date.durationMinutes ?? null,
+            recurrenceRule: lineParsed.recurrenceRule || date.recurrenceRule || null,
+            projectId: lineProject || projectId,
+            parentId: defaultParentId,
+            labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
+          });
+        }
+      } else {
+        const finalTitle = (parsed?.cleanedTitle || lines[0]).trim();
+        await addTask({
+          title: finalTitle,
+          description: description.trim() || undefined,
+          priority,
+          dueDate: date.date,
+          dueTime: date.time,
+          durationMinutes: date.durationMinutes ?? null,
+          recurrenceRule: date.recurrenceRule || null,
+          projectId,
+          parentId: defaultParentId,
+          labels: selectedLabels,
+        });
+      }
 
       setTitle('');
       setDescription('');
