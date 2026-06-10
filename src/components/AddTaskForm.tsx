@@ -77,22 +77,55 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
 
   const handleSubmit = async () => {
     if (submitting) return;
-    const finalTitle = (parsed?.cleanedTitle || title).trim();
-    if (!finalTitle) return;
+    // Multi-line paste → one task per non-empty line (Todoist behavior)
+    const lines = title
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) return;
     setSubmitting(true);
     try {
-      await addTask({
-        title: finalTitle,
-        description: description.trim() || undefined,
-        priority,
-        dueDate: date.date,
-        dueTime: date.time,
-        durationMinutes: date.durationMinutes ?? null,
-        recurrenceRule: date.recurrenceRule || null,
-        projectId,
-        parentId: defaultParentId,
-        labels: selectedLabels,
-      });
+      if (lines.length > 1) {
+        for (const line of lines) {
+          const lineParsed = parseNlp(line);
+          const lineTitle = (lineParsed.cleanedTitle || line).trim();
+          if (!lineTitle) continue;
+          const matchedLabels = lineParsed.labelTokens.length
+            ? allLabels
+                .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+                .map((l) => l.id)
+            : [];
+          const lineProject = lineParsed.projectToken
+            ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
+            : undefined;
+          await addTask({
+            title: lineTitle,
+            priority: lineParsed.priority || priority,
+            dueDate: lineParsed.dueDate || date.date,
+            dueTime: lineParsed.dueTime || date.time,
+            durationMinutes: lineParsed.durationMinutes ?? date.durationMinutes ?? null,
+            recurrenceRule: lineParsed.recurrenceRule || date.recurrenceRule || null,
+            projectId: lineProject || projectId,
+            parentId: defaultParentId,
+            labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
+          });
+        }
+      } else {
+        const finalTitle = (parsed?.cleanedTitle || lines[0]).trim();
+        await addTask({
+          title: finalTitle,
+          description: description.trim() || undefined,
+          priority,
+          dueDate: date.date,
+          dueTime: date.time,
+          durationMinutes: date.durationMinutes ?? null,
+          recurrenceRule: date.recurrenceRule || null,
+          projectId,
+          parentId: defaultParentId,
+          labels: selectedLabels,
+        });
+      }
 
       setTitle('');
       setDescription('');
@@ -130,17 +163,30 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
 
   return (
     <div className="mx-1 rounded-xl border border-border bg-card p-3 shadow-sm animate-slide-in">
-      <Input
+      <textarea
         autoFocus
-        placeholder='Nome da tarefa  (ex.: "Reunião amanhã 14h p1 toda semana")'
+        rows={1}
+        placeholder='Nome da tarefa  (cole várias linhas = várias tarefas)'
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          e.target.style.height = 'auto';
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) handleSubmit();
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+          }
           if (e.key === 'Escape') setIsOpen(false);
         }}
-        className="border-0 px-0 text-sm font-medium focus-visible:ring-0 h-8 bg-transparent"
+        className="w-full border-0 px-0 text-sm font-medium focus-visible:ring-0 focus:outline-none bg-transparent resize-none min-h-8"
       />
+      {title.includes('\n') && (
+        <p className="text-[10px] text-muted-foreground -mt-1 mb-1">
+          {title.split(/\r?\n/).filter((l) => l.trim()).length} tarefas serão criadas (uma por linha)
+        </p>
+      )}
       <Input
         placeholder="Descrição (opcional)"
         value={description}
