@@ -378,16 +378,20 @@ export function QuickAddDialog() {
       )}
 
       <div className="px-4 pt-4 pb-2">
-        <Input
+        <textarea
           ref={inputRef}
+          rows={1}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder='Nome da tarefa'
-          className="border-0 px-0 text-base font-semibold focus-visible:ring-0 h-9 placeholder:text-muted-foreground/60"
+          onChange={(e) => {
+            setTitle(e.target.value);
+            e.currentTarget.style.height = 'auto';
+            e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+          }}
+          placeholder="Nome da tarefa"
+          className="w-full min-h-9 resize-none overflow-hidden border-0 bg-transparent px-0 py-1 text-base font-semibold leading-snug outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              // Shift+Enter (ou Ctrl+Enter) = adicionar e continuar; Enter = adicionar e fechar
               submit(!(e.ctrlKey || e.metaKey));
             }
             if (e.key === 'Escape') {
@@ -396,6 +400,11 @@ export function QuickAddDialog() {
             }
           }}
         />
+        {hasMultipleTasks && (
+          <p className="-mt-1 mb-1 text-[10px] text-muted-foreground">
+            {taskLines.length} tarefas serão criadas, uma por linha
+          </p>
+        )}
         <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
