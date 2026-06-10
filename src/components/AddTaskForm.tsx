@@ -163,17 +163,30 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
 
   return (
     <div className="mx-1 rounded-xl border border-border bg-card p-3 shadow-sm animate-slide-in">
-      <Input
+      <textarea
         autoFocus
-        placeholder='Nome da tarefa  (ex.: "Reunião amanhã 14h p1 toda semana")'
+        rows={1}
+        placeholder='Nome da tarefa  (cole várias linhas = várias tarefas)'
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          e.target.style.height = 'auto';
+          e.target.style.height = `${e.target.scrollHeight}px`;
+        }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) handleSubmit();
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit();
+          }
           if (e.key === 'Escape') setIsOpen(false);
         }}
-        className="border-0 px-0 text-sm font-medium focus-visible:ring-0 h-8 bg-transparent"
+        className="w-full border-0 px-0 text-sm font-medium focus-visible:ring-0 focus:outline-none bg-transparent resize-none min-h-8"
       />
+      {title.includes('\n') && (
+        <p className="text-[10px] text-muted-foreground -mt-1 mb-1">
+          {title.split(/\r?\n/).filter((l) => l.trim()).length} tarefas serão criadas (uma por linha)
+        </p>
+      )}
       <Input
         placeholder="Descrição (opcional)"
         value={description}
