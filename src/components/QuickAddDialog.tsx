@@ -686,7 +686,7 @@ export function QuickAddDialog() {
           <Button
             size="sm"
             onClick={() => submit(true)}
-            disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
+            disabled={submitting || taskLines.length === 0}
             className="h-8 text-xs gap-1.5"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
