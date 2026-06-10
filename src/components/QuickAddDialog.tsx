@@ -97,7 +97,7 @@ export function QuickAddDialog() {
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const allTasks = useTaskStore((s) => s.tasks);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const attachInputRef = useRef<HTMLInputElement>(null);
   const nlpSetRef = useRef<{ date?: boolean; time?: boolean; duration?: boolean; rec?: boolean; prio?: boolean }>({});
 
@@ -134,6 +134,11 @@ export function QuickAddDialog() {
   };
 
   const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
+  const taskLines = useMemo(
+    () => title.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+    [title]
+  );
+  const hasMultipleTasks = taskLines.length > 1;
   const hasContent = title.trim() || description.trim();
 
   // Resolve route context
@@ -237,60 +242,79 @@ export function QuickAddDialog() {
 
   const submit = async (closeAfter = false) => {
     if (submitting) return;
-    const finalTitle = (parsed?.cleanedTitle || title).trim();
-    if (!finalTitle) return;
-    console.info('[QuickAdd] submit-start', { title: finalTitle, date, projectId, assigneeIds });
+    const lines = taskLines.length > 0 ? taskLines : [title.trim()].filter(Boolean);
+    if (lines.length === 0) return;
+    console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds });
     setSubmitting(true);
     try {
       // Use first relative reminder for the legacy single-reminder column
       const firstRelative = reminders.find((r) => r.type === 'relative');
-      const created = await addTask({
-        title: finalTitle,
-        description: description.trim() || undefined,
-        priority,
-        dueDate: date.date,
-        dueTime: date.time,
-        durationMinutes: date.durationMinutes ?? null,
-        recurrenceRule: date.recurrenceRule || null,
-        projectId,
-        parentId: defaultParentId || undefined,
-        labels: selectedLabels,
-        reminderMinutes: firstRelative?.relative_minutes ?? null,
-        assigneeIds,
-      });
-      console.info('[QuickAdd] submit-end', { created: !!created, id: created?.id });
+      const createdTasks = [];
+      for (const line of lines) {
+        const lineParsed = parseNlp(line);
+        const finalTitle = (lineParsed.cleanedTitle || line).trim();
+        if (!finalTitle) continue;
+        const matchedLabels = lineParsed.labelTokens.length
+          ? labels
+              .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+              .map((l) => l.id)
+          : [];
+        const lineProjectId = lineParsed.projectToken
+          ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
+          : undefined;
+        const created = await addTask({
+          title: finalTitle,
+          description: description.trim() || undefined,
+          priority: lineParsed.priority || priority,
+          dueDate: lineParsed.dueDate || date.date,
+          dueTime: lineParsed.dueTime || date.time,
+          durationMinutes: lineParsed.durationMinutes ?? date.durationMinutes ?? null,
+          recurrenceRule: lineParsed.recurrenceRule || date.recurrenceRule || null,
+          projectId: lineProjectId || projectId,
+          parentId: defaultParentId || undefined,
+          labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
+          reminderMinutes: firstRelative?.relative_minutes ?? null,
+          assigneeIds,
+        });
+        if (created) createdTasks.push(created);
+      }
+      console.info('[QuickAdd] submit-end', { created: createdTasks.length, ids: createdTasks.map((t) => t.id) });
       // Insert any additional absolute reminders (besides the auto one)
-      if (created && reminders.length > 0) {
+      if (createdTasks.length > 0 && reminders.length > 0) {
         const additional = reminders.filter((r) => r.type === 'absolute');
         if (additional.length > 0) {
           await supabase.from('reminders').insert(
-            additional.map((r) => ({
-              task_id: created.id,
-              type: 'absolute',
-              channel: r.channel,
-              trigger_at: r.trigger_at!,
-              relative_minutes: null,
-            }))
+            createdTasks.flatMap((task) =>
+              additional.map((r) => ({
+                task_id: task.id,
+                type: 'absolute',
+                channel: r.channel,
+                trigger_at: r.trigger_at!,
+                relative_minutes: null,
+              }))
+            )
           );
         }
       }
-      if (!created) {
+      if (createdTasks.length === 0) {
         toast.error('Não foi possível criar a tarefa');
         return;
       }
       // Upload pending attachments
       if (pendingFiles.length > 0) {
         const { uploadTaskAttachment } = await import('@/lib/attachments');
-        for (const file of pendingFiles) {
-          try {
-            await uploadTaskAttachment(created.id, file);
-          } catch (e) {
-            console.error('[QuickAdd] attachment upload failed', e);
-            toast.error(`Falha ao enviar ${file.name}`);
+        for (const created of createdTasks) {
+          for (const file of pendingFiles) {
+            try {
+              await uploadTaskAttachment(created.id, file);
+            } catch (e) {
+              console.error('[QuickAdd] attachment upload failed', e);
+              toast.error(`Falha ao enviar ${file.name}`);
+            }
           }
         }
       }
-      toast.success('Tarefa adicionada');
+      toast.success(createdTasks.length > 1 ? `${createdTasks.length} tarefas adicionadas` : 'Tarefa adicionada');
       // Reset for next entry (Todoist behavior)
       setTitle('');
       setDescription('');
@@ -354,16 +378,20 @@ export function QuickAddDialog() {
       )}
 
       <div className="px-4 pt-4 pb-2">
-        <Input
+        <textarea
           ref={inputRef}
+          rows={1}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder='Nome da tarefa'
-          className="border-0 px-0 text-base font-semibold focus-visible:ring-0 h-9 placeholder:text-muted-foreground/60"
+          onChange={(e) => {
+            setTitle(e.target.value);
+            e.currentTarget.style.height = 'auto';
+            e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
+          }}
+          placeholder="Nome da tarefa"
+          className="w-full min-h-9 resize-none overflow-hidden border-0 bg-transparent px-0 py-1 text-base font-semibold leading-snug outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              // Shift+Enter (ou Ctrl+Enter) = adicionar e continuar; Enter = adicionar e fechar
               submit(!(e.ctrlKey || e.metaKey));
             }
             if (e.key === 'Escape') {
@@ -372,6 +400,11 @@ export function QuickAddDialog() {
             }
           }}
         />
+        {hasMultipleTasks && (
+          <p className="-mt-1 mb-1 text-[10px] text-muted-foreground">
+            {taskLines.length} tarefas serão criadas, uma por linha
+          </p>
+        )}
         <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -653,7 +686,7 @@ export function QuickAddDialog() {
           <Button
             size="sm"
             onClick={() => submit(true)}
-            disabled={submitting || !(parsed?.cleanedTitle || title).trim()}
+            disabled={submitting || taskLines.length === 0}
             className="h-8 text-xs gap-1.5"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
