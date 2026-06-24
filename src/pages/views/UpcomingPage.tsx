@@ -116,16 +116,23 @@ export default function UpcomingPage() {
 
   const overdueTasks = useMemo(() => {
     const todayStr = localDateKey();
+    const todayList = tasksByDay.get(todayStr) || [];
+    const recurringWithTodayOccurrence = new Set(
+      todayList
+        .map((t) => t.sourceTaskId ?? t.id)
+    );
     return visibleTasks
       .filter(
         (t) =>
           !t.completed &&
           !t.parentId &&
           !!t.dueDate &&
-          t.dueDate < todayStr
+          t.dueDate < todayStr &&
+          // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer de atrasadas
+          !(t.recurrenceRule && recurringWithTodayOccurrence.has(t.id))
       )
       .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
-  }, [visibleTasks]);
+  }, [visibleTasks, tasksByDay]);
 
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
