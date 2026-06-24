@@ -373,28 +373,6 @@ function isTaskOverdue(task: Task, occurrenceDate = task.dueDate, endMin?: numbe
   return effectiveEndMin < now.getHours() * 60 + now.getMinutes();
 }
 
-function getTaskDurationMinutes(task: Task): number {
-  return Math.max(MIN_TASK_MINUTES, task.durationMinutes ?? DEFAULT_DURATION);
-}
-
-function getBufferStartMinutes(task: Task): number {
-  if (!task.dueTime) return 9 * 60;
-  return Math.max(
-    DAY_START_MIN,
-    Math.min(DAY_END_MIN - getTaskDurationMinutes(task), timeToMinutes(task.dueTime))
-  );
-}
-
-function shouldShowInDayBuffer(task: Task, occurrenceDate: string): boolean {
-  if (!task.dueTime) return true;
-  if (task.completed || task.isRecurringCompletion) return false;
-
-  return isTaskOverdue(
-    task,
-    occurrenceDate,
-    timeToMinutes(task.dueTime) + getTaskDurationMinutes(task)
-  );
-}
 
 function snap(min: number) {
   return Math.round(min / SNAP_MINUTES) * SNAP_MINUTES;
