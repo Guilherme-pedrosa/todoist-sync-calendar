@@ -114,18 +114,6 @@ export default function UpcomingPage() {
     [visibleTasks]
   );
 
-  const overdueTasks = useMemo(() => {
-    const todayStr = localDateKey();
-    return visibleTasks
-      .filter(
-        (t) =>
-          !t.completed &&
-          !t.parentId &&
-          !!t.dueDate &&
-          t.dueDate < todayStr
-      )
-      .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
-  }, [visibleTasks]);
 
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
@@ -224,6 +212,26 @@ export default function UpcomingPage() {
     }
     return map;
   }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
+
+  const overdueTasks = useMemo(() => {
+    const todayStr = localDateKey();
+    const todayList = tasksByDay.get(todayStr) || [];
+    const recurringWithTodayOccurrence = new Set(
+      todayList.map((t) => t.sourceTaskId ?? t.id)
+    );
+    return visibleTasks
+      .filter(
+        (t) =>
+          !t.completed &&
+          !t.parentId &&
+          !!t.dueDate &&
+          t.dueDate < todayStr &&
+          // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer de atrasadas
+          !(t.recurrenceRule && recurringWithTodayOccurrence.has(t.id))
+      )
+      .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+  }, [visibleTasks, tasksByDay]);
+
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
