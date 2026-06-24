@@ -717,8 +717,8 @@ function WeekGrid({
                     onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
                       if (t.isRecurringCompletion) return;
-                      const durationMin = getTaskDurationMinutes(t);
-                      const startMin = getBufferStartMinutes(t);
+                      const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
+                      const startMin = 9 * 60;
                       // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
                       setPreview((p) => ({
                         ...p,
