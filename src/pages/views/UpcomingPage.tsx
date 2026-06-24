@@ -122,8 +122,7 @@ export default function UpcomingPage() {
           !t.completed &&
           !t.parentId &&
           !!t.dueDate &&
-          t.dueDate < todayStr &&
-          !t.recurrenceRule
+          t.dueDate < todayStr
       )
       .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
   }, [visibleTasks]);
