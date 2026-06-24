@@ -679,12 +679,7 @@ function WeekGrid({
             const k = format(day, 'yyyy-MM-dd');
             const todayKey = localDateKey();
             const isTodayCell = k === todayKey;
-            const allDay = (tasksByDay.get(k) || [])
-              .filter((t) => shouldShowInDayBuffer(t, k))
-              .sort((a, b) => {
-                if (!!a.dueTime !== !!b.dueTime) return a.dueTime ? 1 : -1;
-                return timeToMinutes(a.dueTime) - timeToMinutes(b.dueTime);
-              });
+            const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
             const overdueForCell = isTodayCell ? overdueTasks : [];
             return (
               <div
