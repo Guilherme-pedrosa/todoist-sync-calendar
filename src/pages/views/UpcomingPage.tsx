@@ -693,8 +693,8 @@ function WeekGrid({
                     occurrenceDate={t.dueDate!}
                     onOpen={() => openTaskDetail(t.id)}
                     onStartDrag={(pointerOffsetMin) => {
-                      const durationMin = getTaskDurationMinutes(t);
-                      const startMin = getBufferStartMinutes(t);
+                      const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
+                      const startMin = 9 * 60;
                       setPreview((p) => ({
                         ...p,
                         [t.id]: { dayKey: k, startMin, durationMin },
