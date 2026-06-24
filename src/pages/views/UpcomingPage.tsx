@@ -373,6 +373,29 @@ function isTaskOverdue(task: Task, occurrenceDate = task.dueDate, endMin?: numbe
   return effectiveEndMin < now.getHours() * 60 + now.getMinutes();
 }
 
+function getTaskDurationMinutes(task: Task): number {
+  return Math.max(MIN_TASK_MINUTES, task.durationMinutes ?? DEFAULT_DURATION);
+}
+
+function getBufferStartMinutes(task: Task): number {
+  if (!task.dueTime) return 9 * 60;
+  return Math.max(
+    DAY_START_MIN,
+    Math.min(DAY_END_MIN - getTaskDurationMinutes(task), timeToMinutes(task.dueTime))
+  );
+}
+
+function shouldShowInDayBuffer(task: Task, occurrenceDate: string): boolean {
+  if (!task.dueTime) return true;
+  if (task.completed || task.isRecurringCompletion) return false;
+
+  return isTaskOverdue(
+    task,
+    occurrenceDate,
+    timeToMinutes(task.dueTime) + getTaskDurationMinutes(task)
+  );
+}
+
 function snap(min: number) {
   return Math.round(min / SNAP_MINUTES) * SNAP_MINUTES;
 }
@@ -656,7 +679,12 @@ function WeekGrid({
             const k = format(day, 'yyyy-MM-dd');
             const todayKey = localDateKey();
             const isTodayCell = k === todayKey;
-            const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
+            const allDay = (tasksByDay.get(k) || [])
+              .filter((t) => shouldShowInDayBuffer(t, k))
+              .sort((a, b) => {
+                if (!!a.dueTime !== !!b.dueTime) return a.dueTime ? 1 : -1;
+                return timeToMinutes(a.dueTime) - timeToMinutes(b.dueTime);
+              });
             const overdueForCell = isTodayCell ? overdueTasks : [];
             return (
               <div
@@ -670,15 +698,17 @@ function WeekGrid({
                     occurrenceDate={t.dueDate!}
                     onOpen={() => openTaskDetail(t.id)}
                     onStartDrag={(pointerOffsetMin) => {
+                      const durationMin = getTaskDurationMinutes(t);
+                      const startMin = getBufferStartMinutes(t);
                       setPreview((p) => ({
                         ...p,
-                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                        [t.id]: { dayKey: k, startMin, durationMin },
                       }));
                       setDrag({
                         kind: 'move',
                         taskId: t.id,
                         pointerOffsetMin,
-                        durationMin: DEFAULT_DURATION,
+                        durationMin,
                         sourceDayKey: t.dueDate!,
                       });
                     }}
@@ -692,16 +722,18 @@ function WeekGrid({
                     onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
                     onStartDrag={(pointerOffsetMin) => {
                       if (t.isRecurringCompletion) return;
+                      const durationMin = getTaskDurationMinutes(t);
+                      const startMin = getBufferStartMinutes(t);
                       // Coloca um preview "neutro" (dayKey/startMin serão atualizados pelo onMove global)
                       setPreview((p) => ({
                         ...p,
-                        [t.id]: { dayKey: k, startMin: 9 * 60, durationMin: DEFAULT_DURATION },
+                        [t.id]: { dayKey: k, startMin, durationMin },
                       }));
                       setDrag({
                         kind: 'move',
                         taskId: t.id,
                         pointerOffsetMin,
-                        durationMin: DEFAULT_DURATION,
+                        durationMin,
                         sourceDayKey: k,
                       });
                     }}
@@ -1470,6 +1502,7 @@ function AllDayChip({
       style={{ touchAction: 'pan-y' }}
       title={`${task.title} — arraste para um horário`}
     >
+      {task.dueTime && <span className="mr-1 text-muted-foreground">{task.dueTime}</span>}
       {task.title}
     </div>
   );
