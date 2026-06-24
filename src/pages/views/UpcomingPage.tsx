@@ -213,6 +213,26 @@ export default function UpcomingPage() {
     return map;
   }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
 
+  const overdueTasks = useMemo(() => {
+    const todayStr = localDateKey();
+    const todayList = tasksByDay.get(todayStr) || [];
+    const recurringWithTodayOccurrence = new Set(
+      todayList.map((t) => t.sourceTaskId ?? t.id)
+    );
+    return visibleTasks
+      .filter(
+        (t) =>
+          !t.completed &&
+          !t.parentId &&
+          !!t.dueDate &&
+          t.dueDate < todayStr &&
+          // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer de atrasadas
+          !(t.recurrenceRule && recurringWithTodayOccurrence.has(t.id))
+      )
+      .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
+  }, [visibleTasks, tasksByDay]);
+
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <header className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-border/50">
