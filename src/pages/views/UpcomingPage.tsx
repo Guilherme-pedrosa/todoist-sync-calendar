@@ -725,9 +725,11 @@ function WeekGrid({
                   />
                 ))}
               </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
+
 
         {/* Day columns with hour grid + absolutely positioned events */}
         <div className={cn('grid relative', gridCols)}>
