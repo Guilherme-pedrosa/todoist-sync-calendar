@@ -213,6 +213,44 @@ export default function UpcomingPage() {
     return map;
   }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
 
+  // Completions das ocorrências ancoradas em due_date de tarefas recorrentes atrasadas.
+  // Precisamos disso pra não mostrar como "atrasada" uma ocorrência que já foi finalizada
+  // via recurring_task_completions (o due_date base não avança nesse fluxo).
+  const [anchorCompletionKeys, setAnchorCompletionKeys] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!currentUserId) return;
+    const todayStr = localDateKey();
+    const candidates = visibleTasks.filter(
+      (t) =>
+        !t.completed &&
+        !t.parentId &&
+        !!t.dueDate &&
+        t.dueDate < todayStr &&
+        !!t.recurrenceRule
+    );
+    if (candidates.length === 0) {
+      setAnchorCompletionKeys(new Set());
+      return;
+    }
+    const ids = Array.from(new Set(candidates.map((t) => t.id)));
+    supabase
+      .from('recurring_task_completions' as any)
+      .select('task_id, occurrence_date')
+      .eq('user_id', currentUserId)
+      .in('task_id', ids)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Erro ao carregar completions de atrasadas', error);
+          return;
+        }
+        const keys = new Set<string>();
+        for (const row of ((data || []) as unknown) as Array<{ task_id: string; occurrence_date: string }>) {
+          keys.add(`${row.task_id}|${row.occurrence_date}`);
+        }
+        setAnchorCompletionKeys(keys);
+      });
+  }, [currentUserId, visibleTasks]);
+
   const overdueTasks = useMemo(() => {
     const todayStr = localDateKey();
     const todayList = tasksByDay.get(todayStr) || [];
@@ -226,11 +264,15 @@ export default function UpcomingPage() {
           !t.parentId &&
           !!t.dueDate &&
           t.dueDate < todayStr &&
-          // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer de atrasadas
-          !(t.recurrenceRule && recurringWithTodayOccurrence.has(t.id))
+          // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer
+          !(t.recurrenceRule && recurringWithTodayOccurrence.has(t.id)) &&
+          // Se a ocorrência ancorada no due_date já foi finalizada
+          // (recurring_task_completions), também não conta como atrasada
+          !(t.recurrenceRule && anchorCompletionKeys.has(`${t.id}|${t.dueDate}`))
       )
       .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
-  }, [visibleTasks, tasksByDay]);
+  }, [visibleTasks, tasksByDay, anchorCompletionKeys]);
+
 
 
   return (
