@@ -244,7 +244,7 @@ export default function UpcomingPage() {
           return;
         }
         const keys = new Set<string>();
-        for (const row of (data || []) as Array<{ task_id: string; occurrence_date: string }>) {
+        for (const row of ((data || []) as unknown) as Array<{ task_id: string; occurrence_date: string }>) {
           keys.add(`${row.task_id}|${row.occurrence_date}`);
         }
         setAnchorCompletionKeys(keys);
