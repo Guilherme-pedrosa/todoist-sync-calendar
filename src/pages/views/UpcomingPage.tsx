@@ -660,13 +660,18 @@ function WeekGrid({
           <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
             Dia todo
           </div>
-          {weekDays.map((day) => {
-            const k = format(day, 'yyyy-MM-dd');
+          {(() => {
             const todayKey = localDateKey();
-            const isTodayCell = k === todayKey;
-            const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
-            const overdueForCell = isTodayCell ? overdueTasks : [];
-            return (
+            const todayInView = weekDays.some((d) => format(d, 'yyyy-MM-dd') === todayKey);
+            return weekDays.map((day, idx) => {
+              const k = format(day, 'yyyy-MM-dd');
+              const isTodayCell = k === todayKey;
+              const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
+              // Se hoje está na visão, o buffer de atrasadas vai só na coluna de hoje.
+              // Se hoje NÃO está (usuário navegou pra outra semana/dia), mostra na
+              // primeira coluna pra garantir que atrasadas nunca somem do calendário.
+              const overdueForCell = isTodayCell || (!todayInView && idx === 0) ? overdueTasks : [];
+              return (
               <div
                 key={k}
                 className="border-l border-border px-1 py-1 min-h-[36px] max-h-[96px] overflow-y-auto scrollbar-thin space-y-0.5"
