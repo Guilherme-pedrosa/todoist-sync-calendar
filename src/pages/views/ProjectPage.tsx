@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { LayoutList, KanbanSquare, ArrowDownAZ, Hash, Trash2, Archive, FolderInput, Edit3, MoreHorizontal, Menu, Share2, Megaphone } from 'lucide-react';
 import { ProjectAnnouncementsDialog, ProjectAnnouncementsBoard } from '@/components/ProjectAnnouncements';
