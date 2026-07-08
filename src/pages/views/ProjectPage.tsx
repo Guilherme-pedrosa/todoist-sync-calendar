@@ -65,9 +65,12 @@ export default function ProjectPage() {
   const workspaces = useWorkspaceStore((s) => s.workspaces);
   const projectWorkspace = workspaces.find((w) => w.id === project?.workspaceId);
 
-  const [view, setView] = useState<'list' | 'board'>(
+  const isMobile = useIsMobile();
+  const [viewRaw, setView] = useState<'list' | 'board'>(
     (project?.viewType as 'list' | 'board') || 'list'
   );
+  // No mobile o kanban horizontal é inutilizável — força lista.
+  const view: 'list' | 'board' = isMobile ? 'list' : viewRaw;
   const [sortBy, setSortBy] = useState<SortBy>('manual');
   const [labelFilter, setLabelFilter] = useState<string>('all');
   const [sections, setSections] = useState<SectionRow[]>([]);
