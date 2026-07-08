@@ -203,7 +203,9 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
                         ? Eye
                         : MessageSquare;
 
-  const title = isMention
+  const title = isCommentMention
+    ? `${n.payload?.from_user_name || 'Alguém'} mencionou você em um comentário`
+    : isMention
     ? 'Você foi mencionado'
     : isAnnouncement
       ? `${n.payload?.author_name || 'Alguém'} publicou um aviso em ${n.payload?.project_name || 'um projeto'}`
