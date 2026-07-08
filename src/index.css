@@ -5,6 +5,27 @@
 @tailwind utilities;
 
 @layer base {
+  /* Mobile: elimina delay de 300ms no toque, evita zoom automático em inputs no iOS
+     e impede pull-to-refresh acidental dentro do app. */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Impede zoom automático do iOS ao focar inputs (font-size >= 16px é o gatilho). */
+  @media (max-width: 767px) {
+    input, textarea, select {
+      font-size: 16px;
+    }
+  }
+}
+
+@layer base {
   :root {
     --background: 40 20% 98%;
     --foreground: 230 25% 12%;
