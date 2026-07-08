@@ -71,6 +71,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
 import { userDisplayName } from '@/lib/userDisplay';
+import { MentionTextarea, extractMentionedUserIds, type MentionMember } from '@/components/MentionTextarea';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'P1 — Urgente',
