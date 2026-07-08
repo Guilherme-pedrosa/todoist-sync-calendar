@@ -201,6 +201,32 @@ export function MentionNotifier() {
           onClick: handleOpen,
         });
         playChime();
+      } else if (n.type === 'task_comment_mention') {
+        const who: string = n.payload?.from_user_name || 'Alguém';
+        const snippet: string = n.payload?.snippet || n.payload?.task_title || 'Comentário';
+        toast(
+          <div className="flex items-start gap-2">
+            <AtSign className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+            <div>
+              <div className="font-semibold text-sm">{who} mencionou você</div>
+              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {snippet}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 8000,
+            action: { label: 'Abrir', onClick: handleOpen },
+            className: 'border-primary/60 ring-2 ring-primary/40 shadow-lg',
+          }
+        );
+        showSystemNotification({
+          title: `${who} mencionou você`,
+          body: snippet,
+          tag: `comment-mention-${n.id}`,
+          onClick: handleOpen,
+        });
+        playChime();
       }
     }
   }, [items, user, navigate, markRead, openTaskDetail]);
