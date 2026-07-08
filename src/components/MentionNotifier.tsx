@@ -76,14 +76,6 @@ export function MentionNotifier() {
         }
       };
 
-      const handleOpen = () => {
-        markRead(n.id);
-        if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
-          navigate(`/conversations/${n.payload.conversation_id}`);
-        } else if ((n.type === 'task_assigned' || n.type === 'task_reminder' || n.type === 'task_completed') && n.payload?.task_id) {
-          openTaskDetail(n.payload.task_id as string);
-        }
-      };
 
       if (n.type === 'chat_mention') {
         const snippet: string = n.payload?.snippet || 'Você foi mencionado';
