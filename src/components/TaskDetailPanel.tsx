@@ -652,8 +652,42 @@ export function TaskDetailPanel() {
       user_id: user.id,
       content: text,
     });
-    if (error) toast.error('Falha ao comentar');
+    if (error) {
+      toast.error('Falha ao comentar');
+      return;
+    }
+
+    // Notify mentioned users
+    try {
+      const wsMembers = useWorkspaceStore.getState().members;
+      const mentionables: MentionMember[] = wsMembers.map((m) => ({
+        userId: m.userId,
+        display: (m.displayName || m.email || 'Membro').replace(/\s+/g, ' ').trim(),
+        avatar: m.avatarUrl,
+      }));
+      const mentioned = extractMentionedUserIds(text, mentionables).filter((id) => id !== user.id);
+      if (mentioned.length > 0) {
+        const workspaceId = (project as any)?.workspaceId || null;
+        const fromName = userDisplayName(user);
+        const rows = mentioned.map((uid) => ({
+          user_id: uid,
+          type: 'task_comment_mention',
+          workspace_id: workspaceId,
+          payload: {
+            task_id: task.id,
+            task_title: task.title,
+            from_user: user.id,
+            from_user_name: fromName,
+            snippet: text.slice(0, 200),
+          },
+        }));
+        await supabase.from('notifications').insert(rows as any);
+      }
+    } catch (e) {
+      console.error('mention notify failed', e);
+    }
   };
+
 
   const updateCommentSave = async () => {
     if (!editingComment) return;
