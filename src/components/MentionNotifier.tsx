@@ -65,10 +65,17 @@ export function MentionNotifier() {
         markRead(n.id);
         if ((n.type === 'chat_mention' || n.type === 'chat_message') && n.payload?.conversation_id) {
           navigate(`/conversations/${n.payload.conversation_id}`);
-        } else if ((n.type === 'task_assigned' || n.type === 'task_reminder' || n.type === 'task_completed') && n.payload?.task_id) {
+        } else if (
+          (n.type === 'task_assigned' ||
+            n.type === 'task_reminder' ||
+            n.type === 'task_completed' ||
+            n.type === 'task_comment_mention') &&
+          n.payload?.task_id
+        ) {
           openTaskDetail(n.payload.task_id as string);
         }
       };
+
 
       if (n.type === 'chat_mention') {
         const snippet: string = n.payload?.snippet || 'Você foi mencionado';
@@ -191,6 +198,32 @@ export function MentionNotifier() {
           title: '✅ Tarefa concluída',
           body: `${who} finalizou: ${title}`,
           tag: `done-${n.id}`,
+          onClick: handleOpen,
+        });
+        playChime();
+      } else if (n.type === 'task_comment_mention') {
+        const who: string = n.payload?.from_user_name || 'Alguém';
+        const snippet: string = n.payload?.snippet || n.payload?.task_title || 'Comentário';
+        toast(
+          <div className="flex items-start gap-2">
+            <AtSign className="h-4 w-4 mt-0.5 text-primary shrink-0" />
+            <div>
+              <div className="font-semibold text-sm">{who} mencionou você</div>
+              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                {snippet}
+              </div>
+            </div>
+          </div>,
+          {
+            duration: 8000,
+            action: { label: 'Abrir', onClick: handleOpen },
+            className: 'border-primary/60 ring-2 ring-primary/40 shadow-lg',
+          }
+        );
+        showSystemNotification({
+          title: `${who} mencionou você`,
+          body: snippet,
+          tag: `comment-mention-${n.id}`,
           onClick: handleOpen,
         });
         playChime();

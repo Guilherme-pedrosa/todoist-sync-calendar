@@ -71,6 +71,8 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
 import { userDisplayName } from '@/lib/userDisplay';
+import { MentionTextarea, extractMentionedUserIds, type MentionMember } from '@/components/MentionTextarea';
+import { useWorkspaceStore } from '@/store/workspaceStore';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'P1 — Urgente',
@@ -650,8 +652,42 @@ export function TaskDetailPanel() {
       user_id: user.id,
       content: text,
     });
-    if (error) toast.error('Falha ao comentar');
+    if (error) {
+      toast.error('Falha ao comentar');
+      return;
+    }
+
+    // Notify mentioned users
+    try {
+      const wsMembers = useWorkspaceStore.getState().members;
+      const mentionables: MentionMember[] = wsMembers.map((m) => ({
+        userId: m.userId,
+        display: (m.displayName || m.email || 'Membro').replace(/\s+/g, ' ').trim(),
+        avatar: m.avatarUrl,
+      }));
+      const mentioned = extractMentionedUserIds(text, mentionables).filter((id) => id !== user.id);
+      if (mentioned.length > 0) {
+        const workspaceId = (project as any)?.workspaceId || null;
+        const fromName = userDisplayName((user as any)?.user_metadata?.display_name || (user as any)?.user_metadata?.full_name, user.email);
+        const rows = mentioned.map((uid) => ({
+          user_id: uid,
+          type: 'task_comment_mention',
+          workspace_id: workspaceId,
+          payload: {
+            task_id: task.id,
+            task_title: task.title,
+            from_user: user.id,
+            from_user_name: fromName,
+            snippet: text.slice(0, 200),
+          },
+        }));
+        await supabase.from('notifications').insert(rows as any);
+      }
+    } catch (e) {
+      console.error('mention notify failed', e);
+    }
   };
+
 
   const updateCommentSave = async () => {
     if (!editingComment) return;
@@ -1076,16 +1112,12 @@ export function TaskDetailPanel() {
                   {(user?.email?.[0] ?? '?').toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0 space-y-2">
-                  <Textarea
+                  <MentionTextarea
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void sendComment();
-                      }
-                    }}
-                    placeholder="Escreva um comentário... (Ctrl+Enter para enviar)"
+                    onChange={setCommentText}
+                    onSubmit={() => void sendComment()}
+                    workspaceId={(project as any)?.workspaceId || null}
+                    placeholder="Escreva um comentário... (@ para mencionar · Ctrl+Enter envia)"
                     className="text-sm min-h-[60px]"
                     rows={2}
                   />
