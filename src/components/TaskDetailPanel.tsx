@@ -668,7 +668,7 @@ export function TaskDetailPanel() {
       const mentioned = extractMentionedUserIds(text, mentionables).filter((id) => id !== user.id);
       if (mentioned.length > 0) {
         const workspaceId = (project as any)?.workspaceId || null;
-        const fromName = userDisplayName(user);
+        const fromName = userDisplayName((user as any)?.user_metadata?.display_name || (user as any)?.user_metadata?.full_name, user.email);
         const rows = mentioned.map((uid) => ({
           user_id: uid,
           type: 'task_comment_mention',
