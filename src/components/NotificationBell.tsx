@@ -148,7 +148,8 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const openTaskDetail = useTaskDetailStore((s) => s.open);
   const fetchData = useTaskStore((s) => s.fetchData);
   const markRead = useNotificationStore((s) => s.markRead);
-  const isMention = n.type === 'chat_mention';
+  const isMention = n.type === 'chat_mention' || n.type === 'task_comment_mention';
+  const isCommentMention = n.type === 'task_comment_mention';
   const isChatMessage = n.type === 'chat_message';
   const isAssigned = n.type === 'task_assigned';
   const isReminder = n.type === 'task_reminder';
