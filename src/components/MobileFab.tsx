@@ -21,10 +21,10 @@ export function MobileFab() {
     <button
       onClick={() => openQuickAdd()}
       aria-label="Adicionar tarefa"
-      style={{ bottom: 'calc(56px + env(safe-area-inset-bottom) + 12px)' }}
-      className="lg:hidden fixed left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center hover:scale-105 active:scale-95 transition-transform z-40 ring-4 ring-background"
+      style={{ bottom: 'calc(64px + env(safe-area-inset-bottom) + 12px)' }}
+      className="lg:hidden fixed left-1/2 -translate-x-1/2 h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center active:scale-95 transition-transform z-40 ring-4 ring-background touch-manipulation"
     >
-      <Plus className="h-6 w-6" />
+      <Plus className="h-7 w-7" />
     </button>
   );
 }

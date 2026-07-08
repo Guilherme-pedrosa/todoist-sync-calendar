@@ -31,7 +31,8 @@ export function MobileBottomNav() {
 
   const itemClass = (active: boolean) =>
     cn(
-      'flex flex-col items-center justify-center gap-0.5 px-2 py-1.5 rounded-md text-[10px] font-medium transition-colors',
+      'flex flex-col items-center justify-center gap-1 flex-1 min-w-0 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors touch-manipulation select-none',
+      'active:bg-muted/70',
       active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
     );
 
@@ -40,23 +41,23 @@ export function MobileBottomNav() {
       className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border pb-safe"
       aria-label="Navegação principal"
     >
-      <div className="h-14 flex items-stretch justify-around">
+      <div className="h-16 flex items-stretch justify-around">
         <NavLink to="/today" className={({ isActive }) => itemClass(isActive)}>
-          <CalendarDays className="h-5 w-5" />
+          <CalendarDays className="h-6 w-6" />
           <span>Hoje</span>
         </NavLink>
         <NavLink to="/upcoming" className={({ isActive }) => itemClass(isActive)}>
-          <CalendarRange className="h-5 w-5" />
+          <CalendarRange className="h-6 w-6" />
           <span>Agenda</span>
         </NavLink>
         {/* Spacer for centered FAB */}
-        <div className="w-14" aria-hidden />
+        <div className="w-16 shrink-0" aria-hidden />
         <button className={itemClass(false)} onClick={() => openPalette(true)}>
-          <Search className="h-5 w-5" />
+          <Search className="h-6 w-6" />
           <span>Buscar</span>
         </button>
         <button className={itemClass(false)} onClick={toggleSidebar}>
-          <Menu className="h-5 w-5" />
+          <Menu className="h-6 w-6" />
           <span>Menu</span>
         </button>
       </div>

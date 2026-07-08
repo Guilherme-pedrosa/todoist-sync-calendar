@@ -698,32 +698,40 @@ export function TaskDetailPanel() {
         )}
         <button
           onClick={() => task.projectId && navigate(`/projects/${task.projectId}`)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors min-w-0 truncate"
+          className={cn(
+            "flex items-center gap-1.5 hover:text-primary transition-colors min-w-0 flex-1 truncate",
+            isMobile ? "text-sm font-semibold text-foreground" : "text-xs text-muted-foreground"
+          )}
         >
           {project?.isInbox ? (
-            <Inbox className="h-3.5 w-3.5 shrink-0" />
+            <Inbox className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} />
           ) : (
-            <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: project?.color }} />
+            <Hash className={cn("shrink-0", isMobile ? "h-4 w-4" : "h-3.5 w-3.5")} style={{ color: project?.color }} />
           )}
           <span className="truncate">{project?.name || 'Projeto'}</span>
         </button>
         <div className="ml-auto flex items-center">
-          <button
-            onClick={() => navigateTask(-1)}
-            className="p-1.5 hover:bg-muted rounded text-muted-foreground"
-            aria-label="Anterior (K)"
-            title="Anterior (K)"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => navigateTask(1)}
-            className="p-1.5 hover:bg-muted rounded text-muted-foreground"
-            aria-label="Próxima (J)"
-            title="Próxima (J)"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </button>
+          {/* No mobile escondemos prev/next — atalhos J/K não existem em touch e o espaço é precioso. */}
+          {!isMobile && (
+            <>
+              <button
+                onClick={() => navigateTask(-1)}
+                className="p-1.5 hover:bg-muted rounded text-muted-foreground"
+                aria-label="Anterior (K)"
+                title="Anterior (K)"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={() => navigateTask(1)}
+                className="p-1.5 hover:bg-muted rounded text-muted-foreground"
+                aria-label="Próxima (J)"
+                title="Próxima (J)"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1.5 hover:bg-muted rounded text-muted-foreground" aria-label="Mais">

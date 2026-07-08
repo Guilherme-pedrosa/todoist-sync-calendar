@@ -69,10 +69,25 @@ export default function UpcomingPage() {
   const currentUserId = user?.id;
   const [meetingOpen, setMeetingOpen] = useState(false);
   // Em telas pequenas (mobile), começa em modo "dia" — semana com 7 colunas é inutilizável no celular.
-  const [mode, setMode] = useState<Mode>(() =>
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  );
+  const [modeRaw, setMode] = useState<Mode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week'
   );
+  // No mobile, forçamos sempre 'day' ou 'list' — 'week' e 'kanban' não cabem no celular.
+  const mode: Mode = isNarrow && (modeRaw === 'week' || modeRaw === 'kanban') ? 'day' : modeRaw;
   const [weekOffset, setWeekOffset] = useState(0);
+
+  // Responde a rotação/resize — se virar mobile, cai para 'day' automaticamente.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 767px)');
+    const onChange = () => setIsNarrow(mql.matches);
+    setIsNarrow(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
