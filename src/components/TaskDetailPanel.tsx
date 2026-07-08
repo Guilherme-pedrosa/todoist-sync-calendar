@@ -1112,16 +1112,12 @@ export function TaskDetailPanel() {
                   {(user?.email?.[0] ?? '?').toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0 space-y-2">
-                  <Textarea
+                  <MentionTextarea
                     value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        void sendComment();
-                      }
-                    }}
-                    placeholder="Escreva um comentário... (Ctrl+Enter para enviar)"
+                    onChange={setCommentText}
+                    onSubmit={() => void sendComment()}
+                    workspaceId={(project as any)?.workspaceId || null}
+                    placeholder="Escreva um comentário... (@ para mencionar · Ctrl+Enter envia)"
                     className="text-sm min-h-[60px]"
                     rows={2}
                   />
