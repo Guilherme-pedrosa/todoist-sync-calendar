@@ -523,7 +523,7 @@ export function TaskDetailPanel() {
               task_id: task.id,
               user_id: assigner,
               assigned_by: user.id,
-              assignment_status: 'pending',
+              assignment_status: 'accepted',
             } as any,
             { onConflict: 'task_id,user_id' }
           );
