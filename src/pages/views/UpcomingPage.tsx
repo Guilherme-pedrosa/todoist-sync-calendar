@@ -761,12 +761,12 @@ function WeekGrid({
             return weekDays.map((day, idx) => {
               const k = format(day, 'yyyy-MM-dd');
               const isTodayCell = k === todayKey;
-              const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime);
+              const allDay = (tasksByDay.get(k) || []).filter((t) => !t.dueTime && !t.completed);
               // Se hoje está na visão, o buffer de atrasadas vai só na coluna de hoje.
               // Se hoje NÃO está (usuário navegou pra outra semana/dia), mostra na
               // primeira coluna pra garantir que atrasadas nunca somem do calendário.
               const isBufferCell = isTodayCell || (!todayInView && idx === 0);
-              const overdueForCell = isBufferCell ? overdueTasks : [];
+              const overdueForCell = isBufferCell ? overdueTasks.filter((t) => !t.completed) : [];
               return (
               <div
                 key={k}
