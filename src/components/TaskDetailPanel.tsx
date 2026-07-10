@@ -183,7 +183,7 @@ export function TaskDetailPanel() {
         .is('deleted_at', null)
         .maybeSingle();
 
-      let data = fullTaskResult.data;
+      let data: Record<string, unknown> | null = fullTaskResult.data;
       let error = fullTaskResult.error;
 
       if (error) {
