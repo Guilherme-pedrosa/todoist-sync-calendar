@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { useTaskStore } from '@/store/taskStore';
+import { mapDbTaskRowToTask, useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { Task } from '@/types/task';
@@ -51,6 +51,14 @@ type RecurringCompletionRow = {
   title: string;
   completed_at: string;
 };
+
+function isTaskVisibleForAgenda(task: Task, currentUserId?: string) {
+  if (!currentUserId) return true;
+  const assigneeIds = task.assigneeIds || [];
+  const inviteeIds = task.meetingInviteeIds || [];
+  if (assigneeIds.length === 0 && inviteeIds.length === 0) return true;
+  return assigneeIds.includes(currentUserId) || inviteeIds.includes(currentUserId);
+}
 
 const DAY_START_HOUR = 6; // grid começa às 06:00
 const DAY_END_HOUR = 24; // até meia-noite
@@ -104,13 +112,7 @@ export default function UpcomingPage() {
   const visibleLogTsRef = useRef(0);
   const visibleTasks = useMemo(
     () => {
-      const out = tasks.filter((t) => {
-        if (!currentUserId) return true;
-        const assigneeIds = t.assigneeIds || [];
-        const inviteeIds = t.meetingInviteeIds || [];
-        if (assigneeIds.length === 0 && inviteeIds.length === 0) return true;
-        return assigneeIds.includes(currentUserId) || inviteeIds.includes(currentUserId);
-      });
+      const out = tasks.filter((t) => isTaskVisibleForAgenda(t, currentUserId));
       const now = Date.now();
       if (now - visibleLogTsRef.current > 2000) {
         visibleLogTsRef.current = now;
@@ -153,6 +155,7 @@ export default function UpcomingPage() {
   );
   const rangeStart = useMemo(() => weekDays[0] ?? weekStart, [weekDays, weekStart]);
   const [recurringCompletions, setRecurringCompletions] = useState<RecurringCompletionRow[]>([]);
+  const [completedScheduledTasks, setCompletedScheduledTasks] = useState<Task[]>([]);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -175,12 +178,44 @@ export default function UpcomingPage() {
       });
   }, [currentUserId, rangeStart, rangeEnd, visibleTasks]);
 
+  useEffect(() => {
+    if (!currentUserId) return;
+    const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
+    const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
+
+    supabase
+      .from('tasks')
+      .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
+      .eq('completed', true)
+      .is('deleted_at', null)
+      .gte('due_date', rangeStartIso)
+      .lte('due_date', rangeEndIso)
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Erro ao carregar tarefas finalizadas da agenda', error);
+          setCompletedScheduledTasks([]);
+          return;
+        }
+        const mapped = (data || [])
+          .map(mapDbTaskRowToTask)
+          .filter((t): t is Task => !!t && isTaskVisibleForAgenda(t, currentUserId));
+        setCompletedScheduledTasks(mapped);
+      });
+  }, [currentUserId, rangeStart, rangeEnd]);
+
+  const calendarVisibleTasks = useMemo(() => {
+    const merged = new Map<string, Task>();
+    for (const task of visibleTasks) merged.set(task.id, task);
+    for (const task of completedScheduledTasks) merged.set(task.id, task);
+    return Array.from(merged.values());
+  }, [visibleTasks, completedScheduledTasks]);
+
   const tasksByDay = useMemo(() => {
     const map = new Map<string, Task[]>();
     const rangeStartIso = format(rangeStart, 'yyyy-MM-dd');
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
-    for (const t of visibleTasks) {
+    for (const t of calendarVisibleTasks) {
       if (t.parentId || !t.dueDate) continue;
 
       let dayKeys: string[] = [];
@@ -206,7 +241,7 @@ export default function UpcomingPage() {
     }
 
     for (const completion of recurringCompletions) {
-      const source = visibleTasks.find((t) => t.id === completion.task_id);
+      const source = calendarVisibleTasks.find((t) => t.id === completion.task_id);
       const k = completion.occurrence_date;
       if (!source || k < rangeStartIso || k > rangeEndIso) continue;
       const completedOccurrence: Task = {
@@ -226,7 +261,7 @@ export default function UpcomingPage() {
       map.get(k)!.push(completedOccurrence);
     }
     return map;
-  }, [visibleTasks, rangeStart, rangeEnd, recurringCompletions]);
+  }, [calendarVisibleTasks, rangeStart, rangeEnd, recurringCompletions]);
 
   // Completions das ocorrências ancoradas em due_date de tarefas recorrentes atrasadas.
   // Precisamos disso pra não mostrar como "atrasada" uma ocorrência que já foi finalizada
@@ -287,24 +322,6 @@ export default function UpcomingPage() {
       )
       .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
   }, [visibleTasks, tasksByDay, anchorCompletionKeys]);
-
-  const completedOverdueTasks = useMemo(() => {
-    const todayStr = localDateKey();
-    return visibleTasks
-      .filter((t) => {
-        if (!t.completed || t.parentId || !t.dueDate || t.dueDate >= todayStr || !t.completedAt) {
-          return false;
-        }
-        return localDateKey(new Date(t.completedAt)) === todayStr;
-      })
-      .sort((a, b) => {
-        const aCompleted = a.completedAt ?? '';
-        const bCompleted = b.completedAt ?? '';
-        return aCompleted < bCompleted ? 1 : -1;
-      });
-  }, [visibleTasks]);
-
-
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
@@ -415,7 +432,6 @@ export default function UpcomingPage() {
           hours={hours}
           tasksByDay={tasksByDay}
           overdueTasks={overdueTasks}
-          completedOverdueTasks={completedOverdueTasks}
         />
       ) : (
         <ListView tasks={upcoming} />
@@ -478,13 +494,11 @@ function WeekGrid({
   hours,
   tasksByDay,
   overdueTasks = [],
-  completedOverdueTasks = [],
 }: {
   weekDays: Date[];
   hours: number[];
   tasksByDay: Map<string, Task[]>;
   overdueTasks?: Task[];
-  completedOverdueTasks?: Task[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
@@ -753,7 +767,6 @@ function WeekGrid({
               // primeira coluna pra garantir que atrasadas nunca somem do calendário.
               const isBufferCell = isTodayCell || (!todayInView && idx === 0);
               const overdueForCell = isBufferCell ? overdueTasks : [];
-              const completedOverdueForCell = isBufferCell ? completedOverdueTasks : [];
               return (
               <div
                 key={k}
@@ -768,29 +781,6 @@ function WeekGrid({
                     onStartDrag={(pointerOffsetMin) => {
                       const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
                       const startMin = 9 * 60;
-                      setPreview((p) => ({
-                        ...p,
-                        [t.id]: { dayKey: k, startMin, durationMin },
-                      }));
-                      setDrag({
-                        kind: 'move',
-                        taskId: t.id,
-                        pointerOffsetMin,
-                        durationMin,
-                        sourceDayKey: t.dueDate!,
-                      });
-                    }}
-                  />
-                ))}
-                {completedOverdueForCell.map((t) => (
-                  <AllDayChip
-                    key={`completed-overdue-${t.id}`}
-                    task={t}
-                    occurrenceDate={t.dueDate!}
-                    onOpen={() => openTaskDetail(t.id)}
-                    onStartDrag={(pointerOffsetMin) => {
-                      const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
-                      const startMin = timeToMinutes(t.dueTime) || 9 * 60;
                       setPreview((p) => ({
                         ...p,
                         [t.id]: { dayKey: k, startMin, durationMin },
