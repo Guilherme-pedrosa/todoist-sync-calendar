@@ -29,6 +29,7 @@ import {
   Undo2,
   ChevronRight,
   Eye,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -628,6 +629,54 @@ export function TaskDetailPanel() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [task, tasks, close, complete]);
+
+  if (!task && taskId) {
+    const loadingContent = (
+      <div className="h-full flex flex-col bg-background">
+        <div className="flex items-center justify-end px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <button
+            onClick={close}
+            className="p-2 hover:bg-muted active:bg-muted rounded text-foreground h-9 w-9 flex items-center justify-center"
+            aria-label="Fechar (Esc)"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" aria-label="Carregando tarefa" />
+        </div>
+      </div>
+    );
+
+    return createPortal(
+      <AnimatePresence>
+        <div className="fixed inset-0 z-50 flex">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="flex-1 bg-foreground/40 backdrop-blur-sm"
+            onClick={close}
+            aria-label="Fechar painel"
+          />
+          <motion.div
+            initial={{ x: isMobile ? 0 : 480, y: isMobile ? 60 : 0, opacity: 0 }}
+            animate={{ x: 0, y: 0, opacity: 1 }}
+            exit={{ x: isMobile ? 0 : 480, y: isMobile ? 60 : 0, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+            className={cn(
+              'bg-background shadow-2xl border-l border-border flex flex-col',
+              isMobile ? 'w-full' : 'w-full max-w-[1080px] lg:min-w-[860px]'
+            )}
+          >
+            {loadingContent}
+          </motion.div>
+        </div>
+      </AnimatePresence>,
+      document.body
+    );
+  }
 
   if (!task) return null;
 
