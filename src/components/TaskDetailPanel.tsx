@@ -169,6 +169,34 @@ export function TaskDetailPanel() {
   const complete = useCompleteTask();
 
   const task = useMemo(() => tasks.find((t) => t.id === taskId) || null, [tasks, taskId]);
+
+  useEffect(() => {
+    if (!taskId || task) return;
+    let active = true;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
+        .eq('id', taskId)
+        .is('deleted_at', null)
+        .maybeSingle();
+
+      if (!active) return;
+      if (error || !data) {
+        toast.error('Não consegui abrir essa tarefa');
+        close();
+        return;
+      }
+
+      useTaskStore.getState().applyTaskUpsertFromDb(data);
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [taskId, task, close]);
+
   const parentTask = useMemo(
     () => (task?.parentId ? tasks.find((t) => t.id === task.parentId) || null : null),
     [tasks, task?.parentId]
