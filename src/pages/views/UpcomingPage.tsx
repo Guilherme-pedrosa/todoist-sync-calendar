@@ -1588,7 +1588,9 @@ function AllDayChip({
       }}
       className={cn(
         'w-full text-left border-l-[3px] rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none',
-        isTaskOverdue(task, occurrenceDate)
+        task.completed
+          ? 'bg-success/15 border-l-success text-success hover:bg-success/20'
+          : isTaskOverdue(task, occurrenceDate)
           ? 'bg-destructive/15 border-l-destructive text-destructive hover:bg-destructive/20'
           : 'bg-card hover:bg-muted/60'
       )}
