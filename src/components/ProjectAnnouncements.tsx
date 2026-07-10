@@ -22,7 +22,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const BUCKET = 'project-announcements';
-const MAX_BYTES = 25 * 1024 * 1024;
+const MAX_BYTES = 200 * 1024 * 1024;
 
 type Attachment = {
   name: string;
@@ -160,16 +160,18 @@ export function ProjectAnnouncementsFeed({
       const uploaded: Attachment[] = [];
       for (const f of files) {
         if (f.size > MAX_BYTES) {
-          toast.error(`${f.name} maior que 25MB`);
-          continue;
+          toast.error(`${f.name} maior que 200MB — não enviado`);
+          setPosting(false);
+          return;
         }
         const path = `${projectId}/${crypto.randomUUID()}-${sanitize(f.name)}`;
         const { error: upErr } = await supabase.storage
           .from(BUCKET)
           .upload(path, f, { contentType: f.type || undefined, upsert: false });
         if (upErr) {
-          toast.error(`Falha ao enviar ${f.name}`);
-          continue;
+          toast.error(`Falha ao enviar ${f.name}: ${upErr.message}`);
+          setPosting(false);
+          return;
         }
         uploaded.push({ name: f.name, path, mime: f.type || null, size: f.size });
       }
