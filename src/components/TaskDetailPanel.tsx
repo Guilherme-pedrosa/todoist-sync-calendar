@@ -176,12 +176,26 @@ export function TaskDetailPanel() {
     let active = true;
 
     (async () => {
-      const { data, error } = await supabase
+      const fullTaskResult = await supabase
         .from('tasks')
         .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
         .eq('id', taskId)
         .is('deleted_at', null)
         .maybeSingle();
+
+      let data = fullTaskResult.data;
+      let error = fullTaskResult.error;
+
+      if (error) {
+        const fallbackResult = await supabase
+          .from('tasks')
+          .select('*')
+          .eq('id', taskId)
+          .is('deleted_at', null)
+          .maybeSingle();
+        data = fallbackResult.data;
+        error = fallbackResult.error;
+      }
 
       if (!active) return;
       if (error || !data) {
