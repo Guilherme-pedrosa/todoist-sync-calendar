@@ -288,6 +288,22 @@ export default function UpcomingPage() {
       .sort((a, b) => (a.dueDate! > b.dueDate! ? 1 : -1));
   }, [visibleTasks, tasksByDay, anchorCompletionKeys]);
 
+  const completedOverdueTasks = useMemo(() => {
+    const todayStr = localDateKey();
+    return visibleTasks
+      .filter((t) => {
+        if (!t.completed || t.parentId || !t.dueDate || t.dueDate >= todayStr || !t.completedAt) {
+          return false;
+        }
+        return localDateKey(new Date(t.completedAt)) === todayStr;
+      })
+      .sort((a, b) => {
+        const aCompleted = a.completedAt ?? '';
+        const bCompleted = b.completedAt ?? '';
+        return aCompleted < bCompleted ? 1 : -1;
+      });
+  }, [visibleTasks]);
+
 
 
   return (
@@ -394,7 +410,13 @@ export default function UpcomingPage() {
       {mode === 'kanban' ? (
         <KanbanBoard tasks={upcoming} boardKey="upcoming" />
       ) : mode === 'week' || mode === 'day' ? (
-        <WeekGrid weekDays={weekDays} hours={hours} tasksByDay={tasksByDay} overdueTasks={overdueTasks} />
+        <WeekGrid
+          weekDays={weekDays}
+          hours={hours}
+          tasksByDay={tasksByDay}
+          overdueTasks={overdueTasks}
+          completedOverdueTasks={completedOverdueTasks}
+        />
       ) : (
         <ListView tasks={upcoming} />
       )}
@@ -456,11 +478,13 @@ function WeekGrid({
   hours,
   tasksByDay,
   overdueTasks = [],
+  completedOverdueTasks = [],
 }: {
   weekDays: Date[];
   hours: number[];
   tasksByDay: Map<string, Task[]>;
   overdueTasks?: Task[];
+  completedOverdueTasks?: Task[];
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
@@ -727,7 +751,9 @@ function WeekGrid({
               // Se hoje está na visão, o buffer de atrasadas vai só na coluna de hoje.
               // Se hoje NÃO está (usuário navegou pra outra semana/dia), mostra na
               // primeira coluna pra garantir que atrasadas nunca somem do calendário.
-              const overdueForCell = isTodayCell || (!todayInView && idx === 0) ? overdueTasks : [];
+              const isBufferCell = isTodayCell || (!todayInView && idx === 0);
+              const overdueForCell = isBufferCell ? overdueTasks : [];
+              const completedOverdueForCell = isBufferCell ? completedOverdueTasks : [];
               return (
               <div
                 key={k}
@@ -742,6 +768,29 @@ function WeekGrid({
                     onStartDrag={(pointerOffsetMin) => {
                       const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
                       const startMin = 9 * 60;
+                      setPreview((p) => ({
+                        ...p,
+                        [t.id]: { dayKey: k, startMin, durationMin },
+                      }));
+                      setDrag({
+                        kind: 'move',
+                        taskId: t.id,
+                        pointerOffsetMin,
+                        durationMin,
+                        sourceDayKey: t.dueDate!,
+                      });
+                    }}
+                  />
+                ))}
+                {completedOverdueForCell.map((t) => (
+                  <AllDayChip
+                    key={`completed-overdue-${t.id}`}
+                    task={t}
+                    occurrenceDate={t.dueDate!}
+                    onOpen={() => openTaskDetail(t.id)}
+                    onStartDrag={(pointerOffsetMin) => {
+                      const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
+                      const startMin = timeToMinutes(t.dueTime) || 9 * 60;
                       setPreview((p) => ({
                         ...p,
                         [t.id]: { dayKey: k, startMin, durationMin },
