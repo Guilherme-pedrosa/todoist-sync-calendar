@@ -148,6 +148,26 @@ async function getUserId(): Promise<string | null> {
   return data.user?.id ?? null;
 }
 
+const TASK_PAGE_SIZE = 1000;
+
+async function fetchAllTaskRows() {
+  const rows: any[] = [];
+  for (let from = 0; ; from += TASK_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + TASK_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < TASK_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
 function recurrenceCoversTask(series: Task, occurrence: Task) {
   if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
   const day = new Date(`${occurrence.dueDate}T12:00:00`);
@@ -184,15 +204,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const userId = await getUserId();
     if (!userId) return;
 
-    const [projectsRes, labelsRes, tasksRes] = await Promise.all([
+    const [projectsRes, labelsRes, taskRows] = await Promise.all([
       // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      supabase
-        .from('tasks')
-        .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
-        .is('deleted_at', null),
+      fetchAllTaskRows(),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -221,7 +238,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = (tasksRes.data || [])
+    const tasks: Task[] = taskRows
       .map(mapDbTaskToTask)
       .filter((t): t is Task => t !== null);
 
