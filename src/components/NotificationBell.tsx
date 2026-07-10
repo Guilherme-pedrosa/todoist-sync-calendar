@@ -579,16 +579,6 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
         <div className="flex flex-wrap gap-1.5 pl-9">
           <Button
             size="sm"
-            variant="default"
-            disabled={busy}
-            onClick={() => respondAssignment('accepted')}
-            className="h-7 text-xs gap-1"
-          >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-            Aceitar
-          </Button>
-          <Button
-            size="sm"
             variant="secondary"
             disabled={busy}
             onClick={() => setReasonMode('returned')}
@@ -596,16 +586,6 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
           >
             <Undo2 className="h-3 w-3" />
             Devolver
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() => setReasonMode('declined')}
-            className="h-7 text-xs gap-1"
-          >
-            <X className="h-3 w-3" />
-            Rejeitar
           </Button>
         </div>
       )}
