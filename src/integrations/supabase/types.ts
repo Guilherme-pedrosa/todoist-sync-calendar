@@ -2886,6 +2886,10 @@ export type Database = {
         }
         Returns: string
       }
+      return_task_to_assigner: {
+        Args: { p_reason: string; p_task_id: string }
+        Returns: Json
+      }
       run_activity_aggregate: { Args: { p_day?: string }; Returns: Json }
       task_insert_check: {
         Args: { _project_id: string; _user_id: string; _workspace_id?: string }

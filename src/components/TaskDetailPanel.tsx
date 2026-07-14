@@ -72,6 +72,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { TaskAttachmentsSection } from '@/components/TaskAttachmentsSection';
 import { userDisplayName } from '@/lib/userDisplay';
+import { returnTaskToAssigner } from '@/lib/returnTask';
 import { MentionTextarea, extractMentionedUserIds, type MentionMember } from '@/components/MentionTextarea';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 
@@ -537,56 +538,16 @@ export function TaskDetailPanel() {
     }
     setReturnBusy(true);
     try {
-      // Descobre quem atribuiu para devolver a ele
-      const { data: row } = await supabase
-        .from('task_assignees')
-        .select('assigned_by')
-        .eq('task_id', task.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      const assigner = (row as any)?.assigned_by as string | undefined;
-
-      // Marca status com motivo (dispara notificação para quem atribuiu)
-      const { error: updErr } = await supabase
-        .from('task_assignees')
-        .update({
-          assignment_status: 'returned',
-          response_reason: returnReason.trim(),
-        } as any)
-        .eq('task_id', task.id)
-        .eq('user_id', user.id);
-      if (updErr) throw updErr;
-
-      // Devolve para o remetente (se existir e não for o próprio usuário)
-      if (assigner && assigner !== user.id) {
-        await supabase
-          .from('task_assignees')
-          .upsert(
-            {
-              task_id: task.id,
-              user_id: assigner,
-              assigned_by: user.id,
-              assignment_status: 'accepted',
-            } as any,
-            { onConflict: 'task_id,user_id' }
-          );
-      }
-
-      // Remove a si mesmo dos responsáveis
-      await supabase
-        .from('task_assignees')
-        .delete()
-        .eq('task_id', task.id)
-        .eq('user_id', user.id);
+      const { returnedToUserId: assigner } = await returnTaskToAssigner(task.id, returnReason);
 
       const next = assigneeIds.filter((id) => id !== user.id);
-      if (assigner && assigner !== user.id && !next.includes(assigner)) next.push(assigner);
+      if (!next.includes(assigner)) next.push(assigner);
       setAssigneeIds(next);
       useTaskStore.setState((state) => ({
         tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, assigneeIds: next } : t)),
       }));
 
-      toast.success(assigner ? 'Tarefa devolvida ao remetente' : 'Tarefa devolvida');
+      toast.success('Tarefa devolvida ao remetente');
       setReturnOpen(false);
       setReturnReason('');
     } catch (e: any) {

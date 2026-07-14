@@ -23,6 +23,7 @@ import {
   requestNotificationPermission,
 } from '@/lib/browserNotifications';
 import { cn } from '@/lib/utils';
+import { returnTaskToAssigner } from '@/lib/returnTask';
 
 export function NotificationBell() {
   const navigate = useNavigate();
@@ -167,7 +168,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
   const { user } = useAuth();
   const [busy, setBusy] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
-  const [reasonMode, setReasonMode] = useState<null | 'declined' | 'returned'>(null);
+  const [reasonMode, setReasonMode] = useState<null | 'returned'>(null);
   const [reason, setReason] = useState('');
   const [propDate, setPropDate] = useState<string>(
     n.payload?.due_at ? format(parseISO(n.payload.due_at), 'yyyy-MM-dd') : ''
@@ -364,65 +365,20 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
     }
   };
 
-  // Responder a uma atribuição de tarefa (aceitar / rejeitar / devolver)
-  const respondAssignment = async (status: 'accepted' | 'declined' | 'returned') => {
+  // A atribuição é automática; a única resposta disponível é devolver com motivo.
+  const returnAssignment = async () => {
     if (!n.payload?.task_id || !user) return;
-    if ((status === 'declined' || status === 'returned') && !reason.trim()) {
+    if (!reason.trim()) {
       toast.error('Informe o motivo');
       return;
     }
     setBusy(true);
     try {
-      // Descobre quem atribuiu (para devolver)
-      let assigner: string | undefined;
-      if (status === 'returned') {
-        const { data: row } = await supabase
-          .from('task_assignees')
-          .select('assigned_by')
-          .eq('task_id', n.payload.task_id)
-          .eq('user_id', user.id)
-          .maybeSingle();
-        assigner = (row as any)?.assigned_by as string | undefined;
-      }
-
-      const { error } = await supabase
-        .from('task_assignees')
-        .update({
-          assignment_status: status,
-          response_reason: status === 'accepted' ? null : reason.trim(),
-        } as any)
-        .eq('task_id', n.payload.task_id)
-        .eq('user_id', user.id);
-      if (error) throw error;
-
-      if (status === 'returned' && assigner && assigner !== user.id) {
-        await supabase
-          .from('task_assignees')
-          .upsert(
-            {
-              task_id: n.payload.task_id,
-              user_id: assigner,
-              assigned_by: user.id,
-              assignment_status: 'pending',
-            } as any,
-            { onConflict: 'task_id,user_id' }
-          );
-      }
-
-      if (status === 'declined' || status === 'returned') {
-        await supabase
-          .from('task_assignees')
-          .delete()
-          .eq('task_id', n.payload.task_id)
-          .eq('user_id', user.id);
-      }
-      toast.success(
-        status === 'accepted'
-          ? 'Tarefa aceita'
-          : status === 'declined'
-            ? 'Tarefa rejeitada'
-            : 'Tarefa devolvida ao remetente'
-      );
+      const { returnedToUserId } = await returnTaskToAssigner(n.payload.task_id, reason);
+      const store = useTaskStore.getState();
+      store.applyTaskAssigneeChange(n.payload.task_id, user.id, 'remove', 'responsible');
+      store.applyTaskAssigneeChange(n.payload.task_id, returnedToUserId, 'add', 'responsible');
+      toast.success('Tarefa devolvida ao remetente');
       setReasonMode(null);
       setReason('');
     } catch (e: any) {
@@ -593,11 +549,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
       {isAssigned && reasonMode && (
         <div className="pl-9 space-y-1.5">
           <Textarea
-            placeholder={
-              reasonMode === 'declined'
-                ? 'Motivo da rejeição (obrigatório)'
-                : 'Motivo da devolução (obrigatório)'
-            }
+            placeholder="Motivo da devolução (obrigatório)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             className="min-h-[60px] text-xs"
@@ -607,7 +559,7 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
             <Button
               size="sm"
               disabled={busy || !reason.trim()}
-              onClick={() => respondAssignment(reasonMode)}
+              onClick={returnAssignment}
               className="h-7 text-xs gap-1"
             >
               {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
