@@ -9,7 +9,7 @@ export async function returnTaskToAssigner(taskId: string, reason: string) {
   const normalizedReason = reason.trim();
   if (!normalizedReason) throw new Error('Informe o motivo da devolução');
 
-  const { data, error } = await supabase.rpc('return_task_to_assigner', {
+  const { data, error } = await (supabase as any).rpc('return_task_to_assigner', {
     p_task_id: taskId,
     p_reason: normalizedReason,
   });
