@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { userDisplayName } from '@/lib/userDisplay';
+import { triggerBrowserDownload } from '@/lib/downloadFile';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -470,17 +471,19 @@ function AnnouncementCard({
 function AttachmentTile({ att }: { att: Attachment }) {
   const isImg = (att.mime || '').startsWith('image/');
   const open = async () => {
-    const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(att.path, 3600);
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(att.path, 3600, { download: att.name } as any);
     if (error || !data) {
       toast.error('Erro ao abrir arquivo');
       return;
     }
-    window.open(data.signedUrl, '_blank');
+    triggerBrowserDownload(data.signedUrl, att.name);
   };
   return (
     <button
       onClick={open}
-      className="border rounded-md p-2 text-left hover:bg-muted/50 flex flex-col gap-1 text-xs"
+      className="border rounded-md p-2 text-left hover:bg-muted/50 flex flex-col gap-1 text-xs min-h-12"
     >
       <div className="flex items-center gap-1.5">
         {isImg ? <ImageIcon className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}

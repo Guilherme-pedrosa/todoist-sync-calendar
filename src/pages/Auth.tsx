@@ -100,7 +100,7 @@ export default function Auth() {
             <span className="text-primary">Task</span>Flow
           </h1>
           <p className="text-sm text-muted-foreground mt-2">
-            Organize suas tarefas, sincronize com o Google Calendar
+            Organize tarefas, agenda interna e conversas da equipe
           </p>
         </div>
 

@@ -76,3 +76,15 @@ export async function getAttachmentUrl(storagePath: string, expiresIn = 60 * 60)
   if (error) throw error;
   return data.signedUrl;
 }
+
+export async function getAttachmentDownloadUrl(
+  storagePath: string,
+  fileName: string,
+  expiresIn = 60 * 60
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(ATTACHMENT_BUCKET)
+    .createSignedUrl(storagePath, expiresIn, { download: fileName } as any);
+  if (error) throw error;
+  return data.signedUrl;
+}

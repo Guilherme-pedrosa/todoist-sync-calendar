@@ -1,7 +1,7 @@
 {
   "name": "TaskFlow",
   "short_name": "TaskFlow",
-  "description": "Gestão de tarefas com sincronização Google Calendar e WhatsApp.",
+  "description": "Gestao de tarefas com agenda interna, conversas e produtividade da equipe.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "/today",

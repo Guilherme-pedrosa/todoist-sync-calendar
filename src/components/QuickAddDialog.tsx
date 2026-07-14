@@ -639,12 +639,12 @@ export function QuickAddDialog() {
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 flex items-center justify-between gap-2">
+      <div className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60">
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md hover:bg-muted transition-colors"
+              className="inline-flex min-h-10 items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors sm:min-h-0 sm:text-xs sm:rounded-md"
             >
               {project?.isInbox ? (
                 <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
@@ -680,14 +680,14 @@ export function QuickAddDialog() {
         </Popover>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={requestClose} className="h-8 text-xs">
+          <Button variant="ghost" size="sm" onClick={requestClose} className="h-11 text-sm sm:h-8 sm:text-xs">
             Cancelar
           </Button>
           <Button
             size="sm"
             onClick={() => submit(true)}
             disabled={submitting || taskLines.length === 0}
-            className="h-8 text-xs gap-1.5"
+            className="h-11 text-sm gap-1.5 px-4 sm:h-8 sm:text-xs sm:px-3"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitting ? 'Adicionando...' : 'Adicionar tarefa'}
@@ -707,12 +707,12 @@ export function QuickAddDialog() {
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
-        <DrawerContent className="max-h-[90vh] p-0">
+        <DrawerContent className="p-0">
           <DrawerTitle className="sr-only">Adicionar tarefa</DrawerTitle>
           <DrawerDescription className="sr-only">
             Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
           </DrawerDescription>
-          <div className="relative pb-2">{body}</div>
+          <div className="relative min-h-0 overflow-y-auto overscroll-contain">{body}</div>
         </DrawerContent>
       </Drawer>
     );

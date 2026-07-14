@@ -5,10 +5,12 @@ import {
   TaskAttachment,
   deleteTaskAttachment,
   getAttachmentUrl,
+  getAttachmentDownloadUrl,
   listTaskAttachments,
   uploadTaskAttachment,
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
+import { triggerBrowserDownload } from '@/lib/downloadFile';
 
 function formatBytes(n?: number | null) {
   if (!n) return '';
@@ -55,9 +57,18 @@ export function TaskAttachmentsSection({ taskId, compact = false }: { taskId: st
   const open = async (att: TaskAttachment) => {
     try {
       const url = await getAttachmentUrl(att.storage_path);
-      window.open(url, '_blank', 'noopener,noreferrer');
+      triggerBrowserDownload(url, att.name);
     } catch (e) {
       toast.error('Não foi possível abrir o anexo');
+    }
+  };
+
+  const download = async (att: TaskAttachment) => {
+    try {
+      const url = await getAttachmentDownloadUrl(att.storage_path, att.name);
+      triggerBrowserDownload(url, att.name);
+    } catch (e) {
+      toast.error('Nao foi possivel baixar o anexo');
     }
   };
 
@@ -81,7 +92,7 @@ export function TaskAttachmentsSection({ taskId, compact = false }: { taskId: st
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
+          className="inline-flex min-h-9 sm:min-h-0 items-center gap-1.5 text-xs px-2 py-1 rounded border border-border hover:border-primary/40 hover:text-primary transition-colors disabled:opacity-50"
         >
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
           Adicionar
@@ -106,12 +117,12 @@ export function TaskAttachmentsSection({ taskId, compact = false }: { taskId: st
             return (
               <li
                 key={att.id}
-                className="group flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-2 py-1.5"
+                className="group flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-2 py-2 sm:py-1.5"
               >
                 {isImg ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-4 w-4 text-muted-foreground" />}
                 <button
                   type="button"
-                  onClick={() => open(att)}
+                  onClick={() => download(att)}
                   className="flex-1 min-w-0 text-left text-xs truncate hover:text-primary"
                   title={att.name}
                 >
@@ -120,19 +131,21 @@ export function TaskAttachmentsSection({ taskId, compact = false }: { taskId: st
                 <span className="text-[10px] text-muted-foreground shrink-0">{formatBytes(att.size)}</span>
                 <button
                   type="button"
-                  onClick={() => open(att)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary"
-                  title="Abrir"
+                  onClick={() => download(att)}
+                  className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-primary"
+                  title="Baixar"
+                  aria-label={`Baixar ${att.name}`}
                 >
-                  <Download className="h-3.5 w-3.5" />
+                  <Download className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={() => remove(att)}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                  className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                   title="Remover"
+                  aria-label={`Remover ${att.name}`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                 </button>
               </li>
             );

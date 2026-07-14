@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -74,7 +74,6 @@ function formatDueDate(dateStr: string) {
 
 export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const navigate = useNavigate();
-  const deleteTask = useTaskStore((s) => s.deleteTask);
   const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
@@ -86,16 +85,6 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const unreadComments = useCommentsStore((s) => s.unreadByTask[task.id] || 0);
 
   const [collapsed, setCollapsed] = useState(true);
-  const longPressTimer = useRef<number | null>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const suppressTouchClick = useRef(false);
-
-  const clearLongPress = () => {
-    if (longPressTimer.current) {
-      window.clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  };
 
   const project = projects.find((p) => p.id === task.projectId);
   const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
@@ -116,44 +105,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
     // Don't open detail when clicking on interactive children
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-detail]')) return;
-    if (suppressTouchClick.current) {
-      suppressTouchClick.current = false;
-      return;
-    }
     openDetail(task.id);
-  };
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch') return;
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-no-detail]')) return;
-
-    suppressTouchClick.current = true;
-    touchStart.current = { x: e.clientX, y: e.clientY };
-    clearLongPress();
-    longPressTimer.current = window.setTimeout(() => {
-      if (!touchStart.current) return;
-      navigator.vibrate?.(12);
-      openDetail(task.id);
-      touchStart.current = null;
-      clearLongPress();
-    }, 500);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch' || !touchStart.current) return;
-    const dx = Math.abs(e.clientX - touchStart.current.x);
-    const dy = Math.abs(e.clientY - touchStart.current.y);
-    if (dx > 10 || dy > 10) {
-      touchStart.current = null;
-      clearLongPress();
-    }
-  };
-
-  const handlePointerEnd = (e: React.PointerEvent) => {
-    if (e.pointerType !== 'touch') return;
-    touchStart.current = null;
-    clearLongPress();
   };
 
   const dateValue: DateValue = {
@@ -179,7 +131,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
       style={style}
       className={cn(
         'select-none relative overflow-hidden',
-        depth > 0 && 'ml-6 pl-4 border-l border-border/60'
+        depth > 0 && 'ml-3 pl-2 sm:ml-6 sm:pl-4 border-l border-border/60'
       )}
     >
       <motion.div
@@ -187,7 +139,6 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         dragConstraints={{ left: -120, right: 120 }}
         dragElastic={0.2}
         onDragEnd={(_, info) => {
-          const w = (info.point.x ? 1 : 1) && 200; // arbitrary base
           if (info.offset.x > 80) {
             // swipe direita → concluir
             complete(task.id);
@@ -223,13 +174,9 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             });
           }
         }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
         onClick={handleClick}
         className={cn(
-          'group flex items-start gap-2 px-2 py-2 rounded-lg transition-colors cursor-pointer bg-background border-l-2 border-transparent',
+          'touch-pan-y group flex items-start gap-2.5 sm:gap-2 px-2 py-3 sm:py-2 rounded-xl sm:rounded-lg transition-colors cursor-pointer bg-background border-l-2 border-transparent',
           'hover:bg-muted/50',
           task.recurrenceRule && !task.completed && 'border-recurring bg-recurring/5 hover:bg-recurring/10',
           task.completed && 'opacity-50'
@@ -241,7 +188,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             data-no-detail
             {...attributes}
             {...listeners}
-            className="opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab active:cursor-grabbing pt-1"
+            className="hidden md:flex h-8 w-6 items-center justify-center opacity-0 group-hover:opacity-50 hover:!opacity-100 cursor-grab active:cursor-grabbing text-muted-foreground"
             aria-label="Arrastar"
           >
             <GripVertical className="h-3.5 w-3.5" />
@@ -253,13 +200,13 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           <button
             data-no-detail
             onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
-            className="pt-1 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 sm:h-6 sm:w-5 -ml-1 flex items-center justify-center text-muted-foreground hover:text-foreground"
             aria-label="Mostrar/esconder subtarefas"
           >
             {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
         ) : (
-          <span className="w-3.5" />
+          <span className="hidden sm:block w-3.5" />
         )}
 
         {/* Checkbox */}
@@ -267,14 +214,14 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           data-no-detail
           onClick={(e) => { e.stopPropagation(); complete(task.id); }}
           className={cn(
-            'mt-0.5 h-[22px] w-[22px] rounded-full border-2 shrink-0 transition-all flex items-center justify-center hover:scale-110',
+            'mt-0.5 h-7 w-7 sm:h-[22px] sm:w-[22px] rounded-full border-2 shrink-0 transition-all flex items-center justify-center hover:scale-110',
             priorityColors[task.priority],
             task.completed && [priorityBg[task.priority], 'border-transparent']
           )}
           aria-label="Concluir"
         >
           {task.completed && (
-            <svg className="h-3 w-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+            <svg className="h-3.5 w-3.5 sm:h-3 sm:w-3 text-primary-foreground" viewBox="0 0 12 12" fill="none">
               <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
@@ -284,7 +231,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         <div className="flex-1 min-w-0">
           <p
             className={cn(
-              'text-sm font-medium leading-snug',
+              'text-[15px] sm:text-sm font-medium leading-snug',
               task.recurrenceRule && !task.completed && 'text-recurring',
               task.completed && 'line-through text-success'
             )}
@@ -370,18 +317,18 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
         {/* Hover actions */}
         <div
           data-no-detail
-          className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity shrink-0"
         >
           {/* Schedule */}
           <Popover>
             <PopoverTrigger asChild>
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Agendar"
                 title="Agendar"
               >
-                <CalendarClock className="h-3.5 w-3.5" />
+                <CalendarClock className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
@@ -408,10 +355,10 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
             <DropdownMenuTrigger asChild>
               <button
                 onClick={(e) => e.stopPropagation()}
-                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Mais"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreHorizontal className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>

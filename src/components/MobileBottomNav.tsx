@@ -31,14 +31,14 @@ export function MobileBottomNav() {
 
   const itemClass = (active: boolean) =>
     cn(
-      'flex flex-col items-center justify-center gap-1 flex-1 min-w-0 px-2 py-1.5 rounded-md text-[11px] font-medium transition-colors touch-manipulation select-none',
+      'flex flex-col items-center justify-center gap-1 flex-1 min-w-0 px-1 py-1.5 rounded-xl text-[11px] font-semibold transition-colors touch-manipulation select-none',
       'active:bg-muted/70',
       active ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
     );
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur border-t border-border pb-safe"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-xl border-t border-border/70 pb-safe px-1"
       aria-label="Navegação principal"
     >
       <div className="h-16 flex items-stretch justify-around">

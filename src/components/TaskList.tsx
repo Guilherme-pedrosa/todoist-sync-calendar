@@ -293,7 +293,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         )}
       </header>
       {/* Mobile mini-bar with task count + completed toggle */}
-      <div className="sm:hidden flex items-center justify-between px-4 py-2 border-b border-border/50 text-xs text-muted-foreground">
+      <div className="sm:hidden min-h-11 flex items-center justify-between gap-3 px-3 py-2 border-b border-border/50 text-xs text-muted-foreground">
         <span>{filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''}</span>
         {supportsCompletedToggle && (
           <ShowCompletedToggle
@@ -305,7 +305,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-3">
+      <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
         {projectGrouped ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {/* Tasks without section */}
@@ -324,7 +324,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
                     onClick={() =>
                       setCollapsedSections((prev) => ({ ...prev, [s.id]: !prev[s.id] }))
                     }
-                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                    className="w-full min-h-10 flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
                   >
                     {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                     {s.name}
@@ -348,7 +348,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
         ) : groupedTasks ? (
           Object.entries(groupedTasks).map(([group, groupTasks]) => (
             <div key={group} className="mb-4">
-              <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-2 capitalize">
+              <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 sm:px-3 py-2 capitalize">
                 {group}
               </h3>
               {groupTasks.map((task) => (
@@ -374,7 +374,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
 
         {supportsCompletedToggle && showCompleted && completedList.length > 0 && (
           <div className="mt-4">
-            <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h3 className="px-2 sm:px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Concluídas · {completedList.length}
             </h3>
             <div className="opacity-60">

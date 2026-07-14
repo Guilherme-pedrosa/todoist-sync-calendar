@@ -99,7 +99,7 @@ export default function TodayPage() {
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
-      <header className="flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-5 border-b border-border/50">
+      <header className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 sm:py-5 border-b border-border/50">
         <button
           onClick={toggleSidebar}
           className="hidden lg:inline-flex p-1.5 -ml-1 rounded-md hover:bg-muted transition-colors shrink-0"
@@ -130,7 +130,7 @@ export default function TodayPage() {
             })()}
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="ml-auto flex items-center gap-2 shrink-0 overflow-x-auto mobile-scroll max-w-full">
           <ShowCompletedToggle
             show={showCompleted}
             onChange={setShowCompleted}
@@ -163,13 +163,13 @@ export default function TodayPage() {
           newTaskDefaults={{ defaultDate: today }}
         />
       ) : (
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3">
+      <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
         {overdue.length > 0 && (
           <div className="mb-4">
             <div className="flex flex-wrap items-center gap-2 px-2 sm:px-3 py-2">
               <button
                 onClick={() => setOverdueOpen((o) => !o)}
-                className="flex items-center gap-2 text-sm font-semibold text-destructive hover:opacity-80 transition-opacity"
+                className="min-h-10 flex items-center gap-2 text-sm font-semibold text-destructive hover:opacity-80 transition-opacity"
               >
                 {overdueOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                 <AlertTriangle className="h-4 w-4" />
@@ -180,7 +180,7 @@ export default function TodayPage() {
                 size="sm"
                 variant="ghost"
                 onClick={rescheduleAllOverdue}
-                className="ml-auto h-7 text-[11px] text-destructive hover:bg-destructive/10 px-2"
+                className="ml-auto h-9 sm:h-7 text-[11px] text-destructive hover:bg-destructive/10 px-2"
               >
                 Reagendar p/ hoje
               </Button>

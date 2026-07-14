@@ -640,10 +640,10 @@ export function TaskDetailPanel() {
             animate={{ x: 0, y: 0, opacity: 1 }}
             exit={{ x: isMobile ? 0 : 480, y: isMobile ? 60 : 0, opacity: 0 }}
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className={cn(
-              'bg-background shadow-2xl border-l border-border flex flex-col',
-              isMobile ? 'w-full' : 'w-full max-w-[1080px] lg:min-w-[860px]'
-            )}
+          className={cn(
+            'bg-background shadow-2xl border-l border-border flex flex-col',
+            isMobile ? 'w-full h-[100dvh] border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
+          )}
           >
             {loadingContent}
           </motion.div>
@@ -772,9 +772,9 @@ export function TaskDetailPanel() {
   })();
 
   const content = (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full min-h-0 flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <div className="min-h-14 flex items-center gap-1 px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
         {isMobile && (
           <button
             onClick={close}
@@ -822,8 +822,8 @@ export function TaskDetailPanel() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-1.5 hover:bg-muted rounded text-muted-foreground" aria-label="Mais">
-                <MoreHorizontal className="h-3.5 w-3.5" />
+              <button className="h-9 w-9 sm:h-7 sm:w-7 inline-flex items-center justify-center hover:bg-muted rounded text-muted-foreground" aria-label="Mais">
+                <MoreHorizontal className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -867,20 +867,22 @@ export function TaskDetailPanel() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
-            onClick={close}
-            className="p-2 hover:bg-muted active:bg-muted rounded text-foreground ml-1 h-9 w-9 flex items-center justify-center"
-            aria-label="Fechar (Esc)"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {!isMobile && (
+            <button
+              onClick={close}
+              className="p-2 hover:bg-muted active:bg-muted rounded text-foreground ml-1 h-9 w-9 flex items-center justify-center"
+              aria-label="Fechar (Esc)"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
+      <div className="flex-1 min-h-0 overflow-y-auto mobile-scroll scrollbar-thin">
         <div className="flex flex-col lg:flex-row">
           {/* Main */}
-          <div className="flex-1 px-6 lg:px-10 py-6 space-y-5 min-w-0">
+          <div className="flex-1 px-4 sm:px-6 lg:px-10 py-4 sm:py-6 space-y-5 min-w-0">
             <div className="flex items-start gap-3">
               <div className="mt-1 flex items-center gap-1 shrink-0">
                 <button
@@ -1202,7 +1204,7 @@ export function TaskDetailPanel() {
           </div>
 
           {/* Sidebar */}
-          <aside className="w-full lg:w-[300px] lg:border-l border-border bg-muted/20 px-5 py-5 space-y-4 lg:shrink-0">
+          <aside className="w-auto mx-3 mb-4 rounded-2xl border border-border bg-muted/20 px-4 py-4 space-y-4 lg:mx-0 lg:mb-0 lg:w-[300px] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l lg:px-5 lg:py-5 lg:shrink-0">
             <DetailRow icon={CalendarIcon} label="Data">
               <DatePickerPopover
                 commitOnClose
@@ -1497,7 +1499,7 @@ export function TaskDetailPanel() {
 
           {/* Chat side column (toggled) */}
           {chatOpen && chatConversationId && (
-            <div className="w-full lg:w-[380px] lg:border-l border-border bg-background flex flex-col lg:shrink-0 lg:max-h-[calc(100vh-7rem)]">
+            <div className="w-full min-h-[70dvh] lg:min-h-0 lg:w-[380px] lg:border-l border-border bg-background flex flex-col lg:shrink-0 lg:max-h-[calc(100vh-7rem)]">
               <div className="flex items-center justify-between px-3 py-2 border-b border-border">
                 <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <MessageSquare className="h-3.5 w-3.5" /> Conversa
@@ -1519,8 +1521,8 @@ export function TaskDetailPanel() {
       </div>
 
       {/* Footer: compact comment + summary */}
-      <div className="border-t border-border px-4 py-2 flex items-center gap-3">
-        <div className="text-[11px] text-muted-foreground flex items-center gap-3 flex-1 min-w-0 truncate">
+      <div className="border-t border-border px-3 sm:px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center gap-2 sm:gap-3">
+        <div className="hidden sm:flex text-[11px] text-muted-foreground items-center gap-3 flex-1 min-w-0 truncate">
           {subtasks.length > 0 && (
             <span className="shrink-0">
               {subtasks.filter((s) => s.completed).length}/{subtasks.length} subtarefas
@@ -1528,7 +1530,7 @@ export function TaskDetailPanel() {
           )}
           {summaryLine && <span className="truncate">{summaryLine}</span>}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 flex-1 sm:flex-none min-w-0">
           <Input
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
@@ -1539,14 +1541,14 @@ export function TaskDetailPanel() {
               }
             }}
             placeholder="Comentar rápido…"
-            className="h-7 text-xs w-48 sm:w-64"
+            className="h-10 sm:h-7 text-sm sm:text-xs w-full sm:w-64 min-w-0"
           />
           <Button
             size="sm"
             variant="ghost"
             onClick={sendComment}
             disabled={!commentText.trim()}
-            className="h-7 w-7 p-0"
+            className="h-10 w-10 sm:h-7 sm:w-7 p-0 shrink-0"
             aria-label="Enviar comentário"
           >
             <Send className="h-3.5 w-3.5" />
@@ -1594,7 +1596,7 @@ export function TaskDetailPanel() {
           transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           className={cn(
             'bg-background shadow-2xl border-l border-border flex flex-col',
-            isMobile ? 'w-full' : 'w-full max-w-[1080px] lg:min-w-[860px]'
+            isMobile ? 'w-full h-[100dvh] border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
           )}
         >
           {content}
@@ -1615,11 +1617,11 @@ function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
-        <Icon className="h-3 w-3" /> {label}
+        <Icon className="h-3.5 w-3.5 sm:h-3 sm:w-3" /> {label}
       </div>
-      <div>{children}</div>
+      <div className="[&_button]:min-h-9 sm:[&_button]:min-h-0">{children}</div>
     </div>
   );
 }

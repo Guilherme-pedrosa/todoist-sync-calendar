@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
@@ -29,12 +29,27 @@ export default function AppLayout() {
   const loading = useTaskStore((s) => s.loading);
   const fetchData = useTaskStore((s) => s.fetchData);
   const { user } = useAuth();
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
+  const lastFetchRef = useRef(0);
 
   useGlobalShortcuts();
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   useActivityTracker(user ? currentWorkspaceId : null);
 
   const location = useLocation();
+  const refetchData = useCallback(() => {
+    const now = Date.now();
+    if (fetchInFlightRef.current) return fetchInFlightRef.current;
+    if (now - lastFetchRef.current < 750) return Promise.resolve();
+
+    lastFetchRef.current = now;
+    const request = fetchData().finally(() => {
+      fetchInFlightRef.current = null;
+    });
+    fetchInFlightRef.current = request;
+    return request;
+  }, [fetchData]);
+
   // Close mobile sidebar on route change
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -53,10 +68,10 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (user) {
-      fetchData();
+      refetchData();
       void useWorkspaceStore.getState().fetchWorkspaces();
     }
-  }, [user, fetchData]);
+  }, [user, refetchData]);
 
   // Realtime: refetch tarefas/projetos quando colaboradores fazem mudanças
   useEffect(() => {
@@ -69,7 +84,7 @@ export default function AppLayout() {
   // dispositivos (ex.: nova atribuição) apareçam mesmo se o realtime cair.
   useEffect(() => {
     if (!user) return;
-    const refetch = () => { void fetchData(); };
+    const refetch = () => { void refetchData(); };
     const onVisibility = () => { if (document.visibilityState === 'visible') refetch(); };
     window.addEventListener('focus', refetch);
     document.addEventListener('visibilitychange', onVisibility);
@@ -77,11 +92,11 @@ export default function AppLayout() {
       window.removeEventListener('focus', refetch);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [user, fetchData]);
+  }, [user, refetchData]);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-background">
+      <div className="flex items-center justify-center h-[100dvh] bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -95,7 +110,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] min-h-[100svh] overflow-hidden bg-background">
       {/* Desktop sidebar: inline, takes width */}
       <div
         className={cn(
@@ -114,13 +129,13 @@ export default function AppLayout() {
             onClick={closeSidebar}
             className="absolute inset-0 bg-black/60"
           />
-          <div className="absolute inset-y-0 left-0 w-[85vw] max-w-[320px] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out flex flex-col pt-safe pb-safe translate-x-0">
+          <div className="absolute inset-y-0 left-0 w-[min(88vw,340px)] border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-out flex flex-col pt-safe pb-safe translate-x-0 shadow-2xl">
             <AppSidebar />
           </div>
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
         <MobileTopBar />
         <Outlet />
       </div>

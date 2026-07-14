@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { getTaskChatRecipientIds } from '@/lib/taskChatRecipients';
+import { triggerBrowserDownload } from '@/lib/downloadFile';
 
 interface Props {
   conversationId: string;
@@ -296,8 +297,10 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
     return map;
   }, [members]);
 
-  const getAttachmentUrl = async (path: string) => {
-    const { data } = await supabase.storage.from('chat-attachments').createSignedUrl(path, 3600);
+  const getAttachmentUrl = async (path: string, fileName?: string, download = false) => {
+    const { data } = await supabase.storage
+      .from('chat-attachments')
+      .createSignedUrl(path, 3600, download && fileName ? { download: fileName } as any : undefined);
     return data?.signedUrl;
   };
 
@@ -508,7 +511,7 @@ interface BubbleProps {
   onEditChange: (v: string) => void;
   onEditSave: () => void;
   onEditCancel: () => void;
-  getSignedUrl: (path: string) => Promise<string | undefined>;
+  getSignedUrl: (path: string, fileName?: string, download?: boolean) => Promise<string | undefined>;
 }
 
 function MessageBubble({
@@ -546,6 +549,14 @@ function MessageBubble({
 
   const parts = renderBodyWithMentions(message.body, members, myId);
   const time = format(parseISO(message.createdAt), 'HH:mm', { locale: ptBR });
+  const downloadAttachment = async (path: string, name: string) => {
+    const url = await getSignedUrl(path, name, true);
+    if (!url) {
+      toast.error('Nao foi possivel baixar o anexo');
+      return;
+    }
+    triggerBrowserDownload(url, name);
+  };
 
   return (
     <div className={cn('flex gap-2', isMine && 'flex-row-reverse')}>
@@ -619,19 +630,18 @@ function MessageBubble({
                     );
                   }
                   return (
-                    <a
+                    <button
                       key={att.path}
-                      href={url}
-                      target="_blank"
-                      rel="noreferrer"
+                      type="button"
+                      onClick={() => void downloadAttachment(att.path, att.name)}
                       className={cn(
-                        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs',
+                        'flex items-center gap-2 px-2 py-2 sm:py-1.5 rounded-md text-xs text-left min-h-10',
                         isMine ? 'bg-primary-foreground/15' : 'bg-background/60'
                       )}
                     >
                       <FileText className="h-3.5 w-3.5" />
                       <span className="truncate">{att.name}</span>
-                    </a>
+                    </button>
                   );
                 })}
               </div>

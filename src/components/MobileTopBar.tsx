@@ -33,15 +33,15 @@ export function MobileTopBar() {
 
   return (
     <header
-      className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur border-b border-border pt-safe"
+      className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-xl border-b border-border/70 pt-safe"
       role="banner"
     >
-      <div className="h-12 px-2 flex items-center gap-2">
+      <div className="h-14 px-2.5 flex items-center gap-2">
         <button
           type="button"
           onClick={toggleSidebar}
           aria-label="Abrir menu"
-          className="h-10 w-10 flex items-center justify-center rounded-md text-foreground hover:bg-muted active:bg-muted/80 transition-colors"
+          className="h-11 w-11 flex items-center justify-center rounded-xl text-foreground hover:bg-muted active:bg-muted/80 transition-colors"
         >
           <Menu className="h-5 w-5" />
         </button>
