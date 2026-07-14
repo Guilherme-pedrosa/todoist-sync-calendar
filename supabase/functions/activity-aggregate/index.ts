@@ -17,10 +17,27 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token) return json({ error: "unauthorized" }, 401);
+
+    if (token !== serviceRoleKey) {
+      const { data: userData, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !userData.user) return json({ error: "unauthorized" }, 401);
+
+      const { data: productivityAdmin, error: adminError } = await supabase
+        .from("productivity_admins")
+        .select("user_id")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (adminError) {
+        console.error("[activity-aggregate] admin check failed", adminError);
+        return json({ error: "admin access check failed" }, 500);
+      }
+      if (!productivityAdmin) return json({ error: "forbidden" }, 403);
+    }
 
     const url = new URL(req.url);
     const body = await req.json().catch(() => ({} as Record<string, unknown>));

@@ -135,6 +135,7 @@ async function selfInvoke() {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'apikey': SERVICE_ROLE,
     },
     body: JSON.stringify({ continue: true }),
   });
@@ -189,7 +190,10 @@ async function runSync(supabase: any) {
             else if (s.kind === 'nfs') { b.nfs_count++; b.nfs_valor += valor; }
             n++;
           }
-        } catch (e) { console.error(`Falhou ${s.path}:`, e); }
+        } catch (e) {
+          console.error(`Falhou ${s.path}:`, e);
+          throw new Error(`Falha ao baixar ${s.label}`, { cause: e });
+        }
         counts[s.path] = n;
 
         if (Date.now() - startedAt > CHUNK_BUDGET_MS) {
@@ -215,7 +219,10 @@ async function runSync(supabase: any) {
           const id = String(u?.id ?? '').trim();
           if (nome && id) nameToId.set(nome.toLowerCase(), id);
         }
-      } catch (e) { console.error('Falhou /usuarios:', e); }
+      } catch (e) {
+        console.error('Falhou /usuarios:', e);
+        throw new Error('Falha ao baixar usuários do GestãoClick', { cause: e });
+      }
       // guarda mapa em fetched._users
       const counts = (state.fetched as any) || {};
       counts._users = Object.fromEntries(nameToId);
@@ -324,22 +331,23 @@ async function runSync(supabase: any) {
     // FASE 4: persistir
     await updateStatus({ stage: 'Salvando no banco...', progress: 94 });
     const rows = Array.from(buckets.values());
-    if (rows.length > 0) {
-      await supabase.from('gc_daily_activity').delete().gte('day', data_inicio).lte('day', data_fim);
-      const chunk = 500;
-      for (let i = 0; i < rows.length; i += chunk) {
-        const slice = rows.slice(i, i + chunk).map(r => ({ ...r, computed_at: new Date().toISOString() }));
-        const { error } = await supabase.from('gc_daily_activity').insert(slice);
-        if (error) console.error('insert error', error);
-      }
-    }
+    const computedAt = new Date().toISOString();
+    const { data: insertedRows, error: replaceError } = await supabase.rpc(
+      'replace_gc_daily_activity',
+      {
+        p_start: data_inicio,
+        p_end: data_fim,
+        p_rows: rows.map(r => ({ ...r, computed_at: computedAt })),
+      },
+    );
+    if (replaceError) throw new Error(`Falha ao salvar dados consolidados: ${replaceError.message}`);
 
     const counts = (state.fetched as any) || {};
     delete counts._users;
     const activityTotal = sumBucketActivity(rows);
     await updateStatus({
       status: 'done', stage: 'Concluído', progress: 100,
-      buckets: rows.length, activity_total: activityTotal, fetched: counts,
+      buckets: Number(insertedRows ?? rows.length), activity_total: activityTotal, fetched: counts,
       finished_at: new Date().toISOString(),
       bucket_state: null, log_page: null, log_total_pages: null, log_range_start: null, phase: null,
     });
@@ -363,12 +371,51 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+  const authHeader = req.headers.get('Authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token) {
+    return new Response(JSON.stringify({ error: 'unauthorized' }), {
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (token !== SERVICE_ROLE) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData.user) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { data: productivityAdmin, error: adminError } = await supabase
+      .from('productivity_admins')
+      .select('user_id')
+      .eq('user_id', userData.user.id)
+      .maybeSingle();
+    if (adminError) {
+      console.error('[gc-sync-activity] admin check failed', adminError);
+      return new Response(JSON.stringify({ error: 'admin access check failed' }), {
+        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!productivityAdmin) {
+      return new Response(JSON.stringify({ error: 'forbidden' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  }
+
   let body: any = {};
   try { body = await req.json(); } catch { /* sem body */ }
   const url = new URL(req.url);
 
   // Continuação de sync existente
   if (body?.continue === true) {
+    if (token !== SERVICE_ROLE) {
+      return new Response(JSON.stringify({ error: 'continuation requires service role' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     // @ts-ignore
     EdgeRuntime.waitUntil(runSync(supabase));
     return new Response(JSON.stringify({ ok: true, continued: true }), {

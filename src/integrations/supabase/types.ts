@@ -2890,7 +2890,15 @@ export type Database = {
         Args: { p_reason: string; p_task_id: string }
         Returns: Json
       }
+      replace_gc_daily_activity: {
+        Args: { p_end: string; p_rows: Json; p_start: string }
+        Returns: number
+      }
       run_activity_aggregate: { Args: { p_day?: string }; Returns: Json }
+      run_activity_aggregate_admin: {
+        Args: { p_day?: string }
+        Returns: Json
+      }
       task_insert_check: {
         Args: { _project_id: string; _user_id: string; _workspace_id?: string }
         Returns: boolean
