@@ -39,6 +39,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { cn } from '@/lib/utils';
+import { localDateKey } from '@/lib/localDate';
 
 interface TaskListProps {
   view: ViewFilter;
@@ -123,7 +124,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     let grouped: Record<string, Task[]> | null = null;
     let completed: Task[] = [];
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateKey();
 
     switch (view) {
       case 'inbox': {
@@ -365,7 +366,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
             {view !== 'completed' && (
               <AddTaskForm
                 defaultProjectId={view === 'project' ? projectId : undefined}
-                defaultDate={view === 'today' ? new Date().toISOString().split('T')[0] : undefined}
+                defaultDate={view === 'today' ? localDateKey() : undefined}
               />
             )}
           </DndContext>
@@ -392,7 +393,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
             actionLabel="Adicionar tarefa"
             onAction={() => useQuickAddStore.getState().openQuickAdd({
               defaultProjectId: view === 'project' ? projectId : undefined,
-              defaultDueDate: view === 'today' ? new Date().toISOString().split('T')[0] : undefined,
+              defaultDueDate: view === 'today' ? localDateKey() : undefined,
             })}
           />
         )}

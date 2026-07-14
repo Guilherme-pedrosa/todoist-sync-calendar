@@ -37,6 +37,7 @@ import {
   Chrome,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { localDateKey } from '@/lib/localDate';
 import { useTaskStore } from '@/store/taskStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
@@ -169,7 +170,7 @@ export function AppSidebar() {
     return () => { active = false; };
   }, [user]);
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateKey();
   const todayCount = tasks.filter((t) => !t.completed && t.dueDate === today).length;
   const inboxProject = projects.find((p) => p.isInbox);
   const inboxCount = tasks.filter(

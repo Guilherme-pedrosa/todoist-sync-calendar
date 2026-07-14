@@ -17,6 +17,7 @@ import { useShowCompleted } from '@/hooks/useShowCompleted';
 import { ShowCompletedToggle } from '@/components/ShowCompletedToggle';
 import { useAuth } from '@/contexts/AuthContext';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
+import { localDateKey } from '@/lib/localDate';
 
 export default function TodayPage() {
   const tasks = useTaskStore((s) => s.tasks);
@@ -27,14 +28,14 @@ export default function TodayPage() {
   const [viewPref, setViewPref] = useViewPref('today', { mode: 'list', groupBy: 'priority' });
   const [showCompleted, setShowCompleted] = useShowCompleted('today');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateKey();
 
   const { overdue, todayTasks, completedToday } = useMemo(() => {
     const overdue: Task[] = [];
     const todayTasks: Task[] = [];
     const completedToday: Task[] = [];
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateKey();
     const todayDate = new Date(todayStr + 'T00:00:00');
     const futureWindow = new Date(todayDate);
     futureWindow.setDate(futureWindow.getDate() + 30);

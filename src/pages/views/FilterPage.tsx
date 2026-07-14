@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { KanbanBoard } from '@/components/KanbanBoard';
 import { ViewModeToolbar } from '@/components/ViewModeToolbar';
 import { useViewPref } from '@/hooks/useViewPref';
+import { localDateKey } from '@/lib/localDate';
 
 interface FilterRow {
   id: string;
@@ -19,7 +20,7 @@ interface FilterRow {
 
 // Very small DSL: supports `today`, `overdue`, `no date`, `p1..p4`, `@label`, `#project`, combinations with `&` and `|`.
 function evalFilter(query: string, task: Task, projects: any[], labels: any[]): boolean {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey();
   const tokens = query
     .toLowerCase()
     .split(/\s*\|\s*/)

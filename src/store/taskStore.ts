@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Task, Project, Label, ViewFilter, Priority, RecurrenceType } from '@/types/task';
 import { useUndoStore } from '@/store/undoStore';
 import { expandOccurrencesInRange } from '@/lib/recurrence';
+import { collectTaskDescendants } from '@/lib/taskTree';
 
 import type { Session } from '@supabase/supabase-js';
 import { toast } from 'sonner';
@@ -562,14 +563,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!session) return;
 
     const task = get().tasks.find((t) => t.id === id);
-    const children = get().tasks.filter((t) => t.parentId === id);
-    const childIds = children.map((c) => c.id);
+    const descendants = collectTaskDescendants(get().tasks, id);
+    const descendantIds = descendants.map((task) => task.id);
 
     const now = new Date().toISOString();
     // Soft-delete: a tarefa (e suas filhas) somem dos selects e do realtime,
     // mas continuam no banco para impedir ressurreição via integrações externas
     // e para permitir undo restaurando deleted_at = null.
-    const idsToDelete = [id, ...childIds];
+    const idsToDelete = [id, ...descendantIds];
+    const idsToDeleteSet = new Set(idsToDelete);
     const { data: deletedRows, error: deleteError } = await supabase
       .from('tasks')
       .update({ deleted_at: now })
@@ -585,21 +587,22 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     set((state) => ({
-      tasks: state.tasks.filter((t) => t.id !== id && t.parentId !== id),
+      tasks: state.tasks.filter((t) => !idsToDeleteSet.has(t.id)),
     }));
 
 
     if (task && !options?.skipUndo) {
       const snapshot = { ...task };
-      const childrenSnap = children.map((c) => ({ ...c }));
+      const descendantsSnapshot = descendants.map((descendant) => ({ ...descendant }));
       useUndoStore.getState().push({
         label: `Excluir "${task.title}"`,
         undo: async () => {
-          await supabase
+          const { error: undoError } = await supabase
             .from('tasks')
             .update({ deleted_at: null })
             .in('id', idsToDelete);
-          set((state) => ({ tasks: [snapshot, ...childrenSnap, ...state.tasks] }));
+          if (undoError) throw undoError;
+          set((state) => ({ tasks: [snapshot, ...descendantsSnapshot, ...state.tasks] }));
         },
       });
     }
@@ -617,10 +620,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
-    await supabase
+    const { error } = await supabase
       .from('tasks')
       .update({ completed, completed_at: completedAt })
       .eq('id', id);
+
+    if (error) {
+      toast.error('Não foi possível atualizar a tarefa', { description: error.message });
+      throw error;
+    }
 
     set((state) => ({
       tasks: state.tasks.map((t) =>
@@ -631,10 +639,11 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     useUndoStore.getState().push({
       label: completed ? `Desmarcar "${task.title}"` : `Marcar "${task.title}"`,
       undo: async () => {
-        await supabase
+        const { error: undoError } = await supabase
           .from('tasks')
           .update({ completed: prevCompleted, completed_at: prevCompletedAt ?? null })
           .eq('id', id);
+        if (undoError) throw undoError;
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt } : t

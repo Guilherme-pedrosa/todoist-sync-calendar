@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { userDisplayName } from "@/lib/userDisplay";
+import { localDateKey } from "@/lib/localDate";
 import { GcLogTab } from "@/components/productivity/GcLogTab";
 
 interface TopDomain { domain: string; seconds: number; category: string }
@@ -204,7 +205,7 @@ export default function ProductivityPage() {
     const days = Math.max(1, parseInt(range, 10));
     const since = new Date();
     since.setDate(since.getDate() - (days - 1));
-    const sinceStr = since.toISOString().slice(0, 10);
+    const sinceStr = localDateKey(since);
 
     const { data: rows } = await supabase
       .from("daily_activity_stats")

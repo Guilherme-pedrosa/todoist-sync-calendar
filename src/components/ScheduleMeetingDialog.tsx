@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceStore, type WorkspaceMember } from '@/store/workspaceStore';
 import { ensureFreshSession, useTaskStore } from '@/store/taskStore';
 import { cn } from '@/lib/utils';
+import { localDateKey } from '@/lib/localDate';
 
 interface Props {
   open: boolean;
@@ -55,7 +56,7 @@ export function ScheduleMeetingDialog({
   defaultUserInviteeIds,
 }: Props) {
   const { user } = useAuth();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey();
   const projects = useTaskStore((s) => s.projects);
   const fetchData = useTaskStore((s) => s.fetchData);
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);

@@ -39,6 +39,7 @@ import { Check } from 'lucide-react';
 import { getHolidayForDate } from '@/lib/holidays';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { localDateKey } from '@/lib/localDate';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 type RecurringCompletionRow = {
@@ -456,10 +457,6 @@ function minutesToTime(m: number): string {
   const h = Math.floor(m / 60);
   const min = m % 60;
   return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-}
-
-function localDateKey(date = new Date()): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function isTaskOverdue(task: Task, occurrenceDate = task.dueDate, endMin?: number): boolean {
