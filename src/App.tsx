@@ -30,6 +30,8 @@ const ExtensionPage = lazy(() => import("./pages/ExtensionPage"));
 const EmbedChat = lazy(() => import("./pages/EmbedChat"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const DashboardAdminPage = lazy(() => import("./pages/DashboardAdminPage"));
 
 const queryClient = new QueryClient();
 
@@ -92,6 +94,8 @@ const App = () => (
                 <Route path="/transkriptor" element={<TranskriptorPage />} />
                 <Route path="/produtividade" element={<ProductivityPage />} />
                 <Route path="/extensao" element={<ExtensionPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard-admin" element={<DashboardAdminPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
