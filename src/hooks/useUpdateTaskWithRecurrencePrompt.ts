@@ -99,6 +99,7 @@ export function useUpdateTaskWithRecurrencePrompt() {
         return;
       }
 
+      let previousTasksForRollback: Task[] | null = null;
       try {
         // Build the standalone task with the *new* scheduling values.
         const newDueDate =
@@ -145,6 +146,33 @@ export function useUpdateTaskWithRecurrencePrompt() {
         }
 
         // Cria a tarefa standalone e avança a série original numa única transação.
+        const optimisticId = `optimistic-single-${taskId}-${occurrenceDate}-${Date.now()}`;
+        const canOptimisticallyRender = !!newDueDate;
+        if (canOptimisticallyRender) {
+          previousTasksForRollback = useTaskStore.getState().tasks;
+          const optimisticTask: Task = {
+            ...task,
+            id: optimisticId,
+            sourceTaskId: task.id,
+            dueDate: newDueDate,
+            dueTime: newDueTime,
+            durationMinutes: newDuration,
+            recurrenceRule: null,
+            completed: false,
+            completedAt: null,
+            createdAt: new Date().toISOString(),
+          };
+
+          useTaskStore.setState((state) => ({
+            tasks: [
+              ...state.tasks.map((t) =>
+                t.id === taskId ? { ...t, ...seriesUpdates } : t
+              ),
+              optimisticTask,
+            ],
+          }));
+        }
+
         const { data: createdTaskId, error } = await supabase.rpc('reschedule_single_occurrence', {
           p_task_id: taskId,
           p_occurrence_date: occurrenceDate,
@@ -159,7 +187,16 @@ export function useUpdateTaskWithRecurrencePrompt() {
           throw error ?? new Error('Falha ao remanejar ocorrência');
         }
 
-        await fetchData();
+        if (canOptimisticallyRender) {
+          useTaskStore.setState((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === optimisticId ? { ...t, id: createdTaskId as string } : t
+            ),
+          }));
+          void fetchData();
+        } else {
+          await fetchData();
+        }
 
         useUndoStore.getState().push({
           label: `Remanejar "${task.title}"`,
@@ -173,6 +210,9 @@ export function useUpdateTaskWithRecurrencePrompt() {
           },
         });
       } catch (e) {
+        if (previousTasksForRollback) {
+          useTaskStore.setState({ tasks: previousTasksForRollback });
+        }
         console.error('single-occurrence edit failed', e);
         toast.error('Falha ao editar apenas esta ocorrência', {
           description: e instanceof Error ? e.message : undefined,

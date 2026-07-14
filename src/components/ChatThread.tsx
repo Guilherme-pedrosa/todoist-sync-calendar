@@ -225,6 +225,18 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         const workspaceId = chatMeta?.workspaceId ?? chatMeta?.workspace_id;
         if (chatMeta?.type === 'task' && taskId) {
           recipientIds = await getTaskChatRecipientIds(taskId);
+          const conversationParticipantRows = Array.from(new Set([user.id, ...recipientIds])).map((userId) => ({
+            conversation_id: conversationId,
+            user_id: userId,
+          }));
+          if (conversationParticipantRows.length > 0) {
+            const { error: participantError } = await supabase
+              .from('conversation_participants')
+              .upsert(conversationParticipantRows as any, { onConflict: 'conversation_id,user_id' });
+            if (participantError) {
+              console.warn('[chat] failed to sync task conversation participants', participantError);
+            }
+          }
         } else {
           const { data: parts } = await supabase
             .from('conversation_participants')
@@ -265,7 +277,12 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
             });
           }
         }
-        if (rows.length > 0) await supabase.from('notifications').insert(rows);
+        if (rows.length > 0) {
+          const { error: notificationError } = await supabase.from('notifications').insert(rows);
+          if (notificationError) {
+            console.warn('[chat] failed to create message notifications', notificationError);
+          }
+        }
       }
 
       setDraft('');

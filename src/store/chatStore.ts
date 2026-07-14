@@ -115,6 +115,35 @@ function mapMsg(row: any): Message {
   };
 }
 
+async function syncTaskConversationParticipants(conversationId: string, taskId: string, currentUserId: string) {
+  const recipientIds = await getTaskChatRecipientIds(taskId);
+  const selfResult = await supabase
+    .from('conversation_participants')
+    .upsert(
+      { conversation_id: conversationId, user_id: currentUserId } as any,
+      { onConflict: 'conversation_id,user_id' }
+    );
+
+  if (selfResult.error) {
+    console.warn('[chat] failed to join task conversation', selfResult.error);
+    return;
+  }
+
+  const otherIds = Array.from(new Set(recipientIds)).filter((id) => id !== currentUserId);
+  if (otherIds.length === 0) return;
+
+  const { error } = await supabase
+    .from('conversation_participants')
+    .upsert(
+      otherIds.map((userId) => ({ conversation_id: conversationId, user_id: userId })) as any,
+      { onConflict: 'conversation_id,user_id' }
+    );
+
+  if (error) {
+    console.warn('[chat] failed to sync task participants', error);
+  }
+}
+
 async function getCurrentUserId(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getUser();
@@ -295,6 +324,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (data) {
       const conv = mapConv(data);
+      const uid = await getCurrentUserId();
+      if (uid) {
+        await syncTaskConversationParticipants(conv.id, taskId, uid);
+      }
       set((state) => ({
         conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
       }));
@@ -336,9 +369,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
     }));
 
-    await supabase
-      .from('conversation_participants')
-      .insert({ conversation_id: conv.id, user_id: uid });
+    await syncTaskConversationParticipants(conv.id, taskId, uid);
 
     return conv.id;
   },

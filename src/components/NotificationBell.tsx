@@ -32,11 +32,16 @@ export function NotificationBell() {
   const markRead = useNotificationStore((s) => s.markRead);
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const [open, setOpen] = useState(false);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(
     getNotificationPermission()
   );
 
   const unreadCount = useMemo(() => items.filter((n) => !n.readAt).length, [items]);
+  const visibleItems = useMemo(
+    () => (unreadOnly ? items.filter((n) => !n.readAt) : items),
+    [items, unreadOnly]
+  );
 
   const handleClick = (n: AppNotification) => {
     markRead(n.id);
@@ -90,7 +95,7 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[360px] p-0">
+      <PopoverContent align="end" className="w-[calc(100vw-1rem)] sm:w-[360px] p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <div className="font-display font-semibold text-sm">Notificações</div>
           {unreadCount > 0 && (
@@ -104,6 +109,34 @@ export function NotificationBell() {
               Marcar todas
             </Button>
           )}
+        </div>
+
+        <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/20">
+          <button
+            type="button"
+            onClick={() => setUnreadOnly(false)}
+            className={cn(
+              'h-8 px-3 rounded-md text-xs font-medium transition-colors',
+              !unreadOnly ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Todas
+          </button>
+          <button
+            type="button"
+            onClick={() => setUnreadOnly(true)}
+            className={cn(
+              'h-8 px-3 rounded-md text-xs font-medium transition-colors',
+              unreadOnly ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Não lidas
+            {unreadCount > 0 && (
+              <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px]">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Badge>
+            )}
+          </button>
         </div>
 
         {perm === 'default' && (
@@ -131,12 +164,12 @@ export function NotificationBell() {
         )}
 
         <div className="max-h-[380px] overflow-y-auto">
-          {items.length === 0 ? (
+          {visibleItems.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              Nenhuma notificação ainda.
+              {unreadOnly ? 'Nenhuma notificação não lida.' : 'Nenhuma notificação ainda.'}
             </div>
           ) : (
-            items.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
+            visibleItems.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
           )}
         </div>
       </PopoverContent>
@@ -589,4 +622,5 @@ function Item({ n, onClick, onClose }: { n: AppNotification; onClick: () => void
     </div>
   );
 }
+
 
