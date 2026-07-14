@@ -466,6 +466,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dashboard_orcamento_settings: {
+        Row: {
+          auvo_tecnico_name: string | null
+          created_at: string
+          enabled: boolean
+          goal_count: number
+          goal_note: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auvo_tecnico_name?: string | null
+          created_at?: string
+          enabled?: boolean
+          goal_count?: number
+          goal_note?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auvo_tecnico_name?: string | null
+          created_at?: string
+          enabled?: boolean
+          goal_count?: number
+          goal_note?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       domain_categories: {
         Row: {
           category: string
