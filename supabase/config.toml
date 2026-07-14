@@ -4,7 +4,7 @@ project_id = "scgcbifmcvazmalqqpju"
 verify_jwt = true
 
 [functions.classify-domain]
-verify_jwt = false
+verify_jwt = true
 
 [functions.productivity-insights-cron]
 verify_jwt = false

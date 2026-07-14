@@ -51,9 +51,24 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const action = body.action;
 
+  const requireWorkspaceAdmin = async (workspaceId: string) => {
+    const { data: isAdmin, error } = await admin.rpc('is_workspace_admin', {
+      _workspace_id: workspaceId,
+      _user_id: userId,
+    });
+    if (error) {
+      console.error('[api-keys-manage] admin check failed', error);
+      return false;
+    }
+    return isAdmin === true;
+  };
+
   if (action === 'list') {
     const { workspace_id } = body;
     if (!workspace_id) return json({ error: 'workspace_id required' }, 400);
+    if (!(await requireWorkspaceAdmin(workspace_id))) {
+      return json({ error: 'Only workspace admins can list API keys' }, 403);
+    }
     const { data, error } = await admin
       .from('external_api_keys')
       .select('id, name, key_prefix, default_project_id, default_assignee_id, created_at, last_used_at, revoked_at')
@@ -68,11 +83,9 @@ Deno.serve(async (req) => {
     if (!workspace_id || !name) return json({ error: 'workspace_id and name required' }, 400);
 
     // Confirma admin do workspace
-    const { data: isAdmin } = await admin.rpc('is_workspace_admin', {
-      _workspace_id: workspace_id,
-      _user_id: userId,
-    });
-    if (!isAdmin) return json({ error: 'Only workspace admins can create API keys' }, 403);
+    if (!(await requireWorkspaceAdmin(workspace_id))) {
+      return json({ error: 'Only workspace admins can create API keys' }, 403);
+    }
 
     const plain = generateKey();
     const hash = await sha256(plain);
@@ -99,6 +112,18 @@ Deno.serve(async (req) => {
   if (action === 'revoke') {
     const { id } = body;
     if (!id) return json({ error: 'id required' }, 400);
+
+    const { data: keyRow, error: keyError } = await admin
+      .from('external_api_keys')
+      .select('workspace_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (keyError) return json({ error: keyError.message }, 400);
+    if (!keyRow) return json({ error: 'API key not found' }, 404);
+    if (!(await requireWorkspaceAdmin(keyRow.workspace_id))) {
+      return json({ error: 'Only workspace admins can revoke API keys' }, 403);
+    }
+
     const { error } = await admin
       .from('external_api_keys')
       .update({ revoked_at: new Date().toISOString() })
