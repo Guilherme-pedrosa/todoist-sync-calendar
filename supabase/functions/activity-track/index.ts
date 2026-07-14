@@ -31,6 +31,31 @@ serve(async (req) => {
     const workspaceId = String(body.workspace_id || "");
     if (!workspaceId) return json({ error: "workspace_id required" }, 400);
 
+    const { data: isMember, error: membershipError } = await supabase.rpc(
+      "is_workspace_member",
+      { _workspace_id: workspaceId, _user_id: user.id },
+    );
+    if (membershipError) {
+      console.error("[activity-track] membership check failed", membershipError);
+      return json({ error: "workspace access check failed" }, 500);
+    }
+    if (!isMember) return json({ error: "forbidden" }, 403);
+
+    const ownsSession = async (sessionId: string) => {
+      const { data: session, error } = await supabase
+        .from("activity_sessions")
+        .select("id")
+        .eq("id", sessionId)
+        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
+        .maybeSingle();
+      if (error) {
+        console.error("[activity-track] session check failed", error);
+        return false;
+      }
+      return Boolean(session);
+    };
+
     // ---- start: open or reuse a session
     if (action === "start") {
       // close stale open sessions (older than 10min last_seen)
@@ -59,6 +84,7 @@ serve(async (req) => {
     if (action === "heartbeat") {
       const sessionId = String(body.session_id || "");
       if (!sessionId) return json({ error: "session_id required" }, 400);
+      if (!(await ownsSession(sessionId))) return json({ error: "session not found" }, 404);
       const isActive = body.is_active !== false;
       const isFocused = body.is_focused !== false;
       const route = typeof body.route === "string" ? body.route.slice(0, 200) : null;
@@ -66,7 +92,7 @@ serve(async (req) => {
       const seconds = Math.max(1, Math.min(120, Number(body.seconds || 30)));
 
       // insert heartbeat
-      await supabase.from("activity_heartbeats").insert({
+      const { error: heartbeatError } = await supabase.from("activity_heartbeats").insert({
         session_id: sessionId,
         user_id: user.id,
         workspace_id: workspaceId,
@@ -75,6 +101,7 @@ serve(async (req) => {
         route,
         interactions,
       });
+      if (heartbeatError) return json({ error: heartbeatError.message }, 400);
 
       // update session counters
       const { data: sess } = await supabase
@@ -98,6 +125,7 @@ serve(async (req) => {
     if (action === "idle_start") {
       const sessionId = String(body.session_id || "");
       if (!sessionId) return json({ error: "session_id required" }, 400);
+      if (!(await ownsSession(sessionId))) return json({ error: "session not found" }, 404);
       const { data, error } = await supabase
         .from("activity_idle_periods")
         .insert({
@@ -121,13 +149,16 @@ serve(async (req) => {
         .select("started_at")
         .eq("id", idleId)
         .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .maybeSingle();
       if (!row) return json({ ok: true });
       const dur = Math.max(1, Math.floor((Date.now() - new Date(row.started_at).getTime()) / 1000));
       await supabase
         .from("activity_idle_periods")
         .update({ ended_at: new Date().toISOString(), duration_seconds: dur })
-        .eq("id", idleId);
+        .eq("id", idleId)
+        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId);
       return json({ ok: true, duration_seconds: dur });
     }
 
@@ -139,6 +170,9 @@ serve(async (req) => {
       const title = body.title ? String(body.title).slice(0, 300) : null;
       const wasFocused = body.was_focused !== false;
       if (!domain) return json({ error: "domain required" }, 400);
+      if (sessionId && !(await ownsSession(sessionId))) {
+        return json({ error: "session not found" }, 404);
+      }
 
       // close previous open visit (if any)
       const nowIso = new Date().toISOString();
@@ -146,6 +180,7 @@ serve(async (req) => {
         .from("activity_url_visits")
         .select("id, started_at")
         .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .is("ended_at", null)
         .order("started_at", { ascending: false })
         .limit(1)
@@ -186,6 +221,7 @@ serve(async (req) => {
         .from("activity_url_visits")
         .select("id, started_at")
         .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .is("ended_at", null)
         .order("started_at", { ascending: false })
         .limit(1)
@@ -195,7 +231,9 @@ serve(async (req) => {
       await supabase
         .from("activity_url_visits")
         .update({ ended_at: new Date().toISOString(), duration_seconds: dur })
-        .eq("id", open.id);
+        .eq("id", open.id)
+        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId);
       return json({ ok: true, duration_seconds: dur });
     }
 
@@ -203,17 +241,20 @@ serve(async (req) => {
     if (action === "end") {
       const sessionId = String(body.session_id || "");
       if (!sessionId) return json({ error: "session_id required" }, 400);
+      if (!(await ownsSession(sessionId))) return json({ error: "session not found" }, 404);
       // close any open visit too
       await supabase
         .from("activity_url_visits")
         .update({ ended_at: new Date().toISOString() })
         .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId)
         .is("ended_at", null);
       await supabase
         .from("activity_sessions")
         .update({ ended_at: new Date().toISOString(), last_seen_at: new Date().toISOString() })
         .eq("id", sessionId)
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .eq("workspace_id", workspaceId);
       return json({ ok: true });
     }
 

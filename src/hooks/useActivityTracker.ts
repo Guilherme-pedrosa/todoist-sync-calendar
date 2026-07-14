@@ -97,13 +97,9 @@ export function useActivityTracker(workspaceId: string | null | undefined) {
 
     const onUnload = () => {
       if (sessionIdRef.current) {
-        // Best-effort end via keepalive fetch
-        const data = JSON.stringify({ action: "end", workspace_id: workspaceId, session_id: sessionIdRef.current });
-        try {
-          navigator.sendBeacon?.(FN_URL, new Blob([data], { type: "application/json" }));
-        } catch {
-          // ignore
-        }
+        // `call` usa fetch keepalive com autenticação; sendBeacon não permite os
+        // cabeçalhos exigidos pela função e acabava sendo rejeitado.
+        void call("end", { workspace_id: workspaceId, session_id: sessionIdRef.current });
       }
     };
 

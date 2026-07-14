@@ -48,10 +48,26 @@ Deno.serve(async (req) => {
       return json({ error: "task_id and completed are required" }, 400);
     }
 
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token) return json({ error: "unauthorized" }, 401);
+
+    if (token !== serviceRoleKey) {
+      const { data: userData, error: userError } = await admin.auth.getUser(token);
+      if (userError || !userData.user) return json({ error: "unauthorized" }, 401);
+
+      const { data: hasAccess, error: accessError } = await admin.rpc("has_task_access", {
+        _task_id: task_id,
+        _user_id: userData.user.id,
+      });
+      if (accessError) {
+        console.error("[notify-external-status] task access check failed", accessError);
+        return json({ error: "task access check failed" }, 500);
+      }
+      if (!hasAccess) return json({ error: "forbidden" }, 403);
+    }
 
     // Resolve external source + ref. Prefer tasks table; fall back to legacy link table for fleetdesk.
     let externalSource: string | null = null;
