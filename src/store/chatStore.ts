@@ -117,6 +117,11 @@ function mapMsg(row: any): Message {
 
 async function syncTaskConversationParticipants(conversationId: string, taskId: string, currentUserId: string) {
   const recipientIds = await getTaskChatRecipientIds(taskId);
+  if (!recipientIds.includes(currentUserId)) {
+    console.warn('[chat] user is not allowed in task conversation', { conversationId, taskId });
+    return false;
+  }
+
   const selfResult = await supabase
     .from('conversation_participants')
     .upsert(
@@ -126,11 +131,11 @@ async function syncTaskConversationParticipants(conversationId: string, taskId: 
 
   if (selfResult.error) {
     console.warn('[chat] failed to join task conversation', selfResult.error);
-    return;
+    return false;
   }
 
   const otherIds = Array.from(new Set(recipientIds)).filter((id) => id !== currentUserId);
-  if (otherIds.length === 0) return;
+  if (otherIds.length === 0) return true;
 
   const { error } = await supabase
     .from('conversation_participants')
@@ -142,6 +147,7 @@ async function syncTaskConversationParticipants(conversationId: string, taskId: 
   if (error) {
     console.warn('[chat] failed to sync task participants', error);
   }
+  return !error;
 }
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -165,21 +171,62 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   fetchConversations: async (workspaceId) => {
     set({ loading: true });
+    const uid = await getCurrentUserId();
+    if (!uid) {
+      set({ conversations: [], participants: [], unreadByConversation: {}, loading: false });
+      return;
+    }
+
+    const { data: myPartRows } = await supabase
+      .from('conversation_participants')
+      .select('*')
+      .eq('user_id', uid);
+
+    const myParticipants = (myPartRows || []).map((p: any) => ({
+      conversationId: p.conversation_id,
+      userId: p.user_id,
+      joinedAt: p.joined_at,
+      lastReadAt: p.last_read_at,
+    }));
+    const myConversationIds = Array.from(new Set(myParticipants.map((p) => p.conversationId)));
+    if (myConversationIds.length === 0) {
+      set({ conversations: [], participants: [], unreadByConversation: {}, loading: false });
+      return;
+    }
+
     const { data: convRows } = await supabase
       .from('conversations')
       .select('*')
       .eq('workspace_id', workspaceId)
+      .in('id', myConversationIds)
       .order('updated_at', { ascending: false });
 
-    const conversations = (convRows || []).map(mapConv);
+    const allConversations = (convRows || []).map(mapConv);
+    const conversations: Conversation[] = [];
+    for (const conversation of allConversations) {
+      if (conversation.type !== 'task' || !conversation.taskId) {
+        conversations.push(conversation);
+        continue;
+      }
+
+      const recipientIds = await getTaskChatRecipientIds(conversation.taskId);
+      if (recipientIds.includes(uid)) {
+        conversations.push(conversation);
+        continue;
+      }
+
+      await supabase
+        .from('conversation_participants')
+        .delete()
+        .eq('conversation_id', conversation.id)
+        .eq('user_id', uid);
+    }
     const ids = conversations.map((c) => c.id);
 
     let participants: Participant[] = [];
     const unread: Record<string, number> = {};
 
     if (ids.length > 0) {
-      const uid = await getCurrentUserId();
-
       const { data: partRows } = await supabase
         .from('conversation_participants')
         .select('*')
@@ -312,8 +359,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setActiveConversation: (id) => set({ activeConversationId: id }),
 
   ensureTaskConversation: async (taskId) => {
+    const uid = await getCurrentUserId();
+    if (!uid) return null;
+
+    const recipientIds = await getTaskChatRecipientIds(taskId);
+    if (!recipientIds.includes(uid)) {
+      console.warn('[chat] blocked task conversation for non-participant task', { taskId });
+      return null;
+    }
+
     const existing = get().conversations.find((c) => c.taskId === taskId);
-    if (existing) return existing.id;
+    if (existing) {
+      const ok = await syncTaskConversationParticipants(existing.id, taskId, uid);
+      return ok ? existing.id : null;
+    }
 
     // Pode ainda não estar no estado — busca direto
     const { data } = await supabase
@@ -324,19 +383,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (data) {
       const conv = mapConv(data);
-      const uid = await getCurrentUserId();
-      if (uid) {
-        await syncTaskConversationParticipants(conv.id, taskId, uid);
-      }
+      const ok = await syncTaskConversationParticipants(conv.id, taskId, uid);
+      if (!ok) return null;
       set((state) => ({
         conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
       }));
       return conv.id;
     }
-
-    // Não existe — cria sob demanda
-    const uid = await getCurrentUserId();
-    if (!uid) return null;
 
     const { data: taskRow } = await supabase
       .from('tasks')
@@ -536,8 +589,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'conversations', filter: `workspace_id=eq.${workspaceId}` },
-        (payload) => {
+        async (payload) => {
           const conv = mapConv(payload.new);
+          const uid = await getCurrentUserId();
+          if (!uid) return;
+          const { data: myPart } = await supabase
+            .from('conversation_participants')
+            .select('conversation_id')
+            .eq('conversation_id', conv.id)
+            .eq('user_id', uid)
+            .maybeSingle();
+          if (!myPart) return;
+          if (conv.type === 'task' && conv.taskId) {
+            const recipientIds = await getTaskChatRecipientIds(conv.taskId);
+            if (!recipientIds.includes(uid)) return;
+          }
           set((s) => ({
             conversations: [conv, ...s.conversations.filter((c) => c.id !== conv.id)],
           }));

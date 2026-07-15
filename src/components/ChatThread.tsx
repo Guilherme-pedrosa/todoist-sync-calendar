@@ -208,6 +208,21 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         if (att) uploaded.push(att);
       }
       const mentionedIds = extractMentionedUserIds(text);
+      if (user) {
+        const preflightMeta: ChatMeta | null = conversation ?? (await supabase
+          .from('conversations')
+          .select('type, task_id, workspace_id')
+          .eq('id', conversationId)
+          .maybeSingle()).data;
+        const preflightTaskId = preflightMeta?.taskId ?? preflightMeta?.task_id;
+        if (preflightMeta?.type === 'task' && preflightTaskId) {
+          const recipientIds = await getTaskChatRecipientIds(preflightTaskId);
+          if (!recipientIds.includes(user.id)) {
+            toast.error('Voce nao participa dessa tarefa');
+            return;
+          }
+        }
+      }
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {

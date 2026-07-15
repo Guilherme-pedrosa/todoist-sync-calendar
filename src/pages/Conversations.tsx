@@ -80,6 +80,21 @@ export default function ConversationsPage() {
     if (!activeId && workspaceConvs[0]) setActiveId(workspaceConvs[0].id);
   }, [activeId, workspaceConvs]);
 
+  useEffect(() => {
+    if (!activeId) return;
+    const visibleIds = new Set([
+      ...workspaceConvs.map((c) => c.id),
+      ...activeTaskConvs.map((c) => c.id),
+      ...completedTaskConvs.map((c) => c.id),
+    ]);
+    if (!visibleIds.has(activeId)) {
+      const next = workspaceConvs[0]?.id ?? activeTaskConvs[0]?.id ?? null;
+      setActiveId(next);
+      if (next) navigate(`/conversations/${next}`, { replace: true });
+      else navigate('/conversations', { replace: true });
+    }
+  }, [activeId, workspaceConvs, activeTaskConvs, completedTaskConvs, navigate]);
+
   return (
     <div className="flex h-full">
       <aside className="w-72 border-r flex flex-col bg-card/40">

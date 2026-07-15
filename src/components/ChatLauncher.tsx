@@ -68,6 +68,14 @@ export function ChatLauncher() {
     0
   );
 
+  useEffect(() => {
+    if (!activeId) return;
+    const visibleIds = new Set([...workspaceConvs, ...taskConvs].map((c) => c.id));
+    if (!visibleIds.has(activeId)) {
+      setActiveId(workspaceConvs[0]?.id ?? taskConvs[0]?.id ?? null);
+    }
+  }, [activeId, workspaceConvs, taskConvs]);
+
   return (
     <>
       {/* Launcher */}
