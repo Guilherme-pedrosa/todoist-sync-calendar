@@ -32,6 +32,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const DashboardAdminPage = lazy(() => import("./pages/DashboardAdminPage"));
+const GamificationPage = lazy(() => import("./pages/GamificationPage"));
 
 const queryClient = new QueryClient();
 
@@ -96,6 +97,7 @@ const App = () => (
                 <Route path="/extensao" element={<ExtensionPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/dashboard-admin" element={<DashboardAdminPage />} />
+                <Route path="/conquistas" element={<GamificationPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

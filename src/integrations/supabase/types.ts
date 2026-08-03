@@ -791,6 +791,36 @@ export type Database = {
           },
         ]
       }
+      gamification_settings: {
+        Row: {
+          created_at: string
+          daily_goal: number
+          id: string
+          monthly_goal: number
+          updated_at: string
+          user_id: string
+          weekly_goal: number
+        }
+        Insert: {
+          created_at?: string
+          daily_goal?: number
+          id?: string
+          monthly_goal?: number
+          updated_at?: string
+          user_id: string
+          weekly_goal?: number
+        }
+        Update: {
+          created_at?: string
+          daily_goal?: number
+          id?: string
+          monthly_goal?: number
+          updated_at?: string
+          user_id?: string
+          weekly_goal?: number
+        }
+        Relationships: []
+      }
       gc_daily_activity: {
         Row: {
           abertura_compras: number

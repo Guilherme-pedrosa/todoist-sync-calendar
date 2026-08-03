@@ -35,6 +35,7 @@ import {
   FileText,
   Activity,
   Chrome,
+  Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { localDateKey } from '@/lib/localDate';
@@ -506,6 +507,10 @@ export function AppSidebar() {
         <NavLink to="/dashboard" className={({ isActive }) => navLinkClass(isActive)}>
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Dashboard</span>
+        </NavLink>
+        <NavLink to="/conquistas" className={({ isActive }) => navLinkClass(isActive)}>
+          <Trophy className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Conquistas</span>
         </NavLink>
         {isProductivityAdmin && (
           <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
