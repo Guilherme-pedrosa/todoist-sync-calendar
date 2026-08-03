@@ -49,7 +49,7 @@ export function useCompleteTask() {
   return useCallback(
     async (
       taskId: string,
-      options?: { endRecurring?: boolean; occurrenceDate?: string }
+      options?: { endRecurring?: boolean; occurrenceDate?: string; includeSubtasks?: boolean }
     ) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;

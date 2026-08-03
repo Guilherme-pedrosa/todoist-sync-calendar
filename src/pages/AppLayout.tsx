@@ -8,6 +8,7 @@ import { AIAssistantPanel } from '@/components/AIAssistantPanel';
 import { MobileFab } from '@/components/MobileFab';
 import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { RecurringEditDialog } from '@/components/RecurringEditDialog';
+import { CompleteSubtasksDialog } from '@/components/CompleteSubtasksDialog';
 import { CommandPalette } from '@/components/CommandPalette';
 import { MobileBottomNav } from '@/components/MobileBottomNav';
 import { MobileTopBar } from '@/components/MobileTopBar';
@@ -146,6 +147,7 @@ export default function AppLayout() {
       <MobileBottomNav />
       <InstallPwaBanner />
       <RecurringEditDialog />
+      <CompleteSubtasksDialog />
       <AIAssistantPanel />
       <ChatLauncher />
       <MentionNotifier />
