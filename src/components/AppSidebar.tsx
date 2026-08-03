@@ -35,6 +35,7 @@ import {
   FileText,
   Activity,
   Chrome,
+  Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { localDateKey } from '@/lib/localDate';
