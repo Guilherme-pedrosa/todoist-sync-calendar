@@ -25,6 +25,7 @@ interface TaskState {
       labels?: string[];
       reminderMinutes?: number | null;
       assigneeIds?: string[];
+      informedIds?: string[];
     },
     options?: { skipUndo?: boolean }
   ) => Promise<Task | null>;
