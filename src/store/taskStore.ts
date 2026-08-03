@@ -424,7 +424,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     const responsibleIds = ownerDelegated ? assigneeIds : Array.from(new Set([userId, ...assigneeIds]));
-    const informedFromOwner = ownerDelegated ? [userId] : [];
+    const informedFromOwner = Array.from(
+      new Set([...(ownerDelegated ? [userId] : []), ...requestedInformed])
+    );
     const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
