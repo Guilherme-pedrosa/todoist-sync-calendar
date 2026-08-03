@@ -217,7 +217,8 @@ export default function UpcomingPage() {
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
     for (const t of calendarVisibleTasks) {
-      if (t.parentId || !t.dueDate) continue;
+      // Subtarefas com data própria também entram na agenda.
+      if (!t.dueDate) continue;
 
       let dayKeys: string[] = [];
       if (t.recurrenceRule) {
@@ -312,7 +313,6 @@ export default function UpcomingPage() {
       .filter(
         (t) =>
           !t.completed &&
-          !t.parentId &&
           !!t.dueDate &&
           t.dueDate < todayStr &&
           // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer
