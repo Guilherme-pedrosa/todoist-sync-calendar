@@ -96,6 +96,7 @@ const App = () => (
                 <Route path="/extensao" element={<ExtensionPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/dashboard-admin" element={<DashboardAdminPage />} />
+                <Route path="/conquistas" element={<GamificationPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
