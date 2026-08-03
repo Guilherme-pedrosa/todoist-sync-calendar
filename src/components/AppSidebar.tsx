@@ -507,6 +507,10 @@ export function AppSidebar() {
           <BarChart3 className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Dashboard</span>
         </NavLink>
+        <NavLink to="/conquistas" className={({ isActive }) => navLinkClass(isActive)}>
+          <Trophy className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Conquistas</span>
+        </NavLink>
         {isProductivityAdmin && (
           <NavLink to="/produtividade" className={({ isActive }) => navLinkClass(isActive)}>
             <Activity className="h-4 w-4 shrink-0" />
