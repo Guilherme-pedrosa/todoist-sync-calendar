@@ -95,6 +95,7 @@ export function QuickAddDialog() {
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [informedIds, setInformedIds] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const allTasks = useTaskStore((s) => s.tasks);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -244,7 +245,7 @@ export function QuickAddDialog() {
     if (submitting) return;
     const lines = taskLines.length > 0 ? taskLines : [title.trim()].filter(Boolean);
     if (lines.length === 0) return;
-    console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds });
+    console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds, informedIds });
     setSubmitting(true);
     try {
       // Use first relative reminder for the legacy single-reminder column
@@ -275,6 +276,7 @@ export function QuickAddDialog() {
           labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
           reminderMinutes: firstRelative?.relative_minutes ?? null,
           assigneeIds,
+          informedIds,
         });
         if (created) createdTasks.push(created);
       }
@@ -323,6 +325,7 @@ export function QuickAddDialog() {
       setSelectedLabels([]);
       setReminders([]);
       setAssigneeIds([]);
+      setInformedIds([]);
       setPendingFiles([]);
       setLocation_('');
       setShowLocation(false);
@@ -485,6 +488,15 @@ export function QuickAddDialog() {
           projectId={projectId}
           value={assigneeIds}
           onChange={setAssigneeIds}
+        />
+
+        {/* Informado */}
+        <AssigneeChip
+          projectId={projectId}
+          value={informedIds}
+          onChange={setInformedIds}
+          placeholder="Informado"
+          pluralLabel={(n) => `${n} informados`}
         />
 
         {/* Attachment */}

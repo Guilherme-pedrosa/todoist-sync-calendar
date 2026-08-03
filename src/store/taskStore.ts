@@ -25,6 +25,7 @@ interface TaskState {
       labels?: string[];
       reminderMinutes?: number | null;
       assigneeIds?: string[];
+      informedIds?: string[];
     },
     options?: { skipUndo?: boolean }
   ) => Promise<Task | null>;
@@ -355,6 +356,20 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         assigneeIds.map((uid) => ({ task_id: data.id, user_id: uid, assigned_by: userId }))
       );
     }
+    // Informados (role = 'informed')
+    const requestedInformed = (taskData.informedIds || []).filter(
+      (id) => id && id !== userId && !assigneeIds.includes(id)
+    );
+    if (requestedInformed.length > 0) {
+      await supabase.from('task_assignees').insert(
+        requestedInformed.map((uid) => ({
+          task_id: data.id,
+          user_id: uid,
+          assigned_by: userId,
+          role: 'informed',
+        })) as any
+      );
+    }
     // Se o criador delegou para outra(s) pessoa(s) e NÃO se incluiu como responsável,
     // ele entra automaticamente como "informado" (em vez de continuar responsável pelo trigger).
     const ownerDelegated =
@@ -366,6 +381,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         .eq('task_id', data.id)
         .eq('user_id', userId);
     }
+
 
     // Reminders: cria um registro por antecedência configurada (ex.: [1440, 15] = 1 dia e 15 min antes).
     if (data.due_date && data.due_time) {
@@ -408,7 +424,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     const responsibleIds = ownerDelegated ? assigneeIds : Array.from(new Set([userId, ...assigneeIds]));
-    const informedFromOwner = ownerDelegated ? [userId] : [];
+    const informedFromOwner = Array.from(
+      new Set([...(ownerDelegated ? [userId] : []), ...requestedInformed])
+    );
     const newTask = mapDbTaskToTask({
       ...data,
       task_labels: labelIds.map((id) => ({ label_id: id })),
