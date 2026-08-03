@@ -5,6 +5,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { collectTaskDescendants } from '@/lib/taskTree';
+import { useCompleteSubtasksStore } from '@/store/completeSubtasksStore';
 
 const normalizeTitleForDaySlot = (title: string) =>
   title.replace(/^✅\s*/, '').trim().toLocaleLowerCase();
@@ -47,7 +49,7 @@ export function useCompleteTask() {
   return useCallback(
     async (
       taskId: string,
-      options?: { endRecurring?: boolean; occurrenceDate?: string }
+      options?: { endRecurring?: boolean; occurrenceDate?: string; includeSubtasks?: boolean }
     ) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
@@ -181,16 +183,48 @@ export function useCompleteTask() {
         await updateTask(taskId, { recurrenceRule: null });
       }
 
+      // Subtarefas em aberto → perguntar se devem ser concluídas junto
+      const openSubtasks = collectTaskDescendants(tasks, taskId).filter((t) => !t.completed);
+      let alsoSubtasks = options?.includeSubtasks;
+      if (openSubtasks.length > 0 && alsoSubtasks === undefined) {
+        const answer = await useCompleteSubtasksStore.getState().ask({
+          taskTitle: task.title,
+          count: openSubtasks.length,
+        });
+        if (answer === null) return; // cancelado
+        alsoSubtasks = answer;
+      }
+
       await toggleTask(taskId);
-      toast(options?.endRecurring ? 'Tarefa finalizada para sempre' : 'Tarefa concluída', {
-        duration: 5000,
-        action: {
-          label: 'Desfazer',
-          onClick: () => {
-            void toggleTask(taskId);
+
+      if (alsoSubtasks && openSubtasks.length > 0) {
+        for (const sub of openSubtasks) {
+          await toggleTask(sub.id);
+        }
+      }
+
+      const completedIds = alsoSubtasks
+        ? [taskId, ...openSubtasks.map((s) => s.id)]
+        : [taskId];
+
+      toast(
+        options?.endRecurring
+          ? 'Tarefa finalizada para sempre'
+          : completedIds.length > 1
+            ? `Tarefa e ${completedIds.length - 1} subtarefa(s) concluídas`
+            : 'Tarefa concluída',
+        {
+          duration: 5000,
+          action: {
+            label: 'Desfazer',
+            onClick: () => {
+              void (async () => {
+                for (const id of completedIds) await toggleTask(id);
+              })();
+            },
           },
-        },
-      });
+        }
+      );
     },
     [tasks, toggleTask, updateTask]
   );
