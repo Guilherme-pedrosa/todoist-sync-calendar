@@ -32,6 +32,7 @@ const Auth = lazy(() => import("./pages/Auth"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const DashboardAdminPage = lazy(() => import("./pages/DashboardAdminPage"));
+const GamificationPage = lazy(() => import("./pages/GamificationPage"));
 
 const queryClient = new QueryClient();
 
