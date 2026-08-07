@@ -1204,6 +1204,57 @@ export type Database = {
           },
         ]
       }
+      plaud_meetings: {
+        Row: {
+          audio_url: string | null
+          created_at: string
+          duration_minutes: number | null
+          external_id: string | null
+          id: string
+          language: string | null
+          meeting_date: string | null
+          raw: Json | null
+          source: string
+          summary: string | null
+          title: string
+          transcript: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audio_url?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          external_id?: string | null
+          id?: string
+          language?: string | null
+          meeting_date?: string | null
+          raw?: Json | null
+          source?: string
+          summary?: string | null
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audio_url?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          external_id?: string | null
+          id?: string
+          language?: string | null
+          meeting_date?: string | null
+          raw?: Json | null
+          source?: string
+          summary?: string | null
+          title?: string
+          transcript?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       productivity_admins: {
         Row: {
           added_by: string | null
