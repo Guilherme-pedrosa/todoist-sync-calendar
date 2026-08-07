@@ -25,6 +25,7 @@ const SharedProjectsPage = lazy(() => import("./pages/team/SharedProjectsPage"))
 const WorkloadPage = lazy(() => import("./pages/team/WorkloadPage"));
 const ConversationsPage = lazy(() => import("./pages/Conversations"));
 const TranskriptorPage = lazy(() => import("./pages/TranskriptorPage"));
+const PlaudPage = lazy(() => import("./pages/PlaudPage"));
 const ProductivityPage = lazy(() => import("./pages/ProductivityPage"));
 const ExtensionPage = lazy(() => import("./pages/ExtensionPage"));
 const EmbedChat = lazy(() => import("./pages/EmbedChat"));
@@ -93,6 +94,7 @@ const App = () => (
                 <Route path="/conversations" element={<ConversationsPage />} />
                 <Route path="/conversations/:id" element={<ConversationsPage />} />
                 <Route path="/transkriptor" element={<TranskriptorPage />} />
+                <Route path="/plaud" element={<PlaudPage />} />
                 <Route path="/produtividade" element={<ProductivityPage />} />
                 <Route path="/extensao" element={<ExtensionPage />} />
                 <Route path="/dashboard" element={<DashboardPage />} />

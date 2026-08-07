@@ -33,6 +33,7 @@ import {
   FolderKanban,
   BarChart3,
   FileText,
+  Mic,
   Activity,
   Chrome,
   Trophy,
@@ -478,6 +479,10 @@ export function AppSidebar() {
         <NavLink to="/transkriptor" className={({ isActive }) => navLinkClass(isActive)}>
           <FileText className="h-4 w-4 shrink-0" />
           <span className="flex-1 text-left">Transkriptor</span>
+        </NavLink>
+        <NavLink to="/plaud" className={({ isActive }) => navLinkClass(isActive)}>
+          <Mic className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left">Plaud</span>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => navLinkClass(isActive)}>
           <Settings className="h-4 w-4 shrink-0" />
