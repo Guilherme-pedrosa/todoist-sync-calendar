@@ -33,6 +33,7 @@ import {
   FolderKanban,
   BarChart3,
   FileText,
+  Mic,
   Activity,
   Chrome,
   Trophy,
