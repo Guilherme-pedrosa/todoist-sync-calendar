@@ -84,10 +84,10 @@ Deno.serve(async (req) => {
   if (targetEmail) {
     const { data: prof } = await admin
       .from('profiles')
-      .select('id')
+      .select('user_id')
       .ilike('email', targetEmail)
       .maybeSingle();
-    if (prof?.id) userId = prof.id as string;
+    if (prof?.user_id) userId = prof.user_id as string;
   }
 
   const title =
