@@ -2975,6 +2975,15 @@ export type Database = {
         }
         Returns: number
       }
+      notify_users: {
+        Args: {
+          p_payload?: Json
+          p_type: string
+          p_user_ids: string[]
+          p_workspace_id: string
+        }
+        Returns: number
+      }
       project_role: {
         Args: { _project_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["project_role"]
