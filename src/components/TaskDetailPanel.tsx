@@ -721,19 +721,17 @@ export function TaskDetailPanel() {
       if (mentioned.length > 0) {
         const workspaceId = (project as any)?.workspaceId || null;
         const fromName = userDisplayName((user as any)?.user_metadata?.display_name || (user as any)?.user_metadata?.full_name, user.email);
-        const rows = mentioned.map((uid) => ({
-          user_id: uid,
-          type: 'task_comment_mention',
-          workspace_id: workspaceId,
-          payload: {
+        await (supabase as any).rpc('notify_users', {
+          p_user_ids: mentioned,
+          p_type: 'task_comment_mention',
+          p_workspace_id: workspaceId,
+          p_payload: {
             task_id: task.id,
             task_title: task.title,
-            from_user: user.id,
             from_user_name: fromName,
             snippet: text.slice(0, 200),
           },
-        }));
-        await supabase.from('notifications').insert(rows as any);
+        });
       }
     } catch (e) {
       console.error('mention notify failed', e);

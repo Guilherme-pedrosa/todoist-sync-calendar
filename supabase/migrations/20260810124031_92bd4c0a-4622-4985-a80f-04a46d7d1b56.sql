@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "bootstrap super admin" ON public.productivity_admins;
