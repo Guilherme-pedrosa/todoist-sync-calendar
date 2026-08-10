@@ -156,26 +156,32 @@ export function ProjectAnnouncementsFeed({
       toast.error('Sessão expirada');
       return;
     }
+    const tooBig = files.find((f) => f.size > MAX_BYTES);
+    if (tooBig) {
+      toast.error(`${tooBig.name} maior que 200MB — não enviado`);
+      return;
+    }
     setPosting(true);
+    const progressId = files.length
+      ? toast.loading(`Enviando ${files.length} anexo(s)... 0/${files.length}`)
+      : undefined;
     try {
-      const uploaded: Attachment[] = [];
-      for (const f of files) {
-        if (f.size > MAX_BYTES) {
-          toast.error(`${f.name} maior que 200MB — não enviado`);
-          setPosting(false);
-          return;
-        }
-        const path = `${projectId}/${crypto.randomUUID()}-${sanitize(f.name)}`;
-        const { error: upErr } = await supabase.storage
-          .from(BUCKET)
-          .upload(path, f, { contentType: f.type || undefined, upsert: false });
-        if (upErr) {
-          toast.error(`Falha ao enviar ${f.name}: ${upErr.message}`);
-          setPosting(false);
-          return;
-        }
-        uploaded.push({ name: f.name, path, mime: f.type || null, size: f.size });
-      }
+      let done = 0;
+      // Uploads em paralelo (antes era um por vez → muito lento com vídeos).
+      const uploaded: Attachment[] = await Promise.all(
+        files.map(async (f) => {
+          const path = `${projectId}/${crypto.randomUUID()}-${sanitize(f.name)}`;
+          const { error: upErr } = await supabase.storage
+            .from(BUCKET)
+            .upload(path, f, { contentType: f.type || undefined, upsert: false });
+          if (upErr) throw new Error(`Falha ao enviar ${f.name}: ${upErr.message}`);
+          done += 1;
+          if (progressId !== undefined) {
+            toast.loading(`Enviando anexos... ${done}/${files.length}`, { id: progressId });
+          }
+          return { name: f.name, path, mime: f.type || null, size: f.size };
+        })
+      );
       const { error } = await supabase.from('project_announcements').insert({
         project_id: projectId,
         user_id: userId,
@@ -187,9 +193,12 @@ export function ProjectAnnouncementsFeed({
       setContent('');
       setContentBelow('');
       setFiles([]);
+      if (progressId !== undefined) toast.dismiss(progressId);
       toast.success('Aviso publicado');
     } catch (e: any) {
+      if (progressId !== undefined) toast.dismiss(progressId);
       toast.error(e.message || 'Erro ao publicar');
+
     } finally {
       setPosting(false);
     }
