@@ -330,6 +330,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     if (error || !data) {
       console.warn('[addTask] aborted reason=insert-failed', { error, payload: insertPayload });
+      const raw = `${error?.message || ''} ${(error as any)?.details || ''}`;
+      const isDuplicate =
+        error?.code === '23505' || /duplicate key|idx_tasks_unique_active_title_day_time/i.test(raw);
+      if (isDuplicate) {
+        toast.error('Já existe uma tarefa com esse nome nesse mesmo dia/horário', {
+          description: 'Altere o título, a data ou o horário para criar outra.',
+        });
+        return null;
+      }
       const msg = error?.message
         ? `Falha ao criar tarefa: ${error.message}`
         : 'Falha ao criar tarefa (sem dados retornados)';
@@ -338,6 +347,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
       return null;
     }
+
     console.info('[addTask] step=local-insert', { id: data.id });
 
     const labelIds = taskData.labels || [];

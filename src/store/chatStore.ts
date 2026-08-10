@@ -202,25 +202,61 @@ export const useChatStore = create<ChatState>((set, get) => ({
       .order('updated_at', { ascending: false });
 
     const allConversations = (convRows || []).map(mapConv);
+
+    // Batch: resolve recipients for ALL task conversations in 2 queries
+    // (antes: 2 requisições por conversa, em série → travava o app).
+    const taskIds = Array.from(
+      new Set(
+        allConversations
+          .filter((c) => c.type === 'task' && c.taskId)
+          .map((c) => c.taskId as string)
+      )
+    );
+
+    const recipientsByTask = new Map<string, Set<string>>();
+    if (taskIds.length > 0) {
+      const [{ data: taskRows }, { data: assigneeRows }] = await Promise.all([
+        supabase.from('tasks').select('id, user_id, created_by').in('id', taskIds),
+        supabase.from('task_assignees').select('task_id, user_id, assignment_status').in('task_id', taskIds),
+      ]);
+
+      for (const row of (taskRows || []) as any[]) {
+        const set = recipientsByTask.get(row.id) || new Set<string>();
+        if (row.created_by) set.add(row.created_by);
+        if (row.user_id) set.add(row.user_id);
+        recipientsByTask.set(row.id, set);
+      }
+      for (const row of (assigneeRows || []) as any[]) {
+        if (row.assignment_status === 'declined') continue;
+        const set = recipientsByTask.get(row.task_id) || new Set<string>();
+        if (row.user_id) set.add(row.user_id);
+        recipientsByTask.set(row.task_id, set);
+      }
+    }
+
     const conversations: Conversation[] = [];
+    const staleConversationIds: string[] = [];
     for (const conversation of allConversations) {
       if (conversation.type !== 'task' || !conversation.taskId) {
         conversations.push(conversation);
         continue;
       }
 
-      const recipientIds = await getTaskChatRecipientIds(conversation.taskId);
-      if (recipientIds.includes(uid)) {
+      if (recipientsByTask.get(conversation.taskId)?.has(uid)) {
         conversations.push(conversation);
-        continue;
+      } else {
+        staleConversationIds.push(conversation.id);
       }
+    }
 
+    if (staleConversationIds.length > 0) {
       await supabase
         .from('conversation_participants')
         .delete()
-        .eq('conversation_id', conversation.id)
+        .in('conversation_id', staleConversationIds)
         .eq('user_id', uid);
     }
+
     const ids = conversations.map((c) => c.id);
 
     let participants: Participant[] = [];
