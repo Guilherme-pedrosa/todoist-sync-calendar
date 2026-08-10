@@ -263,37 +263,24 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         // Mencionados são sempre notificados, mesmo fora dos responsáveis.
         const targetIds = new Set<string>([...recipientIds, ...mentionedIds]);
         const participantIds = [...targetIds].filter((id) => id !== user.id);
-        const rows: ChatNotificationRow[] = [];
-        for (const id of participantIds) {
-          if (id === user.id) continue;
-          if (mentionedSet.has(id)) {
-            rows.push({
-              user_id: id,
-              type: 'chat_mention',
-              workspace_id: workspaceId,
-              payload: {
-                conversation_id: conversationId,
-                task_id: taskId,
-                from_user: user.id,
-                snippet: text.slice(0, 140),
-              },
-            });
-          } else {
-            rows.push({
-              user_id: id,
-              type: 'chat_message',
-              workspace_id: workspaceId,
-              payload: {
-                conversation_id: conversationId,
-                task_id: taskId,
-                from_user: user.id,
-                snippet: text.slice(0, 140),
-              },
-            });
-          }
-        }
-        if (rows.length > 0) {
-          const { error: notificationError } = await supabase.from('notifications').insert(rows);
+        const mentionTargets = participantIds.filter((id) => mentionedSet.has(id));
+        const messageTargets = participantIds.filter((id) => !mentionedSet.has(id));
+        const payload = {
+          conversation_id: conversationId,
+          task_id: taskId,
+          snippet: text.slice(0, 140),
+        };
+        for (const [type, ids] of [
+          ['chat_mention', mentionTargets],
+          ['chat_message', messageTargets],
+        ] as const) {
+          if (ids.length === 0) continue;
+          const { error: notificationError } = await (supabase as any).rpc('notify_users', {
+            p_user_ids: ids,
+            p_type: type,
+            p_workspace_id: workspaceId,
+            p_payload: payload,
+          });
           if (notificationError) {
             console.warn('[chat] failed to create message notifications', notificationError);
           }
