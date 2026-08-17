@@ -217,8 +217,9 @@ export default function UpcomingPage() {
     const rangeEndIso = format(rangeEnd, 'yyyy-MM-dd');
 
     for (const t of calendarVisibleTasks) {
-      // Subtarefas com data própria também entram na agenda.
-      if (!t.dueDate) continue;
+      // Apenas tarefas principais aparecem no grid. Subtarefas ficam ocultas,
+      // sendo acessíveis apenas via o painel de detalhes da tarefa pai.
+      if (!t.dueDate || t.parentId) continue;
 
       let dayKeys: string[] = [];
       if (t.recurrenceRule) {
