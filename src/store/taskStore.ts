@@ -900,8 +900,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       // SUPPRESS STALE REALTIME UPDATES: If we just edited this task locally (last 5s),
       // ignore the incoming DB row which might still have old values.
       const lastLocalUpdate = state.lastInteractionTime[row.id] || 0;
-      if (Date.now() - lastLocalUpdate < 5000) {
-        console.info('[realtime] suppressed stale update for task', row.id);
+      const elapsed = Date.now() - lastLocalUpdate;
+      if (elapsed < 10000) {
+        console.info('[realtime] suppressed stale update for task', row.id, `(age: ${elapsed}ms)`);
         return state;
       }
 

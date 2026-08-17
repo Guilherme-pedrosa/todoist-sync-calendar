@@ -1,7 +1,12 @@
 export default function Routes() {
   return (
     <div>
-      quero que faça uma verificação geral!! vc foi muito rápido pra ter feito algo que preste
+      que desgraça!!! a merda da atividade continua voltando!!!!!!
+
+vc ta fazendo merda! muita merda!
+
+Veja o link da imagem enviada abaixo e analise o conteúdo dela para responder:
+Imagem 1: https://sorax.lovable.app/api/public/i/4rs63zh6u6.png
     </div>
   );
 }
