@@ -314,6 +314,7 @@ export default function UpcomingPage() {
       .filter(
         (t) =>
           !t.completed &&
+          !t.parentId &&
           !!t.dueDate &&
           t.dueDate < todayStr &&
           // Se a recorrência já produz uma ocorrência hoje, não duplica no buffer
