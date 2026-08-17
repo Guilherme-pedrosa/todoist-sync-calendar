@@ -71,7 +71,11 @@ const DEFAULT_DURATION = 60;
 const DAY_START_MIN = DAY_START_HOUR * 60;
 const DAY_END_MIN = DAY_END_HOUR * 60;
 
+import { usePreventPullToRefresh } from '@/hooks/usePreventPullToRefresh';
+
 export default function UpcomingPage() {
+  usePreventPullToRefresh();
+
   const tasks = useTaskStore((s) => s.tasks);
   const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
   const { user } = useAuth();

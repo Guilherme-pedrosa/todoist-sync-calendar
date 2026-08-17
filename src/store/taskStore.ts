@@ -17,6 +17,8 @@ interface TaskState {
   activeLabelId: string | null;
   sidebarOpen: boolean;
   loading: boolean;
+  lastInteractionTime: Record<string, number>; // taskId -> timestamp
+
 
   fetchData: () => Promise<void>;
 
@@ -201,6 +203,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   activeLabelId: null,
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   loading: true,
+  lastInteractionTime: {},
+
 
   fetchData: async () => {
     const userId = await getUserId();
@@ -471,7 +475,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     // Update local state first for instant feedback (optimistic)
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+      lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() },
     }));
+
 
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -661,7 +667,9 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       tasks: state.tasks.map((t) =>
         t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
       ),
+      lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() },
     }));
+
 
     const { error } = await supabase
       .from('tasks')
@@ -888,6 +896,15 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!row?.id) return;
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
+      
+      // SUPPRESS STALE REALTIME UPDATES: If we just edited this task locally (last 5s),
+      // ignore the incoming DB row which might still have old values.
+      const lastLocalUpdate = state.lastInteractionTime[row.id] || 0;
+      if (Date.now() - lastLocalUpdate < 5000) {
+        console.info('[realtime] suppressed stale update for task', row.id);
+        return state;
+      }
+
       // Preserve existing assignees/labels/meeting invitees if not in payload
       const merged = mapDbTaskToTask({
         ...row,
