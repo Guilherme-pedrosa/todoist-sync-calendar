@@ -917,7 +917,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         const dbDate = row.due_date;
         const dbTime = row.due_time ? row.due_time.slice(0, 5) : null;
         
-        const hasDateJump = dbDate !== existing.dueDate || dbDueTime !== (existing.dueTime ?? null);
+        const hasDateJump = dbDate !== existing.dueDate || dbTime !== (existing.dueTime ?? null);
         const hasTitleJump = row.title !== existing.title;
         const hasCompletionJump = row.completed !== existing.completed;
 
