@@ -648,21 +648,28 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
 
+    // Update local state first for instant feedback (optimistic)
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
+      ),
+    }));
+
     const { error } = await supabase
       .from('tasks')
       .update({ completed, completed_at: completedAt })
       .eq('id', id);
 
     if (error) {
+      // Rollback on error
+      set((state) => ({
+        tasks: state.tasks.map((t) =>
+          t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt || undefined } : t
+        ),
+      }));
       toast.error('Não foi possível atualizar a tarefa', { description: error.message });
       throw error;
     }
-
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
-      ),
-    }));
 
     useUndoStore.getState().push({
       label: completed ? `Desmarcar "${task.title}"` : `Marcar "${task.title}"`,
