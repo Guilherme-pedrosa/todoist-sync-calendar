@@ -897,13 +897,20 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
       
-      // SUPPRESS STALE REALTIME UPDATES: If we just edited this task locally (last 5s),
-      // ignore the incoming DB row which might still have old values.
+      // SUPPRESS STALE REALTIME UPDATES: If we just edited this task locally,
+      // only accept the database update if it matches our optimistic state OR if it's new enough.
       const lastLocalUpdate = state.lastInteractionTime[row.id] || 0;
       const elapsed = Date.now() - lastLocalUpdate;
-      if (elapsed < 10000) {
-        console.info('[realtime] suppressed stale update for task', row.id, `(age: ${elapsed}ms)`);
-        return state;
+      
+      if (existing && elapsed < 15000) {
+        const dbDueDate = row.due_date;
+        const dbDueTime = row.due_time ? row.due_time.slice(0, 5) : null;
+        
+        // If the DB version still has the old date/time while we recently moved it, ignore it.
+        if (dbDueDate !== existing.dueDate || dbDueTime !== (existing.dueTime ?? null)) {
+           console.info('[realtime] suppressed stale update (date mismatch) for task', row.id, `(age: ${elapsed}ms)`);
+           return state;
+        }
       }
 
       // Preserve existing assignees/labels/meeting invitees if not in payload
