@@ -1,13 +1,10 @@
 export default function Routes() {
   return (
     <div>
-      as subtarefas ficam aparecendo no buffer como tarefas separadas (sendo que são sub tarefas).
+      quando eu mudo uma tarefa de data, quando eu finalizo mas quero retirar a finalização, o sistema demora muito, não faz, fica voltando para o horário antigo o tempo todo!! acredito que não está tendo uma atualização muito legal conforme necessário!!
 
-eu preciso que apareça no buffer apenas a tarefa principal, e as subtarefas se mantenham dentro dela.
-
-Veja os links das imagens enviadas abaixo e analise o conteúdo delas para responder:
-Imagem 1: https://sorax.lovable.app/api/public/i/f3u1c0w6sa.png
-Imagem 2: https://sorax.lovable.app/api/public/i/nqkjyd5ude.png
+Veja o link da imagem enviada abaixo e analise o conteúdo delas para responder:
+Imagem 1: https://sorax.lovable.app/api/public/i/fl8djsarxe.png
     </div>
   );
 }

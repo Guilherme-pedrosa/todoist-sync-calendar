@@ -466,6 +466,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!session) return;
 
     const existing = get().tasks.find((t) => t.id === id);
+    const prevTask = existing ? { ...existing } : null;
+
+    // Update local state first for instant feedback (optimistic)
+    set((state) => ({
+      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+    }));
 
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -488,14 +494,16 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (Object.keys(dbUpdates).length > 0) {
       const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
       if (error) {
+        // Rollback local state on error
+        if (prevTask) {
+          set((state) => ({
+            tasks: state.tasks.map((t) => (t.id === id ? prevTask : t)),
+          }));
+        }
         console.error('updateTask error', error);
         throw error;
       }
     }
-
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    }));
 
     // Registra undo restaurando campos anteriores
     if (existing && !options?.skipUndo) {
