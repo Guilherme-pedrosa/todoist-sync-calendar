@@ -504,10 +504,18 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
         if (prevTask) {
           set((state) => ({
             tasks: state.tasks.map((t) => (t.id === id ? prevTask : t)),
+            // Clear interaction time so we accept the next DB sync
+            lastInteractionTime: { ...state.lastInteractionTime, [id]: 0 },
           }));
         }
         console.error('updateTask error', error);
         throw error;
+      } else {
+        // IMPORTANT: Extend interaction lock slightly after successful update
+        // to wait for all side-effect triggers (like notifications/logs) to settle.
+        set((state) => ({
+          lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() }
+        }));
       }
     }
 
@@ -897,18 +905,29 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
       
-      // SUPPRESS STALE REALTIME UPDATES: If we just edited this task locally,
-      // only accept the database update if it matches our optimistic state OR if it's new enough.
+      // SUPPRESS STALE REALTIME UPDATES:
+      // When we edit a task locally, we set lastInteractionTime.
+      // We ignore database updates that don't match our local optimistic state
+      // for 30 seconds to ensure the server-side processing and eventual
+      // consistency (including triggers/functions) doesn't overwrite our intent.
       const lastLocalUpdate = state.lastInteractionTime[row.id] || 0;
       const elapsed = Date.now() - lastLocalUpdate;
       
-      if (existing && elapsed < 15000) {
-        const dbDueDate = row.due_date;
-        const dbDueTime = row.due_time ? row.due_time.slice(0, 5) : null;
+      if (existing && elapsed < 30000) {
+        const dbDate = row.due_date;
+        const dbTime = row.due_time ? row.due_time.slice(0, 5) : null;
         
-        // If the DB version still has the old date/time while we recently moved it, ignore it.
-        if (dbDueDate !== existing.dueDate || dbDueTime !== (existing.dueTime ?? null)) {
-           console.info('[realtime] suppressed stale update (date mismatch) for task', row.id, `(age: ${elapsed}ms)`);
+        const hasDateJump = dbDate !== existing.dueDate || dbDueTime !== (existing.dueTime ?? null);
+        const hasTitleJump = row.title !== existing.title;
+        const hasCompletionJump = row.completed !== existing.completed;
+
+        if (hasDateJump || hasTitleJump || hasCompletionJump) {
+           console.info('[realtime] suppressed jump for task', row.id, {
+             elapsed,
+             type: hasDateJump ? 'date' : hasTitleJump ? 'title' : 'completion',
+             local: { date: existing.dueDate, time: existing.dueTime },
+             remote: { date: dbDate, time: dbTime }
+           });
            return state;
         }
       }
