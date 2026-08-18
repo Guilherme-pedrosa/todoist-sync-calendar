@@ -178,18 +178,17 @@ export function QuickAddDialog() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
-  // apply NLP suggestions — sempre que o título mudar, NLP é autoritativa
-  // para data/hora/recorrência/prioridade detectadas (igual Todoist).
-  // Rastreia o que foi setado pela NLP pra poder limpar quando o token sumir.
+  // Apply NLP suggestions while preserving the calendar slot that opened the dialog.
+  // If an NLP token disappears, restore the dragged/clicked slot instead of clearing it.
   useEffect(() => {
     if (!parsed) return;
 
-    // Data: se NLP detectou, sobrescreve. Se NLP havia setado antes e agora sumiu, limpa.
+    // Data: NLP can override the slot, but removing the token restores the original slot.
     if (parsed.dueDate) {
       setDate((d) => ({ ...d, date: parsed.dueDate }));
       nlpSetRef.current.date = true;
     } else if (nlpSetRef.current.date) {
-      setDate((d) => ({ ...d, date: undefined }));
+      setDate((d) => ({ ...d, date: defaultDueDate ?? routeContext.date ?? undefined }));
       nlpSetRef.current.date = false;
     }
 
@@ -203,7 +202,11 @@ export function QuickAddDialog() {
       nlpSetRef.current.time = true;
       nlpSetRef.current.duration = parsed.durationMinutes !== undefined;
     } else if (nlpSetRef.current.time) {
-      setDate((d) => ({ ...d, time: undefined, durationMinutes: undefined }));
+      setDate((d) => ({
+        ...d,
+        time: defaultDueTime ?? undefined,
+        durationMinutes: defaultDurationMinutes ?? undefined,
+      }));
       nlpSetRef.current.time = false;
       nlpSetRef.current.duration = false;
     }
