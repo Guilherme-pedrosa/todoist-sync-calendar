@@ -17,7 +17,6 @@ interface TaskState {
   activeLabelId: string | null;
   sidebarOpen: boolean;
   loading: boolean;
-  lastInteractionTime: Record<string, number>; // taskId -> timestamp
 
 
   fetchData: () => Promise<void>;
@@ -203,7 +202,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   activeLabelId: null,
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   loading: true,
-  lastInteractionTime: {},
 
 
   fetchData: async () => {
@@ -355,6 +353,33 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     console.info('[addTask] step=local-insert', { id: data.id });
 
     const labelIds = taskData.labels || [];
+    const requestedAssignees = taskData.assigneeIds || [];
+    const assigneeIds = requestedAssignees.filter((id) => id && id !== userId);
+    const requestedInformed = (taskData.informedIds || []).filter(
+      (id) => id && id !== userId && !assigneeIds.includes(id)
+    );
+    const ownerDelegated = assigneeIds.length > 0 && !requestedAssignees.includes(userId);
+    const responsibleIds = ownerDelegated ? assigneeIds : Array.from(new Set([userId, ...assigneeIds]));
+    const informedFromOwner = Array.from(
+      new Set([...(ownerDelegated ? [userId] : []), ...requestedInformed])
+    );
+    const newTask = mapDbTaskToTask({
+      ...data,
+      task_labels: labelIds.map((id) => ({ label_id: id })),
+      task_assignees: [
+        ...responsibleIds.map((uid) => ({ user_id: uid, role: 'responsible' })),
+        ...informedFromOwner.map((uid) => ({ user_id: uid, role: 'informed' })),
+      ],
+    });
+    if (!newTask) return null;
+
+    // The task row already exists. Show it immediately; related records can finish afterward.
+    set((state) => ({
+      tasks: state.tasks.some((task) => task.id === newTask.id)
+        ? state.tasks.map((task) => (task.id === newTask.id ? newTask : task))
+        : [newTask, ...state.tasks],
+    }));
+
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
         labelIds.map((labelId) => ({ task_id: data.id, label_id: labelId }))
@@ -363,17 +388,12 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     // Assignees extras: o trigger trg_auto_add_task_owner_as_assignee insere o owner
     // automaticamente no banco; aqui adicionamos APENAS assignees adicionais (delegados).
-    const requestedAssignees = taskData.assigneeIds || [];
-    const assigneeIds = requestedAssignees.filter((id) => id && id !== userId);
     if (assigneeIds.length > 0) {
       await supabase.from('task_assignees').insert(
         assigneeIds.map((uid) => ({ task_id: data.id, user_id: uid, assigned_by: userId }))
       );
     }
     // Informados (role = 'informed')
-    const requestedInformed = (taskData.informedIds || []).filter(
-      (id) => id && id !== userId && !assigneeIds.includes(id)
-    );
     if (requestedInformed.length > 0) {
       await supabase.from('task_assignees').insert(
         requestedInformed.map((uid) => ({
@@ -386,8 +406,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
     // Se o criador delegou para outra(s) pessoa(s) e NÃO se incluiu como responsável,
     // ele entra automaticamente como "informado" (em vez de continuar responsável pelo trigger).
-    const ownerDelegated =
-      assigneeIds.length > 0 && !requestedAssignees.includes(userId);
     if (ownerDelegated) {
       await supabase
         .from('task_assignees')
@@ -437,21 +455,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       }
     }
 
-    const responsibleIds = ownerDelegated ? assigneeIds : Array.from(new Set([userId, ...assigneeIds]));
-    const informedFromOwner = Array.from(
-      new Set([...(ownerDelegated ? [userId] : []), ...requestedInformed])
-    );
-    const newTask = mapDbTaskToTask({
-      ...data,
-      task_labels: labelIds.map((id) => ({ label_id: id })),
-      task_assignees: [
-        ...responsibleIds.map((uid) => ({ user_id: uid, role: 'responsible' })),
-        ...informedFromOwner.map((uid) => ({ user_id: uid, role: 'informed' })),
-      ],
-    });
-    if (!newTask) return null;
-    set((state) => ({ tasks: [newTask, ...state.tasks] }));
-
     if (!options?.skipUndo) {
       useUndoStore.getState().push({
         label: `Criar "${newTask.title}"`,
@@ -475,7 +478,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     // Update local state first for instant feedback (optimistic)
     set((state) => ({
       tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-      lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() },
     }));
 
 
@@ -498,24 +500,26 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     }
 
     if (Object.keys(dbUpdates).length > 0) {
-      const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
-      if (error) {
+      const { data: updatedRow, error } = await supabase
+        .from('tasks')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select('*')
+        .maybeSingle();
+      if (error || !updatedRow) {
         // Rollback local state on error
         if (prevTask) {
           set((state) => ({
             tasks: state.tasks.map((t) => (t.id === id ? prevTask : t)),
-            // Clear interaction time so we accept the next DB sync
-            lastInteractionTime: { ...state.lastInteractionTime, [id]: 0 },
           }));
         }
-        console.error('updateTask error', error);
-        throw error;
+        const updateError = error || new Error('A tarefa não foi atualizada no banco');
+        console.error('updateTask error', updateError);
+        toast.error('Não foi possível atualizar a tarefa');
+        throw updateError;
       } else {
-        // IMPORTANT: Extend interaction lock slightly after successful update
-        // to wait for all side-effect triggers (like notifications/logs) to settle.
-        set((state) => ({
-          lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() }
-        }));
+        // Reconcile with the row the database actually persisted, preserving relations.
+        get().applyTaskUpsertFromDb(updatedRow);
       }
     }
 
@@ -675,7 +679,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       tasks: state.tasks.map((t) =>
         t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
       ),
-      lastInteractionTime: { ...state.lastInteractionTime, [id]: Date.now() },
     }));
 
 
@@ -904,33 +907,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!row?.id) return;
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
-      
-      // SUPPRESS STALE REALTIME UPDATES:
-      // When we edit a task locally, we set lastInteractionTime.
-      // We ignore database updates that don't match our local optimistic state
-      // for 30 seconds to ensure the server-side processing and eventual
-      // consistency (including triggers/functions) doesn't overwrite our intent.
-      const lastLocalUpdate = state.lastInteractionTime[row.id] || 0;
-      const elapsed = Date.now() - lastLocalUpdate;
-      
-      if (existing && elapsed < 30000) {
-        const dbDate = row.due_date;
-        const dbTime = row.due_time ? row.due_time.slice(0, 5) : null;
-        
-        const hasDateJump = dbDate !== existing.dueDate || dbTime !== (existing.dueTime ?? null);
-        const hasTitleJump = row.title !== existing.title;
-        const hasCompletionJump = row.completed !== existing.completed;
-
-        if (hasDateJump || hasTitleJump || hasCompletionJump) {
-           console.info('[realtime] suppressed jump for task', row.id, {
-             elapsed,
-             type: hasDateJump ? 'date' : hasTitleJump ? 'title' : 'completion',
-             local: { date: existing.dueDate, time: existing.dueTime },
-             remote: { date: dbDate, time: dbTime }
-           });
-           return state;
-        }
-      }
 
       // Preserve existing assignees/labels/meeting invitees if not in payload
       const merged = mapDbTaskToTask({
