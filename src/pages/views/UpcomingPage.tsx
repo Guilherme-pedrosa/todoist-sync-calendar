@@ -210,8 +210,13 @@ export default function UpcomingPage() {
 
   const calendarVisibleTasks = useMemo(() => {
     const merged = new Map<string, Task>();
+    const liveById = new Map(visibleTasks.map((task) => [task.id, task]));
+    for (const task of completedScheduledTasks) {
+      const live = liveById.get(task.id);
+      if (live && !live.completed) continue;
+      merged.set(task.id, task);
+    }
     for (const task of visibleTasks) merged.set(task.id, task);
-    for (const task of completedScheduledTasks) merged.set(task.id, task);
     return Array.from(merged.values());
   }, [visibleTasks, completedScheduledTasks]);
 
@@ -599,11 +604,6 @@ function WeekGrid({
 
     if (currentDrag.kind === 'move' || currentDrag.kind === 'resize') {
       const p = previewRef.current[currentDrag.taskId];
-      setPreview((prev) => {
-        const next = { ...prev };
-        delete next[currentDrag.taskId];
-        return next;
-      });
       if (!p) return;
       try {
         const updates: Partial<Task> = {};
@@ -616,6 +616,12 @@ function WeekGrid({
         });
       } catch (err) {
         toast.error('Falha ao reagendar tarefa');
+      } finally {
+        setPreview((prev) => {
+          const next = { ...prev };
+          delete next[currentDrag.taskId];
+          return next;
+        });
       }
     } else if (currentDrag.kind === 'create') {
       const box = createBoxRef.current;

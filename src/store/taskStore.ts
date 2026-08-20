@@ -152,6 +152,48 @@ async function getUserId(): Promise<string | null> {
 }
 
 const TASK_PAGE_SIZE = 1000;
+const PENDING_TASK_UPDATE_TTL_MS = 30_000;
+
+type PendingTaskUpdate = {
+  updates: Partial<Task>;
+  startedAt: number;
+};
+
+const pendingTaskUpdates = new Map<string, PendingTaskUpdate>();
+
+function normalizeComparableTaskValue(key: keyof Task, value: unknown) {
+  if (key === 'dueTime' && typeof value === 'string') return value.slice(0, 5);
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return value;
+}
+
+function cleanupExpiredPendingTaskUpdates(now = Date.now()) {
+  for (const [id, pending] of pendingTaskUpdates.entries()) {
+    if (now - pending.startedAt > PENDING_TASK_UPDATE_TTL_MS) {
+      pendingTaskUpdates.delete(id);
+    }
+  }
+}
+
+function taskMatchesPendingUpdates(task: Task, updates: Partial<Task>) {
+  return (Object.keys(updates) as (keyof Task)[]).every((key) => {
+    const expected = normalizeComparableTaskValue(key, updates[key]);
+    const actual = normalizeComparableTaskValue(key, task[key]);
+    return actual === expected;
+  });
+}
+
+function applyPendingTaskUpdate(task: Task): Task {
+  cleanupExpiredPendingTaskUpdates();
+  const pending = pendingTaskUpdates.get(task.id);
+  if (!pending) return task;
+  if (taskMatchesPendingUpdates(task, pending.updates)) {
+    pendingTaskUpdates.delete(task.id);
+    return task;
+  }
+  return { ...task, ...pending.updates };
+}
 
 async function fetchAllTaskRows() {
   const rows: any[] = [];
@@ -244,7 +286,8 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const tasks: Task[] = taskRows
       .map(mapDbTaskToTask)
-      .filter((t): t is Task => t !== null);
+      .filter((t): t is Task => t !== null)
+      .map(applyPendingTaskUpdate);
 
     set({ projects, labels, tasks, loading: false });
   },
@@ -473,13 +516,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     if (!session) return;
 
     const existing = get().tasks.find((t) => t.id === id);
-    const prevTask = existing ? { ...existing } : null;
-
-    // Update local state first for instant feedback (optimistic)
-    set((state) => ({
-      tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
-    }));
-
 
     const dbUpdates: Record<string, any> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
@@ -499,28 +535,45 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       dbUpdates.completed_at = updates.completed ? new Date().toISOString() : null;
     }
 
-    if (Object.keys(dbUpdates).length > 0) {
-      const { data: updatedRow, error } = await supabase
-        .from('tasks')
-        .update(dbUpdates)
-        .eq('id', id)
-        .select('*')
-        .maybeSingle();
-      if (error || !updatedRow) {
-        // Rollback local state on error
-        if (prevTask) {
-          set((state) => ({
-            tasks: state.tasks.map((t) => (t.id === id ? prevTask : t)),
-          }));
+    const stateUpdates: Partial<Task> = { ...updates };
+    if (updates.completed !== undefined) {
+      stateUpdates.completedAt = updates.completed ? dbUpdates.completed_at : undefined;
+    }
+
+    if (existing) {
+      pendingTaskUpdates.set(id, { updates: stateUpdates, startedAt: Date.now() });
+      set((state) => ({
+        tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...stateUpdates } : t)),
+      }));
+    }
+
+    try {
+      if (Object.keys(dbUpdates).length > 0) {
+        const { data: updatedRow, error } = await supabase
+          .from('tasks')
+          .update(dbUpdates)
+          .eq('id', id)
+          .select('*')
+          .maybeSingle();
+        if (error || !updatedRow) {
+          const updateError = error || new Error('A tarefa não foi atualizada no banco');
+          console.error('updateTask error', updateError);
+          throw updateError;
         }
-        const updateError = error || new Error('A tarefa não foi atualizada no banco');
-        console.error('updateTask error', updateError);
-        toast.error('Não foi possível atualizar a tarefa');
-        throw updateError;
-      } else {
-        // Reconcile with the row the database actually persisted, preserving relations.
         get().applyTaskUpsertFromDb(updatedRow);
+      } else if (!existing) {
+        set((state) => ({
+          tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...stateUpdates } : t)),
+        }));
       }
+    } catch (error) {
+      pendingTaskUpdates.delete(id);
+      if (existing) {
+        set((state) => ({
+          tasks: state.tasks.map((t) => (t.id === id ? existing : t)),
+        }));
+      }
+      throw error;
     }
 
     // Registra undo restaurando campos anteriores
@@ -553,6 +606,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
           if (Object.keys(prevDb).length > 0) {
             await supabase.from('tasks').update(prevDb).eq('id', id);
           }
+          pendingTaskUpdates.delete(id);
           set((state) => ({
             tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...prevFields } : t)),
           }));
@@ -560,7 +614,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       });
     }
 
-    const merged = existing ? ({ ...existing, ...updates } as Task) : null;
+    const merged = existing ? ({ ...existing, ...stateUpdates } as Task) : null;
 
 
     // Re-sincroniza lembrete quando data/hora mudam ou quando a tarefa é (re)agendada
@@ -673,14 +727,17 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
     const prevCompletedAt = task.completedAt;
     const completed = !task.completed;
     const completedAt = completed ? new Date().toISOString() : null;
+    const stateUpdates: Partial<Task> = {
+      completed,
+      completedAt: completedAt || undefined,
+    };
 
-    // Update local state first for instant feedback (optimistic)
+    pendingTaskUpdates.set(id, { updates: stateUpdates, startedAt: Date.now() });
     set((state) => ({
       tasks: state.tasks.map((t) =>
-        t.id === id ? { ...t, completed, completedAt: completedAt || undefined } : t
+        t.id === id ? { ...t, ...stateUpdates } : t
       ),
     }));
-
 
     const { error } = await supabase
       .from('tasks')
@@ -688,10 +745,10 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       .eq('id', id);
 
     if (error) {
-      // Rollback on error
+      pendingTaskUpdates.delete(id);
       set((state) => ({
         tasks: state.tasks.map((t) =>
-          t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt || undefined } : t
+          t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt } : t
         ),
       }));
       toast.error('Não foi possível atualizar a tarefa', { description: error.message });
@@ -706,6 +763,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
           .update({ completed: prevCompleted, completed_at: prevCompletedAt ?? null })
           .eq('id', id);
         if (undoError) throw undoError;
+        pendingTaskUpdates.delete(id);
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id ? { ...t, completed: prevCompleted, completedAt: prevCompletedAt } : t
@@ -909,7 +967,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       const existing = state.tasks.find((t) => t.id === row.id);
 
       // Preserve existing assignees/labels/meeting invitees if not in payload
-      const merged = mapDbTaskToTask({
+      let merged = mapDbTaskToTask({
         ...row,
         task_labels: row.task_labels ?? (existing ? existing.labels.map((id) => ({ label_id: id })) : []),
         task_assignees: row.task_assignees ?? (existing
@@ -926,6 +984,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       if (!merged) {
         return { tasks: state.tasks.filter((t) => t.id !== row.id) };
       }
+      merged = applyPendingTaskUpdate(merged);
       if (existing) {
         return { tasks: state.tasks.map((t) => (t.id === row.id ? { ...t, ...merged } : t)) };
       }
