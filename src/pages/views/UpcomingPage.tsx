@@ -786,7 +786,7 @@ function WeekGrid({
                     key={`overdue-${t.id}`}
                     task={t}
                     occurrenceDate={t.dueDate!}
-                    onOpen={() => openTaskDetail(t.id)}
+                    onOpen={() => openTaskDetail(t.id, { taskSnapshot: t })}
                     onStartDrag={(pointerOffsetMin) => {
                       const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
                       const startMin = 9 * 60;
@@ -809,7 +809,12 @@ function WeekGrid({
                     key={t.id}
                     task={t}
                     occurrenceDate={k}
-                    onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, { occurrenceDate: k, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
+                    onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, {
+                      occurrenceDate: k,
+                      rangeStart: visibleRangeStart,
+                      rangeEnd: visibleRangeEnd,
+                      taskSnapshot: t,
+                    })}
                     onStartDrag={(pointerOffsetMin) => {
                       if (t.isRecurringCompletion) return;
                       const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
@@ -911,7 +916,12 @@ function WeekGrid({
                   }));
                   setDrag({ kind: 'resize', taskId, startTopMin, minDuration: MIN_TASK_MINUTES, sourceDayKey: k });
                 }}
-                onOpenTask={(id, occurrenceDate) => openTaskDetail(id, { occurrenceDate, rangeStart: visibleRangeStart, rangeEnd: visibleRangeEnd })}
+                onOpenTask={(task, occurrenceDate) => openTaskDetail(task.sourceTaskId ?? task.id, {
+                  occurrenceDate,
+                  rangeStart: visibleRangeStart,
+                  rangeEnd: visibleRangeEnd,
+                  taskSnapshot: task,
+                })}
               />
             );
           })}
@@ -963,7 +973,7 @@ function DayColumn({
     clientY?: number
   ) => void;
   onStartResize: (taskId: string, startTopMin: number, currentDuration: number) => void;
-  onOpenTask: (id: string, occurrenceDate: string) => void;
+  onOpenTask: (task: Task, occurrenceDate: string) => void;
 }) {
   const localRef = useRef<HTMLDivElement | null>(null);
   const setRef = (el: HTMLDivElement | null) => {
@@ -1200,7 +1210,7 @@ function DayColumn({
                 if (task.isRecurringCompletion) return;
                 onStartResize(task.id, startMin, durationMin);
               }}
-              onClick={() => onOpenTask(task.sourceTaskId ?? task.id, dayKey)}
+              onClick={() => onOpenTask(task, dayKey)}
             />
           );
         });
@@ -1291,8 +1301,6 @@ function EventBlock({
     longPressTimer: number | null;
     longPressFired: boolean;
   } | null>(null);
-  const lastTapRef = useRef<number>(0);
-
   const endInteraction = (el: HTMLDivElement, pointerId: number) => {
     try {
       if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
@@ -1430,15 +1438,9 @@ function EventBlock({
           return;
         }
         if (d && !d.longPressFired && !d.moved) {
-          // Tap curto: exige duplo toque para abrir no mobile
+          // Tap curto: abre imediatamente. Arrastar continua protegido por pressão longa.
           e.stopPropagation();
-          const now = Date.now();
-          if (now - lastTapRef.current < 300) {
-            lastTapRef.current = 0;
-            onClick();
-          } else {
-            lastTapRef.current = now;
-          }
+          onClick();
         }
       }}
       onTouchCancel={() => {
