@@ -156,6 +156,7 @@ export function TaskDetailPanel() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const taskId = useTaskDetailStore((s) => s.taskId);
+  const taskSnapshot = useTaskDetailStore((s) => s.taskSnapshot);
   const occurrenceDate = useTaskDetailStore((s) => s.occurrenceDate);
   const rangeStart = useTaskDetailStore((s) => s.rangeStart);
   const rangeEnd = useTaskDetailStore((s) => s.rangeEnd);
@@ -170,7 +171,10 @@ export function TaskDetailPanel() {
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
 
-  const task = useMemo(() => tasks.find((t) => t.id === taskId) || null, [tasks, taskId]);
+  const task = useMemo(
+    () => tasks.find((t) => t.id === taskId) || (taskSnapshot?.id === taskId ? taskSnapshot : null),
+    [tasks, taskId, taskSnapshot]
+  );
 
   useEffect(() => {
     if (!taskId || task) return;
