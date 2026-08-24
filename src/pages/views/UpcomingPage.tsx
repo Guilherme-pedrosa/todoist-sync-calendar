@@ -56,9 +56,14 @@ type RecurringCompletionRow = {
 function isTaskVisibleForAgenda(task: Task, currentUserId?: string) {
   if (!currentUserId) return true;
   const assigneeIds = task.assigneeIds || [];
+  const informedIds = task.informedIds || [];
   const inviteeIds = task.meetingInviteeIds || [];
-  if (assigneeIds.length === 0 && inviteeIds.length === 0) return true;
-  return assigneeIds.includes(currentUserId) || inviteeIds.includes(currentUserId);
+  if (assigneeIds.length === 0 && informedIds.length === 0 && inviteeIds.length === 0) return true;
+  return (
+    assigneeIds.includes(currentUserId) ||
+    informedIds.includes(currentUserId) ||
+    inviteeIds.includes(currentUserId)
+  );
 }
 
 const DAY_START_HOUR = 6; // grid começa às 06:00
@@ -113,7 +118,7 @@ export default function UpcomingPage() {
   }, []);
 
   // Agenda deve mostrar tudo que o usuário pode ver e tem data:
-  // responsável, convidado de reunião, ou itens antigos sem responsáveis carregados.
+  // responsável, informado, convidado de reunião, ou itens antigos sem responsáveis carregados.
   const visibleLogTsRef = useRef(0);
   const visibleTasks = useMemo(
     () => {
