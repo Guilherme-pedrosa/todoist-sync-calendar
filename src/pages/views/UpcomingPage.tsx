@@ -1576,8 +1576,7 @@ function AllDayChip({
         const d = downRef.current;
         downRef.current = null;
         if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
-        const isTouch = d?.pointerType === 'touch';
-        if (d && !d.moved && (!isTouch || d.longPressFired)) {
+        if (d && !d.moved && !d.longPressFired) {
           e.stopPropagation();
           onOpen();
         }
