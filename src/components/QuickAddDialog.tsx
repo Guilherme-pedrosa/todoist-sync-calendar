@@ -18,6 +18,7 @@ import {
 import { suggestSlot } from '@/lib/aiAssistant';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -134,7 +135,14 @@ export function QuickAddDialog() {
     }
   };
 
-  const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
+  // Debounce do NLP (chrono-node é pesado): só alimenta realce/chips.
+  // O submit continua fazendo o parse completo e síncrono.
+  const [debouncedTitle, setDebouncedTitle] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedTitle(title), 250);
+    return () => clearTimeout(id);
+  }, [title]);
+  const parsed = useMemo(() => (debouncedTitle ? parseNlp(debouncedTitle) : null), [debouncedTitle]);
   const taskLines = useMemo(
     () => title.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
     [title]
@@ -174,7 +182,9 @@ export function QuickAddDialog() {
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
     nlpSetRef.current = {};
-    setTimeout(() => inputRef.current?.focus(), 60);
+    // O teclado já foi aberto pelo campo "primer" no gesto do usuário;
+    // aqui apenas transferimos o foco para o campo real (sem setTimeout).
+    inputRef.current?.focus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
@@ -242,7 +252,7 @@ export function QuickAddDialog() {
       if (proj) setProjectId(proj.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title]);
+  }, [debouncedTitle]);
 
   const submit = async (closeAfter = false) => {
     if (submitting) return;
