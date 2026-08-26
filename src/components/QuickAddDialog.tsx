@@ -18,6 +18,7 @@ import {
 import { suggestSlot } from '@/lib/aiAssistant';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -89,6 +90,24 @@ export function QuickAddDialog() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Ancoragem do rodapé ao topo do teclado virtual (iOS/Android).
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handler = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardInset(inset > 80 ? inset : 0);
+    };
+    handler();
+    vv.addEventListener('resize', handler);
+    vv.addEventListener('scroll', handler);
+    return () => {
+      vv.removeEventListener('resize', handler);
+      vv.removeEventListener('scroll', handler);
+    };
+  }, []);
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -134,7 +153,14 @@ export function QuickAddDialog() {
     }
   };
 
-  const parsed = useMemo(() => (title ? parseNlp(title) : null), [title]);
+  // Debounce do NLP (chrono-node é pesado): só alimenta realce/chips.
+  // O submit continua fazendo o parse completo e síncrono.
+  const [debouncedTitle, setDebouncedTitle] = useState('');
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedTitle(title), 250);
+    return () => clearTimeout(id);
+  }, [title]);
+  const parsed = useMemo(() => (debouncedTitle ? parseNlp(debouncedTitle) : null), [debouncedTitle]);
   const taskLines = useMemo(
     () => title.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
     [title]
@@ -174,7 +200,10 @@ export function QuickAddDialog() {
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
     nlpSetRef.current = {};
-    setTimeout(() => inputRef.current?.focus(), 60);
+    // O teclado já foi aberto pelo campo "primer" no gesto do usuário;
+    // aqui apenas transferimos o foco para o campo real (sem setTimeout).
+    inputRef.current?.focus();
+    requestAnimationFrame(() => inputRef.current?.focus());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
@@ -242,7 +271,7 @@ export function QuickAddDialog() {
       if (proj) setProjectId(proj.id);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title]);
+  }, [debouncedTitle]);
 
   const submit = async (closeAfter = false) => {
     if (submitting) return;
@@ -250,43 +279,71 @@ export function QuickAddDialog() {
     if (lines.length === 0) return;
     console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds, informedIds });
     setSubmitting(true);
+
+    // Snapshot dos campos: o diálogo fecha imediatamente, o resto termina em background.
+    const snapshot = {
+      description,
+      priority,
+      date,
+      projectId,
+      selectedLabels,
+      reminders,
+      assigneeIds,
+      informedIds,
+      pendingFiles,
+    };
+
+    if (closeAfter) {
+      closeQuickAdd();
+    } else {
+      setTitle('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
     try {
       // Use first relative reminder for the legacy single-reminder column
-      const firstRelative = reminders.find((r) => r.type === 'relative');
-      const createdTasks = [];
-      for (const line of lines) {
-        const lineParsed = parseNlp(line);
-        const finalTitle = (lineParsed.cleanedTitle || line).trim();
-        if (!finalTitle) continue;
-        const matchedLabels = lineParsed.labelTokens.length
-          ? labels
-              .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
-              .map((l) => l.id)
-          : [];
-        const lineProjectId = lineParsed.projectToken
-          ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
-          : undefined;
-        const created = await addTask({
-          title: finalTitle,
-          description: description.trim() || undefined,
-          priority: lineParsed.priority || priority,
-          dueDate: lineParsed.dueDate || date.date,
-          dueTime: lineParsed.dueTime || date.time,
-          durationMinutes: lineParsed.durationMinutes ?? date.durationMinutes ?? null,
-          recurrenceRule: lineParsed.recurrenceRule || date.recurrenceRule || null,
-          projectId: lineProjectId || projectId,
-          parentId: defaultParentId || undefined,
-          labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
-          reminderMinutes: firstRelative?.relative_minutes ?? null,
-          assigneeIds,
-          informedIds,
-        });
-        if (created) createdTasks.push(created);
-      }
+      const firstRelative = snapshot.reminders.find((r) => r.type === 'relative');
+      const results = await Promise.all(
+        lines.map(async (line) => {
+          const lineParsed = parseNlp(line);
+          const finalTitle = (lineParsed.cleanedTitle || line).trim();
+          if (!finalTitle) return null;
+          const matchedLabels = lineParsed.labelTokens.length
+            ? labels
+                .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+                .map((l) => l.id)
+            : [];
+          const lineProjectId = lineParsed.projectToken
+            ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
+            : undefined;
+          try {
+            return await addTask({
+              title: finalTitle,
+              description: snapshot.description.trim() || undefined,
+              priority: lineParsed.priority || snapshot.priority,
+              dueDate: lineParsed.dueDate || snapshot.date.date,
+              dueTime: lineParsed.dueTime || snapshot.date.time,
+              durationMinutes: lineParsed.durationMinutes ?? snapshot.date.durationMinutes ?? null,
+              recurrenceRule: lineParsed.recurrenceRule || snapshot.date.recurrenceRule || null,
+              projectId: lineProjectId || snapshot.projectId,
+              parentId: defaultParentId || undefined,
+              labels: Array.from(new Set([...snapshot.selectedLabels, ...matchedLabels])),
+              reminderMinutes: firstRelative?.relative_minutes ?? null,
+              assigneeIds: snapshot.assigneeIds,
+              informedIds: snapshot.informedIds,
+            });
+          } catch (e) {
+            console.error('[QuickAdd] line failed', { line, e });
+            toast.error(e instanceof Error ? e.message : `Falha ao criar "${finalTitle}"`);
+            return null;
+          }
+        })
+      );
+      const createdTasks = results.filter((t): t is NonNullable<typeof t> => !!t);
       console.info('[QuickAdd] submit-end', { created: createdTasks.length, ids: createdTasks.map((t) => t.id) });
       // Insert any additional absolute reminders (besides the auto one)
-      if (createdTasks.length > 0 && reminders.length > 0) {
-        const additional = reminders.filter((r) => r.type === 'absolute');
+      if (createdTasks.length > 0 && snapshot.reminders.length > 0) {
+        const additional = snapshot.reminders.filter((r) => r.type === 'absolute');
         if (additional.length > 0) {
           await supabase.from('reminders').insert(
             createdTasks.flatMap((task) =>
@@ -306,10 +363,10 @@ export function QuickAddDialog() {
         return;
       }
       // Upload pending attachments
-      if (pendingFiles.length > 0) {
+      if (snapshot.pendingFiles.length > 0) {
         const { uploadTaskAttachment } = await import('@/lib/attachments');
         for (const created of createdTasks) {
-          for (const file of pendingFiles) {
+          for (const file of snapshot.pendingFiles) {
             try {
               await uploadTaskAttachment(created.id, file);
             } catch (e) {
@@ -332,8 +389,7 @@ export function QuickAddDialog() {
       setPendingFiles([]);
       setLocation_('');
       setShowLocation(false);
-      setTimeout(() => inputRef.current?.focus(), 30);
-      if (closeAfter) closeQuickAdd();
+      if (!closeAfter) setTimeout(() => inputRef.current?.focus(), 30);
     } catch (err) {
       console.error('[QuickAdd] submit-error', err);
       toast.error(err instanceof Error ? err.message : 'Falha ao criar tarefa');
@@ -353,6 +409,289 @@ export function QuickAddDialog() {
   const project = projects.find((p) => p.id === projectId);
   const dateChipLabel = formatDateChip(date.date, date.time);
   const dateChipFilled = !!date.date || !!date.recurrenceRule;
+
+  const dateChipEl = (
+    <div className="inline-flex">
+      <DatePickerPopover
+        value={date}
+        onChange={setDate}
+        trigger={
+          <button
+            type="button"
+            className={cn(
+              'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+              dateChipFilled
+                ? 'border-success/40 text-success bg-success/5'
+                : 'border-border text-muted-foreground hover:border-success/40'
+            )}
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+            {dateChipLabel}
+            {dateChipFilled && (
+              <X
+                className="h-3 w-3 ml-0.5 opacity-60 hover:opacity-100"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDate({});
+                }}
+              />
+            )}
+          </button>
+        }
+      />
+    </div>
+  );
+
+  const aiChipEl = (
+    <button
+      type="button"
+      onClick={handleAiSuggest}
+      disabled={aiSuggesting || !title.trim()}
+      title="Deixe a IA sugerir o melhor horário"
+      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {aiSuggesting ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Sparkles className="h-3.5 w-3.5" />
+      )}
+      Sugerir horário
+    </button>
+  );
+
+  const assigneeChipEl = (
+    <AssigneeChip projectId={projectId} value={assigneeIds} onChange={setAssigneeIds} />
+  );
+
+  const informedChipEl = (
+    <AssigneeChip
+      projectId={projectId}
+      value={informedIds}
+      onChange={setInformedIds}
+      placeholder="Informado"
+      pluralLabel={(n) => `${n} informados`}
+    />
+  );
+
+  const attachChipEl = (
+    <>
+      <button
+        type="button"
+        onClick={() => attachInputRef.current?.click()}
+        title="Anexar arquivos"
+        className={cn(
+          'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+          pendingFiles.length > 0
+            ? 'border-primary/40 text-primary bg-primary/5'
+            : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'
+        )}
+      >
+        <Paperclip className="h-3.5 w-3.5" />
+        {pendingFiles.length > 0 ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}` : 'Anexo'}
+      </button>
+      <input
+        ref={attachInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
+          if (attachInputRef.current) attachInputRef.current.value = '';
+        }}
+      />
+    </>
+  );
+
+  const priorityChipEl = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+            priority < 4
+              ? 'border-primary/30 text-primary bg-primary/5'
+              : 'border-border text-muted-foreground hover:border-primary/30'
+          )}
+        >
+          <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[priority])} /> {PRIORITY_LABELS[priority]}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-44 p-1 z-[100]" align="start">
+        {([1, 2, 3, 4] as Priority[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPriority(p)}
+            className={cn(
+              'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
+              priority === p ? 'bg-muted' : 'hover:bg-muted'
+            )}
+          >
+            <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[p])} />
+            {PRIORITY_LABELS[p]}
+            <span className="ml-auto text-[10px] text-muted-foreground">!{p}</span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+
+  const reminderChipEl = (
+    <button
+      type="button"
+      disabled={!date.date}
+      onClick={() => setRemindersOpen(true)}
+      className={cn(
+        'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+        reminders.length > 0
+          ? 'border-warning/40 text-warning bg-warning/5'
+          : 'border-border text-muted-foreground hover:border-warning/40 disabled:opacity-50 disabled:cursor-not-allowed'
+      )}
+      title={!date.date ? 'Defina uma data primeiro' : 'Lembretes'}
+    >
+      <Bell className="h-3.5 w-3.5" />
+      {reminders.length > 0 ? `${reminders.length} lembrete(s)` : 'Lembretes'}
+    </button>
+  );
+
+  const labelsListEl = (
+    <div className="max-h-60 overflow-y-auto">
+      {labels.length === 0 && (
+        <div className="text-xs text-muted-foreground px-2 py-3 text-center">
+          Nenhuma etiqueta. Crie na barra lateral.
+        </div>
+      )}
+      {labels.map((l) => {
+        const checked = selectedLabels.includes(l.id);
+        return (
+          <button
+            key={l.id}
+            onClick={() =>
+              setSelectedLabels((prev) => (checked ? prev.filter((x) => x !== l.id) : [...prev, l.id]))
+            }
+            className={cn(
+              'w-full flex items-center gap-2 text-sm px-2 py-2 rounded-md transition-colors text-left',
+              checked ? 'bg-accent/10 text-accent' : 'hover:bg-muted'
+            )}
+          >
+            <Tag className="h-3.5 w-3.5" style={{ color: l.color }} />
+            {l.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const locationToggleEl = (
+    <button
+      onClick={() => setShowLocation((v) => !v)}
+      className="w-full flex items-center gap-2 text-sm px-2 py-2 rounded-md hover:bg-muted text-left"
+    >
+      <MapPin className="h-3.5 w-3.5" />
+      Local {location_ && '✓'}
+    </button>
+  );
+
+  const desktopMoreEl = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors"
+          aria-label="Mais ações"
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-1" align="start">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
+            >
+              <Tag className="h-3.5 w-3.5" />
+              Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" side="right" align="start">
+            {labelsListEl}
+          </PopoverContent>
+        </Popover>
+        {locationToggleEl}
+      </PopoverContent>
+    </Popover>
+  );
+
+  const toolbarEl = isMobile ? (
+    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
+      {dateChipEl}
+      {assigneeChipEl}
+      {priorityChipEl}
+      <button
+        type="button"
+        onClick={() => setMoreOpen(true)}
+        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground"
+        aria-label="Mais opções"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+        Mais
+      </button>
+      {attachChipEl && <div className="hidden">{attachChipEl}</div>}
+    </div>
+  ) : (
+    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
+      {dateChipEl}
+      {aiChipEl}
+      {assigneeChipEl}
+      {informedChipEl}
+      {attachChipEl}
+      {priorityChipEl}
+      {reminderChipEl}
+      {desktopMoreEl}
+    </div>
+  );
+
+  const moreSheetEl = (
+    <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+      <SheetContent side="bottom" className="z-[95] max-h-[80vh] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Mais opções</SheetTitle>
+        </SheetHeader>
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {aiChipEl}
+            {informedChipEl}
+            <button
+              type="button"
+              onClick={() => attachInputRef.current?.click()}
+              className={cn(
+                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+                pendingFiles.length > 0
+                  ? 'border-primary/40 text-primary bg-primary/5'
+                  : 'border-border text-muted-foreground'
+              )}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              {pendingFiles.length > 0
+                ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}`
+                : 'Anexo'}
+            </button>
+            {reminderChipEl}
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
+            </p>
+            {labelsListEl}
+          </div>
+          {locationToggleEl}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
 
   const body = (
     <>
@@ -436,211 +775,8 @@ export function QuickAddDialog() {
         </div>
       )}
 
-      {/* Toolbar (chips) */}
-      <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
-        {/* Date chip with explicit X */}
-        <div className="inline-flex">
-          <DatePickerPopover
-            value={date}
-            onChange={setDate}
-            trigger={
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-                  dateChipFilled
-                    ? 'border-success/40 text-success bg-success/5'
-                    : 'border-border text-muted-foreground hover:border-success/40'
-                )}
-              >
-                <CalendarIcon className="h-3.5 w-3.5" />
-                {dateChipLabel}
-                {dateChipFilled && (
-                  <X
-                    className="h-3 w-3 ml-0.5 opacity-60 hover:opacity-100"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDate({});
-                    }}
-                  />
-                )}
-              </button>
-            }
-          />
-        </div>
-
-        {/* AI suggest slot */}
-        <button
-          type="button"
-          onClick={handleAiSuggest}
-          disabled={aiSuggesting || !title.trim()}
-          title="Deixe a IA sugerir o melhor horário"
-          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {aiSuggesting ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Sugerir horário
-        </button>
-
-        {/* Responsável */}
-        <AssigneeChip
-          projectId={projectId}
-          value={assigneeIds}
-          onChange={setAssigneeIds}
-        />
-
-        {/* Informado */}
-        <AssigneeChip
-          projectId={projectId}
-          value={informedIds}
-          onChange={setInformedIds}
-          placeholder="Informado"
-          pluralLabel={(n) => `${n} informados`}
-        />
-
-        {/* Attachment */}
-        <button
-          type="button"
-          onClick={() => attachInputRef.current?.click()}
-          title="Anexar arquivos"
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-            pendingFiles.length > 0
-              ? 'border-primary/40 text-primary bg-primary/5'
-              : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'
-          )}
-        >
-          <Paperclip className="h-3.5 w-3.5" />
-          {pendingFiles.length > 0 ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}` : 'Anexo'}
-        </button>
-        <input
-          ref={attachInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = e.target.files ? Array.from(e.target.files) : [];
-            if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
-            if (attachInputRef.current) attachInputRef.current.value = '';
-          }}
-        />
-
-        {/* Priority */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-                priority < 4
-                  ? 'border-primary/30 text-primary bg-primary/5'
-                  : 'border-border text-muted-foreground hover:border-primary/30'
-              )}
-            >
-              <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[priority])} /> {PRIORITY_LABELS[priority]}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-44 p-1" align="start">
-            {([1, 2, 3, 4] as Priority[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPriority(p)}
-                className={cn(
-                  'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                  priority === p ? 'bg-muted' : 'hover:bg-muted'
-                )}
-              >
-                <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[p])} />
-                {PRIORITY_LABELS[p]}
-                <span className="ml-auto text-[10px] text-muted-foreground">!{p}</span>
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-
-        {/* Reminder */}
-        <button
-          type="button"
-          disabled={!date.date}
-          onClick={() => setRemindersOpen(true)}
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-            reminders.length > 0
-              ? 'border-warning/40 text-warning bg-warning/5'
-              : 'border-border text-muted-foreground hover:border-warning/40 disabled:opacity-50 disabled:cursor-not-allowed'
-          )}
-          title={!date.date ? 'Defina uma data primeiro' : 'Lembretes'}
-        >
-          <Bell className="h-3.5 w-3.5" />
-          {reminders.length > 0 ? `${reminders.length} lembrete(s)` : 'Lembretes'}
-        </button>
-
-        {/* More */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors"
-              aria-label="Mais ações"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="start">
-            {/* Labels submenu */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
-                >
-                  <Tag className="h-3.5 w-3.5" />
-                  Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" side="right" align="start">
-                {labels.length === 0 && (
-                  <div className="text-xs text-muted-foreground px-2 py-3 text-center">
-                    Nenhuma etiqueta. Crie na barra lateral.
-                  </div>
-                )}
-                {labels.map((l) => {
-                  const checked = selectedLabels.includes(l.id);
-                  return (
-                    <button
-                      key={l.id}
-                      onClick={() =>
-                        setSelectedLabels((prev) =>
-                          checked ? prev.filter((x) => x !== l.id) : [...prev, l.id]
-                        )
-                      }
-                      className={cn(
-                        'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                        checked ? 'bg-accent/10 text-accent' : 'hover:bg-muted'
-                      )}
-                    >
-                      <Tag className="h-3 w-3" style={{ color: l.color }} />
-                      {l.name}
-                    </button>
-                  );
-                })}
-              </PopoverContent>
-            </Popover>
-            <button
-              onClick={() => setShowLocation((v) => !v)}
-              className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              Local {location_ && '✓'}
-            </button>
-          </PopoverContent>
-        </Popover>
-      </div>
-
+      {toolbarEl}
+      {moreSheetEl}
       {/* Optional location field */}
       {showLocation && (
         <div className="px-4 py-2 border-b border-border">
@@ -654,7 +790,10 @@ export function QuickAddDialog() {
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60">
+      <div
+        className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60"
+        style={isMobile && keyboardInset > 0 ? { marginBottom: keyboardInset } : undefined}
+      >
         <Popover>
           <PopoverTrigger asChild>
             <button
@@ -719,8 +858,21 @@ export function QuickAddDialog() {
     </>
   );
 
+  const primerEl = (
+    <input
+      id="quickadd-focus-primer"
+      type="text"
+      aria-hidden="true"
+      tabIndex={-1}
+      readOnly
+      className="fixed opacity-0 pointer-events-none h-px w-px -top-px left-0"
+    />
+  );
+
   if (isMobile) {
     return (
+      <>
+      {primerEl}
       <Drawer open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
         <DrawerContent className="p-0 z-[80]">
 
@@ -731,10 +883,13 @@ export function QuickAddDialog() {
           <div className="relative min-h-0 overflow-y-auto overscroll-contain">{body}</div>
         </DrawerContent>
       </Drawer>
+      </>
     );
   }
 
   return (
+    <>
+    {primerEl}
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
       <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
         <DialogTitle className="sr-only">Adicionar tarefa</DialogTitle>
@@ -744,5 +899,6 @@ export function QuickAddDialog() {
         <div className="relative">{body}</div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

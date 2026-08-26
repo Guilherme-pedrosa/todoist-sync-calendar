@@ -36,6 +36,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
+import { useTaskStore } from '@/store/taskStore';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useDebouncedEffect } from '@/hooks/useDebouncedEffect';
@@ -648,6 +649,7 @@ export default function SettingsPage() {
                               reminder_offsets_minutes: safe,
                               default_reminder_minutes: safe[safe.length - 1] ?? 15,
                             });
+                            useTaskStore.getState().setReminderPrefs(safe);
                           }}
                           className={cn(
                             'rounded-md border px-3 py-2 text-sm transition',

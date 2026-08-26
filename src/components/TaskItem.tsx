@@ -263,7 +263,9 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
           'touch-pan-y group flex items-start gap-2.5 sm:gap-2 px-2 py-3 sm:py-2 rounded-xl sm:rounded-lg transition-colors cursor-pointer bg-background border-l-2 border-transparent',
           'hover:bg-muted/50',
           task.recurrenceRule && !task.completed && 'border-recurring bg-recurring/5 hover:bg-recurring/10',
-          task.completed && 'opacity-50'
+          task.completed && 'opacity-50',
+          task.pending && 'opacity-70'
+
         )}
       >
         {/* Drag handle */}

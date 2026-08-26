@@ -34,6 +34,9 @@ interface TaskState {
   loading: boolean;
   lastFetchAt: string | null;
   fullLoaded: boolean;
+  /** Cache de preferências de lembrete (user_settings), carregado no arranque. */
+  reminderOffsets: number[] | null;
+  setReminderPrefs: (offsets: number[]) => void;
 
 
 
@@ -105,13 +108,29 @@ function mapDbProjectToProject(p: any): Project {
 
 // Google Calendar integration removed. Internal calendar/agenda only.
 
+const SESSION_CACHE_TTL_MS = 60_000;
+let cachedSession: Session | null = null;
+let cachedSessionAt = 0;
+
+export function invalidateSessionCache() {
+  cachedSession = null;
+  cachedSessionAt = 0;
+}
+
 export async function ensureFreshSession(): Promise<Session | null> {
-  console.info('[addTask] step=session-check');
+  // Cache em memória: evita ida ao supabase.auth a cada operação (criar tarefa em lote, etc.)
+  if (cachedSession && Date.now() - cachedSessionAt < SESSION_CACHE_TTL_MS) {
+    const exp = cachedSession.expires_at ?? 0;
+    if (exp - Math.floor(Date.now() / 1000) >= 60) return cachedSession;
+    invalidateSessionCache();
+  }
+
   const { data, error } = await supabase.auth.getSession();
   const session = data.session;
 
   if (error || !session) {
     console.warn('[addTask] aborted reason=session-null', { error });
+    invalidateSessionCache();
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
@@ -119,18 +138,27 @@ export async function ensureFreshSession(): Promise<Session | null> {
 
   const expiresAt = session.expires_at ?? 0;
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (expiresAt - nowSeconds >= 60) return session;
+  if (expiresAt - nowSeconds >= 60) {
+    cachedSession = session;
+    cachedSessionAt = Date.now();
+    return session;
+  }
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed.session) {
     console.warn('[addTask] aborted reason=refresh-failed', { refreshError });
+    invalidateSessionCache();
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
   }
 
+  cachedSession = refreshed.session;
+  cachedSessionAt = Date.now();
   return refreshed.session;
 }
+
+
 
 
 function mapDbTaskToTask(t: any): Task | null {
@@ -164,6 +192,7 @@ function mapDbTaskToTask(t: any): Task | null {
       .map((i: any) => i.invitee_user_id)
       .filter(Boolean),
     createdAt: t.created_at,
+    creatorUserId: t.user_id ?? null,
   };
 }
 
@@ -325,6 +354,12 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
   loading: true,
   lastFetchAt: null,
   fullLoaded: false,
+  reminderOffsets: null,
+
+  setReminderPrefs: (offsets) => {
+    const safe = (offsets || []).filter((m) => typeof m === 'number' && m >= 0);
+    set({ reminderOffsets: safe.length > 0 ? safe : [15] });
+  },
 
 
 
@@ -335,14 +370,28 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
 
     const startedAt = new Date().toISOString();
 
-    const [projectsRes, labelsRes, sectionsRes, taskRows] = await Promise.all([
+    const [projectsRes, labelsRes, sectionsRes, taskRows, settingsRes] = await Promise.all([
       // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
       supabase.from('sections').select('id,project_id,name,position,is_collapsed').order('position'),
       fetchAllTaskRows(scope),
+      supabase
+        .from('user_settings')
+        .select('default_reminder_minutes, reminder_offsets_minutes')
+        .eq('user_id', userId)
+        .maybeSingle(),
     ]);
+
+    const settingsRow: any = settingsRes?.data ?? null;
+    const settingsOffsetsArray = Array.isArray(settingsRow?.reminder_offsets_minutes)
+      ? (settingsRow.reminder_offsets_minutes as number[])
+      : null;
+    const reminderOffsets =
+      settingsOffsetsArray && settingsOffsetsArray.length > 0
+        ? settingsOffsetsArray
+        : [settingsRow?.default_reminder_minutes ?? 15];
 
     const projects: Project[] = (projectsRes.data || [])
       .filter((p: any) => !p.archived_at)
@@ -393,6 +442,13 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       tasks = Array.from(byId.values());
     }
 
+    // Preserva linhas otimistas ainda não confirmadas pelo servidor.
+    const pendingRows = get().tasks.filter((t) => t.pending);
+    if (pendingRows.length > 0) {
+      const ids = new Set(tasks.map((t) => t.id));
+      tasks = [...pendingRows.filter((t) => !ids.has(t.id)), ...tasks];
+    }
+
     set({
       projects,
       labels,
@@ -401,6 +457,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       loading: false,
       lastFetchAt: startedAt,
       fullLoaded: scope === 'full' ? true : get().fullLoaded,
+      reminderOffsets,
     });
 
 
@@ -507,6 +564,27 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     };
     console.info('[addTask] step=insert-payload', insertPayload);
 
+    // Inserção otimista: a linha aparece na lista antes da resposta do servidor.
+    const tempId = crypto.randomUUID();
+    const optimisticTask = mapDbTaskToTask({
+      ...insertPayload,
+      id: tempId,
+      completed: false,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+      task_labels: (taskData.labels || []).map((id) => ({ label_id: id })),
+      task_assignees: [],
+      meeting_invitations: [],
+    });
+    if (optimisticTask) {
+      optimisticTask.pending = true;
+      set((state) => ({ tasks: [optimisticTask, ...state.tasks] }));
+    }
+    const dropOptimistic = () => {
+      if (!optimisticTask) return;
+      set((state) => ({ tasks: state.tasks.filter((t) => t.id !== tempId) }));
+    };
+
     const { data, error } = await (supabase as any).rpc('create_task_secure', {
       p_workspace_id: insertPayload.workspace_id,
       p_project_id: insertPayload.project_id,
@@ -526,6 +604,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     console.info('[addTask] step=insert-response', { id: data?.id, error });
 
     if (error || !data) {
+      dropOptimistic();
       console.warn('[addTask] aborted reason=insert-failed', { error, payload: insertPayload });
       const raw = `${error?.message || ''} ${(error as any)?.details || ''}`;
       const isDuplicate =
@@ -566,14 +645,19 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
         ...informedFromOwner.map((uid) => ({ user_id: uid, role: 'informed' })),
       ],
     });
-    if (!newTask) return null;
+    if (!newTask) {
+      dropOptimistic();
+      return null;
+    }
 
-    // The task row already exists. Show it immediately; related records can finish afterward.
-    set((state) => ({
-      tasks: state.tasks.some((task) => task.id === newTask.id)
-        ? state.tasks.map((task) => (task.id === newTask.id ? newTask : task))
-        : [newTask, ...state.tasks],
-    }));
+    // Troca o id temporário pelo real e reconcilia quem apontava para ele.
+    set((state) => {
+      const withoutReal = state.tasks.filter((t) => t.id !== newTask.id && t.id !== tempId);
+      const reconciled = withoutReal.map((t) =>
+        t.parentId === tempId ? { ...t, parentId: newTask.id } : t
+      );
+      return { tasks: [newTask, ...reconciled] };
+    });
 
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
@@ -617,17 +701,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       if (explicit != null) {
         offsets = [explicit];
       } else {
-        const { data: settings } = await supabase
-          .from('user_settings')
-          .select('default_reminder_minutes, reminder_offsets_minutes')
-          .eq('user_id', userId)
-          .maybeSingle();
-        const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
-          ? ((settings as any).reminder_offsets_minutes as number[])
-          : null;
-        offsets = fromArray && fromArray.length > 0
-          ? fromArray
-          : [settings?.default_reminder_minutes ?? 15];
+        offsets = get().reminderOffsets ?? [15];
       }
       const dueAt = new Date(`${data.due_date}T${data.due_time}`);
       const rows = offsets
@@ -778,19 +852,8 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
         await supabase.from('reminders').delete().eq('task_id', id).is('fired_at', null);
 
         if (merged.dueDate && merged.dueTime && !merged.completed) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: settings } = await supabase
-              .from('user_settings')
-              .select('default_reminder_minutes, reminder_offsets_minutes')
-              .eq('user_id', user.id)
-              .maybeSingle();
-            const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
-              ? ((settings as any).reminder_offsets_minutes as number[])
-              : null;
-            const offsets = fromArray && fromArray.length > 0
-              ? fromArray
-              : [settings?.default_reminder_minutes ?? 15];
+          {
+            const offsets = get().reminderOffsets ?? [15];
             const dueAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
             const rows = offsets
               .filter((m) => typeof m === 'number' && m >= 0)
@@ -1117,6 +1180,8 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     if (!row?.id) return;
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
+      // Linhas otimistas (ainda não confirmadas) não podem ser sobrescritas pelo realtime.
+      if (existing?.pending) return {};
 
       // Preserve existing assignees/labels/meeting invitees if not in payload
       let merged = mapDbTaskToTask({

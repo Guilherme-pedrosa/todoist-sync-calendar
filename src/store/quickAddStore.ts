@@ -24,7 +24,13 @@ export const useQuickAddStore = create<QuickAddState>()((set) => ({
   defaultDueDate: null,
   defaultDueTime: null,
   defaultDurationMinutes: null,
-  openQuickAdd: (opts) =>
+  openQuickAdd: (opts) => {
+    // iOS/Safari só abre o teclado se o focus() acontecer no mesmo tick do gesto.
+    // Focamos um campo "primer" já montado; o QuickAdd transfere o foco ao montar.
+    if (typeof document !== 'undefined') {
+      const primer = document.getElementById('quickadd-focus-primer') as HTMLInputElement | null;
+      primer?.focus();
+    }
     set({
       open: true,
       defaultProjectId: opts?.defaultProjectId ?? null,
@@ -32,7 +38,8 @@ export const useQuickAddStore = create<QuickAddState>()((set) => ({
       defaultDueDate: opts?.defaultDueDate ?? null,
       defaultDueTime: opts?.defaultDueTime ?? null,
       defaultDurationMinutes: opts?.defaultDurationMinutes ?? null,
-    }),
+    });
+  },
   closeQuickAdd: () =>
     set({
       open: false,
