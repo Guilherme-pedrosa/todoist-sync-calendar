@@ -117,6 +117,18 @@ export function invalidateSessionCache() {
   cachedSessionAt = 0;
 }
 
+/** Limpa estado em memória pertencente ao usuário anterior (troca de conta/logout). */
+export function clearUserScopedTaskState() {
+  pendingTaskUpdates.clear();
+  inFlightCreations.clear();
+  try {
+    useTaskStore.setState((state) => ({ tasks: state.tasks.filter((t) => !t.pending) }));
+  } catch {
+    /* store ainda não inicializado */
+  }
+}
+
+
 export async function ensureFreshSession(): Promise<Session | null> {
   // Cache em memória: evita ida ao supabase.auth a cada operação (criar tarefa em lote, etc.)
   if (cachedSession && Date.now() - cachedSessionAt < SESSION_CACHE_TTL_MS) {
