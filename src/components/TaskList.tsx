@@ -261,6 +261,38 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     );
   };
 
+  // ---- Virtualização (apenas nas views longas: agenda e concluídas) ----
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const isVirtual = view === 'upcoming' || view === 'completed';
+
+  type VirtualRow =
+    | { kind: 'header'; key: string; label: string }
+    | { kind: 'task'; key: string; task: Task };
+
+  const virtualRows = useMemo<VirtualRow[]>(() => {
+    if (!isVirtual) return [];
+    const rows: VirtualRow[] = [];
+    if (groupedTasks) {
+      for (const [group, groupTasks] of Object.entries(groupedTasks)) {
+        rows.push({ kind: 'header', key: `h:${group}`, label: group });
+        for (const task of groupTasks) rows.push({ kind: 'task', key: task.id, task });
+      }
+    } else {
+      for (const task of orderedTasks) rows.push({ kind: 'task', key: task.id, task });
+    }
+    return rows;
+  }, [isVirtual, groupedTasks, orderedTasks]);
+
+  const virtualizer = useVirtualizer({
+    count: isVirtual ? virtualRows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => (virtualRows[index]?.kind === 'header' ? 36 : 64),
+    overscan: 8,
+    getItemKey: (index) => virtualRows[index]?.key ?? index,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header */}
