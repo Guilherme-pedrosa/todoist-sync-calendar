@@ -8,18 +8,32 @@ import { collectTaskDescendants } from '@/lib/taskTree';
 import type { Session } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
+export interface SectionRow {
+  id: string;
+  project_id: string;
+  name: string;
+  position: number;
+  is_collapsed: boolean;
+}
+
 interface TaskState {
   tasks: Task[];
   projects: Project[];
   labels: Label[];
+  sections: SectionRow[];
   activeView: ViewFilter;
   activeProjectId: string | null;
   activeLabelId: string | null;
   sidebarOpen: boolean;
   loading: boolean;
+  lastFetchAt: string | null;
+  fullLoaded: boolean;
 
 
-  fetchData: () => Promise<void>;
+  fetchData: (options?: { scope?: 'hot' | 'full' }) => Promise<void>;
+  applySectionUpsert: (row: any) => void;
+  applySectionDelete: (id: string) => void;
+
 
   addTask: (
     task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & {
