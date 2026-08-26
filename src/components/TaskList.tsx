@@ -76,7 +76,16 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     [allTasks, currentUserId]
   );
 
-  const [sections, setSections] = useState<SectionRow[]>([]);
+  const allSections = useTaskStore((s) => s.sections);
+  const sections = useMemo<SectionRow[]>(
+    () =>
+      view === 'project' && projectId
+        ? allSections
+            .filter((s) => s.project_id === projectId)
+            .map((s) => ({ id: s.id, name: s.name, position: s.position, is_collapsed: s.is_collapsed }))
+        : [],
+    [allSections, view, projectId]
+  );
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const [orderOverride, setOrderOverride] = useState<string[] | null>(null);
 
@@ -90,31 +99,20 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
   const [showCompleted, setShowCompleted] = useShowCompleted(showCompletedKey);
   const supportsCompletedToggle = view !== 'completed' && view !== 'upcoming';
 
-  // Load sections for project view
   useEffect(() => {
     setOrderOverride(null);
-    if (view !== 'project' || !projectId) {
-      setSections([]);
-      return;
-    }
-    let active = true;
-    (async () => {
-      const { data } = await supabase
-        .from('sections')
-        .select('id,name,position,is_collapsed')
-        .eq('project_id', projectId)
-        .order('position');
-      if (active && data) {
-        setSections(data as SectionRow[]);
-        setCollapsedSections(
-          Object.fromEntries((data as SectionRow[]).map((s) => [s.id, s.is_collapsed]))
-        );
-      }
-    })();
-    return () => {
-      active = false;
-    };
   }, [view, projectId]);
+
+  useEffect(() => {
+    setCollapsedSections((prev) => {
+      const next = { ...prev };
+      for (const s of sections) {
+        if (!(s.id in next)) next[s.id] = s.is_collapsed;
+      }
+      return next;
+    });
+  }, [sections]);
+
 
   const { title, icon: Icon, iconColor, filteredTasks, groupedTasks, completedList } = useMemo(() => {
     let title = '';

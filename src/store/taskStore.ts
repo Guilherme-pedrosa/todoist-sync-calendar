@@ -8,18 +8,32 @@ import { collectTaskDescendants } from '@/lib/taskTree';
 import type { Session } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 
+export interface SectionRow {
+  id: string;
+  project_id: string;
+  name: string;
+  position: number;
+  is_collapsed: boolean;
+}
+
 interface TaskState {
   tasks: Task[];
   projects: Project[];
   labels: Label[];
+  sections: SectionRow[];
   activeView: ViewFilter;
   activeProjectId: string | null;
   activeLabelId: string | null;
   sidebarOpen: boolean;
   loading: boolean;
+  lastFetchAt: string | null;
+  fullLoaded: boolean;
 
 
-  fetchData: () => Promise<void>;
+  fetchData: (options?: { scope?: 'hot' | 'full' }) => Promise<void>;
+  applySectionUpsert: (row: any) => void;
+  applySectionDelete: (id: string) => void;
+
 
   addTask: (
     task: Omit<Task, 'id' | 'createdAt' | 'completed' | 'completedAt' | 'labels'> & {
@@ -195,13 +209,31 @@ function applyPendingTaskUpdate(task: Task): Task {
   return { ...task, ...pending.updates };
 }
 
-async function fetchAllTaskRows() {
+const TASK_SELECT =
+  '*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)';
+
+function isoDaysFromNow(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function fetchAllTaskRows(scope: 'hot' | 'full' = 'full') {
   const rows: any[] = [];
   for (let from = 0; ; from += TASK_PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('tasks')
-      .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
-      .is('deleted_at', null)
+      .select(TASK_SELECT)
+      .is('deleted_at', null);
+
+    if (scope === 'hot') {
+      const completedSince = new Date(Date.now() - 14 * 86400000).toISOString();
+      query = query.or(
+        `completed.eq.false,completed_at.gte.${completedSince},and(due_date.gte.${isoDaysFromNow(-30)},due_date.lte.${isoDaysFromNow(90)})`
+      );
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
       .range(from, from + TASK_PAGE_SIZE - 1);
@@ -212,6 +244,7 @@ async function fetchAllTaskRows() {
   }
   return rows;
 }
+
 
 function recurrenceCoversTask(series: Task, occurrence: Task) {
   if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
@@ -239,23 +272,30 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: [],
   projects: [],
   labels: [],
+  sections: [],
   activeView: 'today',
   activeProjectId: null,
   activeLabelId: null,
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   loading: true,
+  lastFetchAt: null,
+  fullLoaded: false,
 
 
-  fetchData: async () => {
+  fetchData: async (options) => {
+    const scope = options?.scope ?? 'hot';
     const userId = await getUserId();
     if (!userId) return;
 
-    const [projectsRes, labelsRes, taskRows] = await Promise.all([
+    const startedAt = new Date().toISOString();
+
+    const [projectsRes, labelsRes, sectionsRes, taskRows] = await Promise.all([
       // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      fetchAllTaskRows(),
+      supabase.from('sections').select('id,project_id,name,position,is_collapsed').order('position'),
+      fetchAllTaskRows(scope),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -284,12 +324,78 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
-    const tasks: Task[] = taskRows
+    const sections = (sectionsRes.data || []) as SectionRow[];
+
+    const fetched: Task[] = taskRows
       .map(mapDbTaskToTask)
       .filter((t): t is Task => t !== null)
       .map(applyPendingTaskUpdate);
 
-    set({ projects, labels, tasks, loading: false });
+    // Se o store já tem a carga completa, um fetch "hot" apenas atualiza/mescla,
+    // sem descartar tarefas antigas que as views Concluídas/Filtros dependem.
+    let tasks = fetched;
+    if (scope === 'hot' && get().fullLoaded) {
+      const byId = new Map(get().tasks.map((t) => [t.id, t]));
+      const hotIds = new Set(fetched.map((t) => t.id));
+      for (const t of fetched) byId.set(t.id, t);
+      // Remove tarefas que estavam dentro da janela "hot" e sumiram do servidor.
+      for (const [id, t] of byId) {
+        if (hotIds.has(id)) continue;
+        const inHotWindow = !t.completed;
+        if (inHotWindow) byId.delete(id);
+      }
+      tasks = Array.from(byId.values());
+    }
+
+    set({
+      projects,
+      labels,
+      sections,
+      tasks,
+      loading: false,
+      lastFetchAt: startedAt,
+      fullLoaded: scope === 'full' ? true : get().fullLoaded,
+    });
+
+
+    // Fase 2: completa o store por baixo, uma única vez.
+    if (scope === 'hot' && !get().fullLoaded) {
+      const saveData = (navigator as any)?.connection?.saveData;
+      if (!saveData) {
+        const run = () => {
+          if (get().fullLoaded) return;
+          void get().fetchData({ scope: 'full' });
+        };
+        setTimeout(() => {
+          const ric = (window as any).requestIdleCallback;
+          if (typeof ric === 'function') ric(run, { timeout: 5000 });
+          else setTimeout(run, 0);
+        }, 3000);
+      }
+    }
+  },
+
+  applySectionUpsert: (row) => {
+    if (!row?.id) return;
+    set((state) => {
+      const mapped: SectionRow = {
+        id: row.id,
+        project_id: row.project_id,
+        name: row.name,
+        position: row.position ?? 0,
+        is_collapsed: !!row.is_collapsed,
+      };
+      const exists = state.sections.some((s) => s.id === mapped.id);
+      const sections = exists
+        ? state.sections.map((s) => (s.id === mapped.id ? mapped : s))
+        : [...state.sections, mapped];
+      return { sections: sections.sort((a, b) => (a.position || 0) - (b.position || 0)) };
+    });
+  },
+
+  applySectionDelete: (id) => {
+    set((state) => ({ sections: state.sections.filter((s) => s.id !== id) }));
+
   },
 
   addTask: async (taskData, options) => {

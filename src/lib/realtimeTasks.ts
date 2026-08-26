@@ -101,10 +101,20 @@ function handleMeetingInvitationEvent(payload: any) {
   }
 }
 
-function handleSectionEvent(_payload: any) {
-  // Sections aren't kept in the task store directly; trigger a light resync.
-  scheduleResync('section-changed');
+function handleSectionEvent(payload: any) {
+  const store = useTaskStore.getState();
+  try {
+    if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+      store.applySectionUpsert(payload.new);
+    } else if (payload.eventType === 'DELETE') {
+      const id = payload.old?.id;
+      if (id) store.applySectionDelete(id);
+    }
+  } catch (e) {
+    console.error('[realtime] section apply failed', e);
+  }
 }
+
 
 export function subscribeToTaskRealtime(userId: string) {
   if (tasksChannel) return () => unsubscribeFromTaskRealtime();
