@@ -292,6 +292,47 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
   });
   const virtualItems = virtualizer.getVirtualItems();
 
+  // ---- Publica contagem/toggle para a MobileTopBar ----
+  const setShowCompletedRef = useRef(setShowCompleted);
+  setShowCompletedRef.current = setShowCompleted;
+  const showCompletedRef = useRef(showCompleted);
+  showCompletedRef.current = showCompleted;
+
+  useEffect(() => {
+    useViewHeaderStore.getState().setHeader({
+      taskCount: filteredTasks.length,
+      completedCount: completedList.length,
+      supportsCompletedToggle,
+      showCompleted,
+      toggleCompleted: () => setShowCompletedRef.current(!showCompletedRef.current),
+    });
+  }, [filteredTasks.length, completedList.length, supportsCompletedToggle, showCompleted]);
+
+  useEffect(() => () => useViewHeaderStore.getState().clearHeader(), []);
+
+  // ---- Topbar recolhe ao rolar para baixo, reaparece ao rolar para cima ----
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    let lastY = el.scrollTop;
+    const onScroll = () => {
+      const y = el.scrollTop;
+      const delta = y - lastY;
+      if (Math.abs(delta) < 6) return;
+      lastY = y;
+      const { setHeaderHidden } = useViewHeaderStore.getState();
+      if (y < 48) setHeaderHidden(false);
+      else setHeaderHidden(delta > 0);
+    };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      useViewHeaderStore.getState().setHeaderHidden(false);
+    };
+  }, []);
+
+
+
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
