@@ -21,6 +21,12 @@ interface TaskState {
   projects: Project[];
   labels: Label[];
   sections: SectionRow[];
+  /** Índice derivado: subtarefas por id do pai (recalculado a cada mudança em `tasks`). */
+  childrenByParentId: Record<string, Task[]>;
+  /** Índice derivado: projeto por id. */
+  projectById: Record<string, Project>;
+  /** Índice derivado: etiqueta por id. */
+  labelById: Record<string, Label>;
   activeView: ViewFilter;
   activeProjectId: string | null;
   activeLabelId: string | null;
@@ -28,6 +34,7 @@ interface TaskState {
   loading: boolean;
   lastFetchAt: string | null;
   fullLoaded: boolean;
+
 
 
   fetchData: (options?: { scope?: 'hot' | 'full' }) => Promise<void>;
