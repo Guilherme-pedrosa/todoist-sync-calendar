@@ -24,6 +24,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { Loader2 } from 'lucide-react';
 import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/realtimeTasks';
+import { supabase } from '@/integrations/supabase/client';
+
 
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
