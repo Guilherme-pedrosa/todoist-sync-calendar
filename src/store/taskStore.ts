@@ -1173,6 +1173,8 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     if (!row?.id) return;
     set((state) => {
       const existing = state.tasks.find((t) => t.id === row.id);
+      // Linhas otimistas (ainda não confirmadas) não podem ser sobrescritas pelo realtime.
+      if (existing?.pending) return {};
 
       // Preserve existing assignees/labels/meeting invitees if not in payload
       let merged = mapDbTaskToTask({
