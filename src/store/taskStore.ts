@@ -223,6 +223,33 @@ type PendingTaskUpdate = {
 
 const pendingTaskUpdates = new Map<string, PendingTaskUpdate>();
 
+// ---- Criações em voo: evita duplicata visual (linha otimista + INSERT do realtime) ----
+const IN_FLIGHT_CREATION_TTL_MS = 15_000;
+
+type InFlightCreation = { tempId: string; startedAt: number };
+
+const inFlightCreations = new Map<string, InFlightCreation>();
+
+function creationKeyFromParts(parts: {
+  title?: string | null;
+  projectId?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+}) {
+  const title = (parts.title || '').trim().toLowerCase();
+  const project = parts.projectId || '';
+  const date = parts.dueDate || '';
+  const time = parts.dueTime ? String(parts.dueTime).slice(0, 5) : '';
+  return `${title}|${project}|${date}|${time}`;
+}
+
+function cleanupExpiredInFlightCreations(now = Date.now()) {
+  for (const [key, entry] of inFlightCreations.entries()) {
+    if (now - entry.startedAt > IN_FLIGHT_CREATION_TTL_MS) inFlightCreations.delete(key);
+  }
+}
+
+
 function normalizeComparableTaskValue(key: keyof Task, value: unknown) {
   if (key === 'dueTime' && typeof value === 'string') return value.slice(0, 5);
   if (value === undefined) return undefined;
