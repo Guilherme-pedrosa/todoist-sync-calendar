@@ -90,6 +90,7 @@ export function QuickAddDialog() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [remindersOpen, setRemindersOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -392,6 +393,289 @@ export function QuickAddDialog() {
   const dateChipLabel = formatDateChip(date.date, date.time);
   const dateChipFilled = !!date.date || !!date.recurrenceRule;
 
+  const dateChipEl = (
+    <div className="inline-flex">
+      <DatePickerPopover
+        value={date}
+        onChange={setDate}
+        trigger={
+          <button
+            type="button"
+            className={cn(
+              'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+              dateChipFilled
+                ? 'border-success/40 text-success bg-success/5'
+                : 'border-border text-muted-foreground hover:border-success/40'
+            )}
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+            {dateChipLabel}
+            {dateChipFilled && (
+              <X
+                className="h-3 w-3 ml-0.5 opacity-60 hover:opacity-100"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDate({});
+                }}
+              />
+            )}
+          </button>
+        }
+      />
+    </div>
+  );
+
+  const aiChipEl = (
+    <button
+      type="button"
+      onClick={handleAiSuggest}
+      disabled={aiSuggesting || !title.trim()}
+      title="Deixe a IA sugerir o melhor horário"
+      className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {aiSuggesting ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Sparkles className="h-3.5 w-3.5" />
+      )}
+      Sugerir horário
+    </button>
+  );
+
+  const assigneeChipEl = (
+    <AssigneeChip projectId={projectId} value={assigneeIds} onChange={setAssigneeIds} />
+  );
+
+  const informedChipEl = (
+    <AssigneeChip
+      projectId={projectId}
+      value={informedIds}
+      onChange={setInformedIds}
+      placeholder="Informado"
+      pluralLabel={(n) => `${n} informados`}
+    />
+  );
+
+  const attachChipEl = (
+    <>
+      <button
+        type="button"
+        onClick={() => attachInputRef.current?.click()}
+        title="Anexar arquivos"
+        className={cn(
+          'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+          pendingFiles.length > 0
+            ? 'border-primary/40 text-primary bg-primary/5'
+            : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'
+        )}
+      >
+        <Paperclip className="h-3.5 w-3.5" />
+        {pendingFiles.length > 0 ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}` : 'Anexo'}
+      </button>
+      <input
+        ref={attachInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = e.target.files ? Array.from(e.target.files) : [];
+          if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
+          if (attachInputRef.current) attachInputRef.current.value = '';
+        }}
+      />
+    </>
+  );
+
+  const priorityChipEl = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+            priority < 4
+              ? 'border-primary/30 text-primary bg-primary/5'
+              : 'border-border text-muted-foreground hover:border-primary/30'
+          )}
+        >
+          <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[priority])} /> {PRIORITY_LABELS[priority]}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-44 p-1 z-[100]" align="start">
+        {([1, 2, 3, 4] as Priority[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => setPriority(p)}
+            className={cn(
+              'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
+              priority === p ? 'bg-muted' : 'hover:bg-muted'
+            )}
+          >
+            <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[p])} />
+            {PRIORITY_LABELS[p]}
+            <span className="ml-auto text-[10px] text-muted-foreground">!{p}</span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+
+  const reminderChipEl = (
+    <button
+      type="button"
+      disabled={!date.date}
+      onClick={() => setRemindersOpen(true)}
+      className={cn(
+        'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+        reminders.length > 0
+          ? 'border-warning/40 text-warning bg-warning/5'
+          : 'border-border text-muted-foreground hover:border-warning/40 disabled:opacity-50 disabled:cursor-not-allowed'
+      )}
+      title={!date.date ? 'Defina uma data primeiro' : 'Lembretes'}
+    >
+      <Bell className="h-3.5 w-3.5" />
+      {reminders.length > 0 ? `${reminders.length} lembrete(s)` : 'Lembretes'}
+    </button>
+  );
+
+  const labelsListEl = (
+    <div className="max-h-60 overflow-y-auto">
+      {labels.length === 0 && (
+        <div className="text-xs text-muted-foreground px-2 py-3 text-center">
+          Nenhuma etiqueta. Crie na barra lateral.
+        </div>
+      )}
+      {labels.map((l) => {
+        const checked = selectedLabels.includes(l.id);
+        return (
+          <button
+            key={l.id}
+            onClick={() =>
+              setSelectedLabels((prev) => (checked ? prev.filter((x) => x !== l.id) : [...prev, l.id]))
+            }
+            className={cn(
+              'w-full flex items-center gap-2 text-sm px-2 py-2 rounded-md transition-colors text-left',
+              checked ? 'bg-accent/10 text-accent' : 'hover:bg-muted'
+            )}
+          >
+            <Tag className="h-3.5 w-3.5" style={{ color: l.color }} />
+            {l.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const locationToggleEl = (
+    <button
+      onClick={() => setShowLocation((v) => !v)}
+      className="w-full flex items-center gap-2 text-sm px-2 py-2 rounded-md hover:bg-muted text-left"
+    >
+      <MapPin className="h-3.5 w-3.5" />
+      Local {location_ && '✓'}
+    </button>
+  );
+
+  const desktopMoreEl = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors"
+          aria-label="Mais ações"
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-1" align="start">
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
+            >
+              <Tag className="h-3.5 w-3.5" />
+              Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" side="right" align="start">
+            {labelsListEl}
+          </PopoverContent>
+        </Popover>
+        {locationToggleEl}
+      </PopoverContent>
+    </Popover>
+  );
+
+  const toolbarEl = isMobile ? (
+    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
+      {dateChipEl}
+      {assigneeChipEl}
+      {priorityChipEl}
+      <button
+        type="button"
+        onClick={() => setMoreOpen(true)}
+        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground"
+        aria-label="Mais opções"
+      >
+        <MoreHorizontal className="h-3.5 w-3.5" />
+        Mais
+      </button>
+      {attachChipEl && <div className="hidden">{attachChipEl}</div>}
+    </div>
+  ) : (
+    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
+      {dateChipEl}
+      {aiChipEl}
+      {assigneeChipEl}
+      {informedChipEl}
+      {attachChipEl}
+      {priorityChipEl}
+      {reminderChipEl}
+      {desktopMoreEl}
+    </div>
+  );
+
+  const moreSheetEl = (
+    <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+      <SheetContent side="bottom" className="z-[95] max-h-[80vh] overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Mais opções</SheetTitle>
+        </SheetHeader>
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {aiChipEl}
+            {informedChipEl}
+            <button
+              type="button"
+              onClick={() => attachInputRef.current?.click()}
+              className={cn(
+                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
+                pendingFiles.length > 0
+                  ? 'border-primary/40 text-primary bg-primary/5'
+                  : 'border-border text-muted-foreground'
+              )}
+            >
+              <Paperclip className="h-3.5 w-3.5" />
+              {pendingFiles.length > 0
+                ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}`
+                : 'Anexo'}
+            </button>
+            {reminderChipEl}
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
+            </p>
+            {labelsListEl}
+          </div>
+          {locationToggleEl}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+
   const body = (
     <>
       {/* Confirm-close prompt */}
@@ -474,211 +758,8 @@ export function QuickAddDialog() {
         </div>
       )}
 
-      {/* Toolbar (chips) */}
-      <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
-        {/* Date chip with explicit X */}
-        <div className="inline-flex">
-          <DatePickerPopover
-            value={date}
-            onChange={setDate}
-            trigger={
-              <button
-                type="button"
-                className={cn(
-                  'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-                  dateChipFilled
-                    ? 'border-success/40 text-success bg-success/5'
-                    : 'border-border text-muted-foreground hover:border-success/40'
-                )}
-              >
-                <CalendarIcon className="h-3.5 w-3.5" />
-                {dateChipLabel}
-                {dateChipFilled && (
-                  <X
-                    className="h-3 w-3 ml-0.5 opacity-60 hover:opacity-100"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setDate({});
-                    }}
-                  />
-                )}
-              </button>
-            }
-          />
-        </div>
-
-        {/* AI suggest slot */}
-        <button
-          type="button"
-          onClick={handleAiSuggest}
-          disabled={aiSuggesting || !title.trim()}
-          title="Deixe a IA sugerir o melhor horário"
-          className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {aiSuggesting ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="h-3.5 w-3.5" />
-          )}
-          Sugerir horário
-        </button>
-
-        {/* Responsável */}
-        <AssigneeChip
-          projectId={projectId}
-          value={assigneeIds}
-          onChange={setAssigneeIds}
-        />
-
-        {/* Informado */}
-        <AssigneeChip
-          projectId={projectId}
-          value={informedIds}
-          onChange={setInformedIds}
-          placeholder="Informado"
-          pluralLabel={(n) => `${n} informados`}
-        />
-
-        {/* Attachment */}
-        <button
-          type="button"
-          onClick={() => attachInputRef.current?.click()}
-          title="Anexar arquivos"
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-            pendingFiles.length > 0
-              ? 'border-primary/40 text-primary bg-primary/5'
-              : 'border-border text-muted-foreground hover:border-primary/30 hover:text-primary'
-          )}
-        >
-          <Paperclip className="h-3.5 w-3.5" />
-          {pendingFiles.length > 0 ? `${pendingFiles.length} anexo${pendingFiles.length > 1 ? 's' : ''}` : 'Anexo'}
-        </button>
-        <input
-          ref={attachInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            const files = e.target.files ? Array.from(e.target.files) : [];
-            if (files.length > 0) setPendingFiles((prev) => [...prev, ...files]);
-            if (attachInputRef.current) attachInputRef.current.value = '';
-          }}
-        />
-
-        {/* Priority */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-                priority < 4
-                  ? 'border-primary/30 text-primary bg-primary/5'
-                  : 'border-border text-muted-foreground hover:border-primary/30'
-              )}
-            >
-              <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[priority])} /> {PRIORITY_LABELS[priority]}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-44 p-1" align="start">
-            {([1, 2, 3, 4] as Priority[]).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPriority(p)}
-                className={cn(
-                  'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                  priority === p ? 'bg-muted' : 'hover:bg-muted'
-                )}
-              >
-                <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[p])} />
-                {PRIORITY_LABELS[p]}
-                <span className="ml-auto text-[10px] text-muted-foreground">!{p}</span>
-              </button>
-            ))}
-          </PopoverContent>
-        </Popover>
-
-        {/* Reminder */}
-        <button
-          type="button"
-          disabled={!date.date}
-          onClick={() => setRemindersOpen(true)}
-          className={cn(
-            'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
-            reminders.length > 0
-              ? 'border-warning/40 text-warning bg-warning/5'
-              : 'border-border text-muted-foreground hover:border-warning/40 disabled:opacity-50 disabled:cursor-not-allowed'
-          )}
-          title={!date.date ? 'Defina uma data primeiro' : 'Lembretes'}
-        >
-          <Bell className="h-3.5 w-3.5" />
-          {reminders.length > 0 ? `${reminders.length} lembrete(s)` : 'Lembretes'}
-        </button>
-
-        {/* More */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex items-center text-xs px-2 py-1.5 rounded-md border border-border text-muted-foreground hover:border-primary/30 transition-colors"
-              aria-label="Mais ações"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-1" align="start">
-            {/* Labels submenu */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
-                >
-                  <Tag className="h-3.5 w-3.5" />
-                  Etiquetas {selectedLabels.length > 0 && `(${selectedLabels.length})`}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" side="right" align="start">
-                {labels.length === 0 && (
-                  <div className="text-xs text-muted-foreground px-2 py-3 text-center">
-                    Nenhuma etiqueta. Crie na barra lateral.
-                  </div>
-                )}
-                {labels.map((l) => {
-                  const checked = selectedLabels.includes(l.id);
-                  return (
-                    <button
-                      key={l.id}
-                      onClick={() =>
-                        setSelectedLabels((prev) =>
-                          checked ? prev.filter((x) => x !== l.id) : [...prev, l.id]
-                        )
-                      }
-                      className={cn(
-                        'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                        checked ? 'bg-accent/10 text-accent' : 'hover:bg-muted'
-                      )}
-                    >
-                      <Tag className="h-3 w-3" style={{ color: l.color }} />
-                      {l.name}
-                    </button>
-                  );
-                })}
-              </PopoverContent>
-            </Popover>
-            <button
-              onClick={() => setShowLocation((v) => !v)}
-              className="w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md hover:bg-muted text-left"
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              Local {location_ && '✓'}
-            </button>
-          </PopoverContent>
-        </Popover>
-      </div>
-
+      {toolbarEl}
+      {moreSheetEl}
       {/* Optional location field */}
       {showLocation && (
         <div className="px-4 py-2 border-b border-border">
