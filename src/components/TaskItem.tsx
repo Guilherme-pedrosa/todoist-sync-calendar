@@ -346,7 +346,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
           <Popover>
             <PopoverTrigger asChild>
               <button
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setScheduleMounted(true); }}
                 className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Agendar"
                 title="Agendar"
@@ -354,37 +354,41 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
                 <CalendarClock className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
-              <DatePickerPopover
-                value={dateValue}
-                onChange={(v) =>
-                  updateWithPrompt(
-                    task.id,
-                    {
-                      dueDate: v.date ?? null as any,
-                      dueTime: v.time ?? null as any,
-                      recurrenceRule: v.recurrenceRule ?? null,
-                      durationMinutes: v.durationMinutes ?? null,
-                    },
-                    { occurrenceDate: task.dueDate ?? undefined, changeLabel: 'data e horário' }
-                  )
-                }
-                trigger={<span />}
-              />
-            </PopoverContent>
+            {scheduleMounted && (
+              <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
+                <DatePickerPopover
+                  value={dateValue}
+                  onChange={(v) =>
+                    updateWithPrompt(
+                      task.id,
+                      {
+                        dueDate: v.date ?? null as any,
+                        dueTime: v.time ?? null as any,
+                        recurrenceRule: v.recurrenceRule ?? null,
+                        durationMinutes: v.durationMinutes ?? null,
+                      },
+                      { occurrenceDate: task.dueDate ?? undefined, changeLabel: 'data e horário' }
+                    )
+                  }
+                  trigger={<span />}
+                />
+              </PopoverContent>
+            )}
           </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setMenuMounted(true); }}
                 className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Mais"
               >
                 <MoreHorizontal className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
+            {menuMounted && (
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+
               <DropdownMenuItem onSelect={() => openDetail(task.id)}>
                 <Edit3 className="h-4 w-4 mr-2" /> Editar
               </DropdownMenuItem>
