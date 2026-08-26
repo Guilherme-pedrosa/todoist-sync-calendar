@@ -117,6 +117,18 @@ export function invalidateSessionCache() {
   cachedSessionAt = 0;
 }
 
+/** Limpa estado em memória pertencente ao usuário anterior (troca de conta/logout). */
+export function clearUserScopedTaskState() {
+  pendingTaskUpdates.clear();
+  inFlightCreations.clear();
+  try {
+    useTaskStore.setState((state) => ({ tasks: state.tasks.filter((t) => !t.pending) }));
+  } catch {
+    /* store ainda não inicializado */
+  }
+}
+
+
 export async function ensureFreshSession(): Promise<Session | null> {
   // Cache em memória: evita ida ao supabase.auth a cada operação (criar tarefa em lote, etc.)
   if (cachedSession && Date.now() - cachedSessionAt < SESSION_CACHE_TTL_MS) {
@@ -210,6 +222,33 @@ type PendingTaskUpdate = {
 };
 
 const pendingTaskUpdates = new Map<string, PendingTaskUpdate>();
+
+// ---- Criações em voo: evita duplicata visual (linha otimista + INSERT do realtime) ----
+const IN_FLIGHT_CREATION_TTL_MS = 15_000;
+
+type InFlightCreation = { tempId: string; startedAt: number };
+
+const inFlightCreations = new Map<string, InFlightCreation>();
+
+function creationKeyFromParts(parts: {
+  title?: string | null;
+  projectId?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+}) {
+  const title = (parts.title || '').trim().toLowerCase();
+  const project = parts.projectId || '';
+  const date = parts.dueDate || '';
+  const time = parts.dueTime ? String(parts.dueTime).slice(0, 5) : '';
+  return `${title}|${project}|${date}|${time}`;
+}
+
+function cleanupExpiredInFlightCreations(now = Date.now()) {
+  for (const [key, entry] of inFlightCreations.entries()) {
+    if (now - entry.startedAt > IN_FLIGHT_CREATION_TTL_MS) inFlightCreations.delete(key);
+  }
+}
+
 
 function normalizeComparableTaskValue(key: keyof Task, value: unknown) {
   if (key === 'dueTime' && typeof value === 'string') return value.slice(0, 5);
@@ -576,14 +615,28 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       task_assignees: [],
       meeting_invitations: [],
     });
+    const creationKey = creationKeyFromParts({
+      title: insertPayload.title,
+      projectId: insertPayload.project_id,
+      dueDate: insertPayload.due_date,
+      dueTime: insertPayload.due_time,
+    });
     if (optimisticTask) {
       optimisticTask.pending = true;
+      cleanupExpiredInFlightCreations();
+      inFlightCreations.set(creationKey, { tempId, startedAt: Date.now() });
       set((state) => ({ tasks: [optimisticTask, ...state.tasks] }));
     }
+    const clearInFlight = () => {
+      const entry = inFlightCreations.get(creationKey);
+      if (entry?.tempId === tempId) inFlightCreations.delete(creationKey);
+    };
     const dropOptimistic = () => {
+      clearInFlight();
       if (!optimisticTask) return;
       set((state) => ({ tasks: state.tasks.filter((t) => t.id !== tempId) }));
     };
+
 
     const { data, error } = await (supabase as any).rpc('create_task_secure', {
       p_workspace_id: insertPayload.workspace_id,
@@ -651,6 +704,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     }
 
     // Troca o id temporário pelo real e reconcilia quem apontava para ele.
+    clearInFlight();
     set((state) => {
       const withoutReal = state.tasks.filter((t) => t.id !== newTask.id && t.id !== tempId);
       const reconciled = withoutReal.map((t) =>
@@ -658,6 +712,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       );
       return { tasks: [newTask, ...reconciled] };
     });
+
 
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
@@ -1205,7 +1260,27 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       if (existing) {
         return { tasks: state.tasks.map((t) => (t.id === row.id ? { ...t, ...merged } : t)) };
       }
+      // Linha nova: pode ser a confirmação de uma criação otimista ainda em voo.
+      cleanupExpiredInFlightCreations();
+      const key = creationKeyFromParts({
+        title: merged.title,
+        projectId: merged.projectId ?? null,
+        dueDate: merged.dueDate ?? null,
+        dueTime: merged.dueTime ?? null,
+      });
+      const inFlight = inFlightCreations.get(key);
+      if (inFlight && state.tasks.some((t) => t.id === inFlight.tempId)) {
+        const realId = merged.id;
+        const tempId = inFlight.tempId;
+        const replaced = state.tasks.map((t) => {
+          if (t.id === tempId) return { ...t, ...merged, pending: true };
+          if (t.parentId === tempId) return { ...t, parentId: realId };
+          return t;
+        });
+        return { tasks: replaced };
+      }
       return { tasks: [...state.tasks, merged] };
+
     });
   },
 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { invalidateSessionCache, clearUserScopedTaskState } from '@/store/taskStore';
 
 interface AuthContextType {
   user: User | null;
@@ -47,9 +48,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    let lastUserId: string | null = null;
+
+    const resetForIdentityChange = () => {
+      invalidateSessionCache();
+      clearUserScopedTaskState();
+    };
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      const nextUserId = nextSession?.user?.id ?? null;
+      const identityChanged = nextUserId !== lastUserId;
+      if (
+        event === 'SIGNED_OUT' ||
+        event === 'SIGNED_IN' ||
+        event === 'USER_UPDATED' ||
+        identityChanged
+      ) {
+        resetForIdentityChange();
+      }
+      lastUserId = nextUserId;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
       setLoading(false);
@@ -57,11 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data: { session: initialSession }, error }) => {
       if (isInvalidRefreshTokenError(error)) {
+        resetForIdentityChange();
         await supabase.auth.signOut({ scope: 'local' });
         setSession(null);
         setUser(null);
         setLoading(false);
         return;
+      }
+      if ((initialSession?.user?.id ?? null) !== lastUserId) {
+        resetForIdentityChange();
+        lastUserId = initialSession?.user?.id ?? null;
       }
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
@@ -72,6 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = async () => {
+    invalidateSessionCache();
+    clearUserScopedTaskState();
     await supabase.auth.signOut();
   };
 
