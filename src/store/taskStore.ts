@@ -704,6 +704,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     }
 
     // Troca o id temporário pelo real e reconcilia quem apontava para ele.
+    clearInFlight();
     set((state) => {
       const withoutReal = state.tasks.filter((t) => t.id !== newTask.id && t.id !== tempId);
       const reconciled = withoutReal.map((t) =>
@@ -711,6 +712,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       );
       return { tasks: [newTask, ...reconciled] };
     });
+
 
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
