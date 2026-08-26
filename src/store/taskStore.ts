@@ -1260,7 +1260,27 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       if (existing) {
         return { tasks: state.tasks.map((t) => (t.id === row.id ? { ...t, ...merged } : t)) };
       }
+      // Linha nova: pode ser a confirmação de uma criação otimista ainda em voo.
+      cleanupExpiredInFlightCreations();
+      const key = creationKeyFromParts({
+        title: merged.title,
+        projectId: merged.projectId ?? null,
+        dueDate: merged.dueDate ?? null,
+        dueTime: merged.dueTime ?? null,
+      });
+      const inFlight = inFlightCreations.get(key);
+      if (inFlight && state.tasks.some((t) => t.id === inFlight.tempId)) {
+        const realId = merged.id;
+        const tempId = inFlight.tempId;
+        const replaced = state.tasks.map((t) => {
+          if (t.id === tempId) return { ...t, ...merged, pending: true };
+          if (t.parentId === tempId) return { ...t, parentId: realId };
+          return t;
+        });
+        return { tasks: replaced };
+      }
       return { tasks: [...state.tasks, merged] };
+
     });
   },
 
