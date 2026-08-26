@@ -28,28 +28,34 @@ import { subscribeToTaskRealtime, unsubscribeFromTaskRealtime } from '@/lib/real
 export default function AppLayout() {
   const sidebarOpen = useTaskStore((s) => s.sidebarOpen);
   const loading = useTaskStore((s) => s.loading);
+  const hasTasks = useTaskStore((s) => s.tasks.length > 0);
   const fetchData = useTaskStore((s) => s.fetchData);
   const { user } = useAuth();
   const fetchInFlightRef = useRef<Promise<void> | null>(null);
   const lastFetchRef = useRef(0);
+  const lastSyncAtRef = useRef<string>(new Date().toISOString());
 
   useGlobalShortcuts();
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   useActivityTracker(user ? currentWorkspaceId : null);
 
   const location = useLocation();
-  const refetchData = useCallback(() => {
-    const now = Date.now();
-    if (fetchInFlightRef.current) return fetchInFlightRef.current;
-    if (now - lastFetchRef.current < 750) return Promise.resolve();
+  const refetchData = useCallback(
+    (scope: 'hot' | 'full' = 'hot') => {
+      const now = Date.now();
+      if (fetchInFlightRef.current) return fetchInFlightRef.current;
+      if (now - lastFetchRef.current < 5000) return Promise.resolve();
 
-    lastFetchRef.current = now;
-    const request = fetchData().finally(() => {
-      fetchInFlightRef.current = null;
-    });
-    fetchInFlightRef.current = request;
-    return request;
-  }, [fetchData]);
+      lastFetchRef.current = now;
+      const request = fetchData({ scope }).finally(() => {
+        fetchInFlightRef.current = null;
+        lastSyncAtRef.current = new Date().toISOString();
+      });
+      fetchInFlightRef.current = request;
+      return request;
+    },
+    [fetchData]
+  );
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -69,7 +75,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (user) {
-      refetchData();
+      refetchData('hot');
       void useWorkspaceStore.getState().fetchWorkspaces();
     }
   }, [user, refetchData]);
@@ -81,27 +87,59 @@ export default function AppLayout() {
     return () => unsubscribeFromTaskRealtime();
   }, [user]);
 
-  // Refetch ao voltar para a aba/janela — garante que mudanças feitas em outros
-  // dispositivos (ex.: nova atribuição) apareçam mesmo se o realtime cair.
+  // Ao voltar para a aba, busca apenas o delta (updated_at > último sync).
+  // Nunca recarrega o banco inteiro — só cai para carga completa se o delta for grande.
   useEffect(() => {
     if (!user) return;
-    const refetch = () => { void refetchData(); };
-    const onVisibility = () => { if (document.visibilityState === 'visible') refetch(); };
-    window.addEventListener('focus', refetch);
+
+    const syncDelta = async () => {
+      const since = lastSyncAtRef.current;
+      const startedAt = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
+        .gt('updated_at', since)
+        .order('updated_at', { ascending: true })
+        .limit(201);
+
+      if (error) {
+        console.warn('[delta-sync] falhou', error);
+        return;
+      }
+
+      if ((data?.length ?? 0) > 200) {
+        void refetchData('full');
+        return;
+      }
+
+      const store = useTaskStore.getState();
+      for (const row of data || []) {
+        if ((row as any).deleted_at) store.applyTaskDelete((row as any).id);
+        else store.applyTaskUpsertFromDb(row);
+      }
+      lastSyncAtRef.current = startedAt;
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void syncDelta();
+    };
+    const onFocus = () => { void syncDelta(); };
+    window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.removeEventListener('focus', refetch);
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [user, refetchData]);
 
-  if (loading) {
+  if (loading && !hasTasks) {
     return (
       <div className="flex items-center justify-center h-[100dvh] bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
+
 
   const closeSidebar = () => {
     if (document.activeElement instanceof HTMLElement) {
