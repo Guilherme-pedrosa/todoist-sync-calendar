@@ -615,14 +615,28 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       task_assignees: [],
       meeting_invitations: [],
     });
+    const creationKey = creationKeyFromParts({
+      title: insertPayload.title,
+      projectId: insertPayload.project_id,
+      dueDate: insertPayload.due_date,
+      dueTime: insertPayload.due_time,
+    });
     if (optimisticTask) {
       optimisticTask.pending = true;
+      cleanupExpiredInFlightCreations();
+      inFlightCreations.set(creationKey, { tempId, startedAt: Date.now() });
       set((state) => ({ tasks: [optimisticTask, ...state.tasks] }));
     }
+    const clearInFlight = () => {
+      const entry = inFlightCreations.get(creationKey);
+      if (entry?.tempId === tempId) inFlightCreations.delete(creationKey);
+    };
     const dropOptimistic = () => {
+      clearInFlight();
       if (!optimisticTask) return;
       set((state) => ({ tasks: state.tasks.filter((t) => t.id !== tempId) }));
     };
+
 
     const { data, error } = await (supabase as any).rpc('create_task_secure', {
       p_workspace_id: insertPayload.workspace_id,
