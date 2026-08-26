@@ -467,3 +467,32 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
     </div>
   );
 }
+
+function sameLabels(a: string[], b: string[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+export const TaskItem = memo(TaskItemBase, (prev, next) => {
+  if (prev.depth !== next.depth || prev.enableDrag !== next.enableDrag) return false;
+  const a = prev.task;
+  const b = next.task;
+  return (
+    a.id === b.id &&
+    a.title === b.title &&
+    a.completed === b.completed &&
+    a.priority === b.priority &&
+    a.dueDate === b.dueDate &&
+    a.dueTime === b.dueTime &&
+    a.durationMinutes === b.durationMinutes &&
+    a.recurrenceRule === b.recurrenceRule &&
+    a.projectId === b.projectId &&
+    a.description === b.description &&
+    a.taskNumber === b.taskNumber &&
+    a.parentId === b.parentId &&
+    sameLabels(a.labels, b.labels)
+  );
+});
+
