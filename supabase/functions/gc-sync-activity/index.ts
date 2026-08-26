@@ -49,6 +49,9 @@ async function gcFetch(path: string, params: Record<string, string | number>) {
       },
     });
     if (r.status === 429) { await sleep(1500 * (attempt + 1)); continue; }
+    if (r.status === 401 || r.status === 403) {
+      throw new Error('Credenciais do GestãoClick inválidas ou expiradas. Atualize os tokens da API.');
+    }
     if (!r.ok) throw new Error(`GC ${path} ${r.status}: ${await r.text()}`);
     return await r.json();
   }
@@ -192,7 +195,7 @@ async function runSync(supabase: any) {
           }
         } catch (e) {
           console.error(`Falhou ${s.path}:`, e);
-          throw new Error(`Falha ao baixar ${s.label}`, { cause: e });
+          throw new Error(`Falha ao baixar ${s.label}: ${(e as Error)?.message ?? e}`, { cause: e });
         }
         counts[s.path] = n;
 
