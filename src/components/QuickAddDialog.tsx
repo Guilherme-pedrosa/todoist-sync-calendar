@@ -858,8 +858,21 @@ export function QuickAddDialog() {
     </>
   );
 
+  const primerEl = (
+    <input
+      id="quickadd-focus-primer"
+      type="text"
+      aria-hidden="true"
+      tabIndex={-1}
+      readOnly
+      className="fixed opacity-0 pointer-events-none h-px w-px -top-px left-0"
+    />
+  );
+
   if (isMobile) {
     return (
+      <>
+      {primerEl}
       <Drawer open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
         <DrawerContent className="p-0 z-[80]">
 
@@ -870,10 +883,13 @@ export function QuickAddDialog() {
           <div className="relative min-h-0 overflow-y-auto overscroll-contain">{body}</div>
         </DrawerContent>
       </Drawer>
+      </>
     );
   }
 
   return (
+    <>
+    {primerEl}
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
       <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
         <DialogTitle className="sr-only">Adicionar tarefa</DialogTitle>
@@ -883,5 +899,6 @@ export function QuickAddDialog() {
         <div className="relative">{body}</div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
