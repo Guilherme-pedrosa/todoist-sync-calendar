@@ -557,6 +557,27 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     };
     console.info('[addTask] step=insert-payload', insertPayload);
 
+    // Inserção otimista: a linha aparece na lista antes da resposta do servidor.
+    const tempId = crypto.randomUUID();
+    const optimisticTask = mapDbTaskToTask({
+      ...insertPayload,
+      id: tempId,
+      completed: false,
+      completed_at: null,
+      created_at: new Date().toISOString(),
+      task_labels: (taskData.labels || []).map((id) => ({ label_id: id })),
+      task_assignees: [],
+      meeting_invitations: [],
+    });
+    if (optimisticTask) {
+      optimisticTask.pending = true;
+      set((state) => ({ tasks: [optimisticTask, ...state.tasks] }));
+    }
+    const dropOptimistic = () => {
+      if (!optimisticTask) return;
+      set((state) => ({ tasks: state.tasks.filter((t) => t.id !== tempId) }));
+    };
+
     const { data, error } = await (supabase as any).rpc('create_task_secure', {
       p_workspace_id: insertPayload.workspace_id,
       p_project_id: insertPayload.project_id,
@@ -576,6 +597,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     console.info('[addTask] step=insert-response', { id: data?.id, error });
 
     if (error || !data) {
+      dropOptimistic();
       console.warn('[addTask] aborted reason=insert-failed', { error, payload: insertPayload });
       const raw = `${error?.message || ''} ${(error as any)?.details || ''}`;
       const isDuplicate =
@@ -616,14 +638,19 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
         ...informedFromOwner.map((uid) => ({ user_id: uid, role: 'informed' })),
       ],
     });
-    if (!newTask) return null;
+    if (!newTask) {
+      dropOptimistic();
+      return null;
+    }
 
-    // The task row already exists. Show it immediately; related records can finish afterward.
-    set((state) => ({
-      tasks: state.tasks.some((task) => task.id === newTask.id)
-        ? state.tasks.map((task) => (task.id === newTask.id ? newTask : task))
-        : [newTask, ...state.tasks],
-    }));
+    // Troca o id temporário pelo real e reconcilia quem apontava para ele.
+    set((state) => {
+      const withoutReal = state.tasks.filter((t) => t.id !== newTask.id && t.id !== tempId);
+      const reconciled = withoutReal.map((t) =>
+        t.parentId === tempId ? { ...t, parentId: newTask.id } : t
+      );
+      return { tasks: [newTask, ...reconciled] };
+    });
 
     if (labelIds.length > 0) {
       await supabase.from('task_labels').insert(
