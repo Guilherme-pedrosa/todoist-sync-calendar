@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,7 +59,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { RemindersDialog } from '@/components/RemindersDialog';
 import { TaskConversationButton } from '@/components/TaskConversationButton';
-import { ChatThread } from '@/components/ChatThread';
+const ChatThread = lazy(() => import('@/components/ChatThread').then((m) => ({ default: m.ChatThread })));
 import { useChatStore } from '@/store/chatStore';
 import { TaskActivityLog } from '@/components/TaskActivityLog';
 import { ScheduleMeetingDialog } from '@/components/ScheduleMeetingDialog';
@@ -272,17 +272,22 @@ export function TaskDetailPanel() {
     if (!task?.id) { setCreator(null); return; }
     let active = true;
     (async () => {
-      const { data: t } = await supabase.from('tasks').select('user_id').eq('id', task.id).maybeSingle();
-      if (!active || !t?.user_id) { setCreator(null); return; }
+      // Evita a consulta encadeada em `tasks` quando o criador já veio no snapshot do store.
+      let creatorId = task.creatorUserId ?? null;
+      if (!creatorId) {
+        const { data: t } = await supabase.from('tasks').select('user_id').eq('id', task.id).maybeSingle();
+        creatorId = t?.user_id ?? null;
+      }
+      if (!active || !creatorId) { setCreator(null); return; }
       const { data: p } = await supabase
         .from('profiles')
         .select('display_name, email')
-        .eq('user_id', t.user_id)
+        .eq('user_id', creatorId)
         .maybeSingle();
       if (active) setCreator(p ? { display_name: p.display_name, email: p.email } : null);
     })();
     return () => { active = false; };
-  }, [task?.id]);
+  }, [task?.id, task?.creatorUserId]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -1515,7 +1520,9 @@ export function TaskDetailPanel() {
                 </button>
               </div>
               <div className="flex-1 min-h-[400px] lg:min-h-0 overflow-hidden">
-                <ChatThread conversationId={chatConversationId} compact />
+                <Suspense fallback={<div className="p-4 text-xs text-muted-foreground">Carregando conversa…</div>}>
+                  <ChatThread conversationId={chatConversationId} compact />
+                </Suspense>
               </div>
             </div>
           )}
