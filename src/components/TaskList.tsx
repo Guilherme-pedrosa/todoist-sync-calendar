@@ -400,7 +400,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
               );
             })}
 
-            {view !== 'completed' && <AddTaskForm defaultProjectId={projectId} />}
+            <AddTaskForm defaultProjectId={projectId} />
           </DndContext>
         ) : groupedTasks ? (
           Object.entries(groupedTasks).map(([group, groupTasks]) => (
