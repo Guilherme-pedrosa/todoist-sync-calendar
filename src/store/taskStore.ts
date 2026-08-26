@@ -326,10 +326,26 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
 
     const sections = (sectionsRes.data || []) as SectionRow[];
 
-    const tasks: Task[] = taskRows
+    const fetched: Task[] = taskRows
       .map(mapDbTaskToTask)
       .filter((t): t is Task => t !== null)
       .map(applyPendingTaskUpdate);
+
+    // Se o store já tem a carga completa, um fetch "hot" apenas atualiza/mescla,
+    // sem descartar tarefas antigas que as views Concluídas/Filtros dependem.
+    let tasks = fetched;
+    if (scope === 'hot' && get().fullLoaded) {
+      const byId = new Map(get().tasks.map((t) => [t.id, t]));
+      const hotIds = new Set(fetched.map((t) => t.id));
+      for (const t of fetched) byId.set(t.id, t);
+      // Remove tarefas que estavam dentro da janela "hot" e sumiram do servidor.
+      for (const [id, t] of byId) {
+        if (hotIds.has(id)) continue;
+        const inHotWindow = !t.completed;
+        if (inHotWindow) byId.delete(id);
+      }
+      tasks = Array.from(byId.values());
+    }
 
     set({
       projects,
@@ -340,6 +356,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       lastFetchAt: startedAt,
       fullLoaded: scope === 'full' ? true : get().fullLoaded,
     });
+
 
     // Fase 2: completa o store por baixo, uma única vez.
     if (scope === 'hot' && !get().fullLoaded) {
