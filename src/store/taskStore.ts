@@ -209,13 +209,31 @@ function applyPendingTaskUpdate(task: Task): Task {
   return { ...task, ...pending.updates };
 }
 
-async function fetchAllTaskRows() {
+const TASK_SELECT =
+  '*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)';
+
+function isoDaysFromNow(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function fetchAllTaskRows(scope: 'hot' | 'full' = 'full') {
   const rows: any[] = [];
   for (let from = 0; ; from += TASK_PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('tasks')
-      .select('*, task_labels(label_id), task_assignees(user_id, role), meeting_invitations(invitee_user_id)')
-      .is('deleted_at', null)
+      .select(TASK_SELECT)
+      .is('deleted_at', null);
+
+    if (scope === 'hot') {
+      const completedSince = new Date(Date.now() - 14 * 86400000).toISOString();
+      query = query.or(
+        `completed.eq.false,completed_at.gte.${completedSince},and(due_date.gte.${isoDaysFromNow(-30)},due_date.lte.${isoDaysFromNow(90)})`
+      );
+    }
+
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .order('id', { ascending: true })
       .range(from, from + TASK_PAGE_SIZE - 1);
@@ -226,6 +244,7 @@ async function fetchAllTaskRows() {
   }
   return rows;
 }
+
 
 function recurrenceCoversTask(series: Task, occurrence: Task) {
   if (!series.recurrenceRule || !series.dueDate || !occurrence.dueDate) return false;
