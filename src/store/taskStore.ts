@@ -1210,4 +1210,6 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
   applyProjectDelete: (id) => {
     set((state) => ({ projects: state.projects.filter((p) => p.id !== id) }));
   },
-}));
+  };
+});
+
