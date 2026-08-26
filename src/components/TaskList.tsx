@@ -420,12 +420,11 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
                 <TaskItem key={task.id} task={task} />
               ))}
             </SortableContext>
-            {view !== 'completed' && (
-              <AddTaskForm
-                defaultProjectId={view === 'project' ? projectId : undefined}
-                defaultDate={view === 'today' ? localDateKey() : undefined}
-              />
-            )}
+            <AddTaskForm
+              defaultProjectId={view === 'project' ? projectId : undefined}
+              defaultDate={view === 'today' ? localDateKey() : undefined}
+            />
+
           </DndContext>
         )}
 
