@@ -212,7 +212,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
             void deleteWithPrompt(task.id, { occurrenceDate: task.dueDate ?? undefined }).then((result) => {
               if (result !== 'deleted') return;
               toast('Tarefa excluída', {
-                duration: 6000,
+                duration: 10000,
                 action: {
                   label: 'Desfazer',
                   onClick: async () => {
@@ -462,7 +462,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
                   });
                   if (result !== 'deleted') return;
                   toast('Tarefa excluída', {
-                    duration: 6000,
+                    duration: 10000,
                     action: {
                       label: 'Desfazer',
                       onClick: async () => {
