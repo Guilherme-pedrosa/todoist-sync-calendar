@@ -105,13 +105,29 @@ function mapDbProjectToProject(p: any): Project {
 
 // Google Calendar integration removed. Internal calendar/agenda only.
 
+const SESSION_CACHE_TTL_MS = 60_000;
+let cachedSession: Session | null = null;
+let cachedSessionAt = 0;
+
+export function invalidateSessionCache() {
+  cachedSession = null;
+  cachedSessionAt = 0;
+}
+
 export async function ensureFreshSession(): Promise<Session | null> {
-  console.info('[addTask] step=session-check');
+  // Cache em memória: evita ida ao supabase.auth a cada operação (criar tarefa em lote, etc.)
+  if (cachedSession && Date.now() - cachedSessionAt < SESSION_CACHE_TTL_MS) {
+    const exp = cachedSession.expires_at ?? 0;
+    if (exp - Math.floor(Date.now() / 1000) >= 60) return cachedSession;
+    invalidateSessionCache();
+  }
+
   const { data, error } = await supabase.auth.getSession();
   const session = data.session;
 
   if (error || !session) {
     console.warn('[addTask] aborted reason=session-null', { error });
+    invalidateSessionCache();
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
@@ -119,18 +135,25 @@ export async function ensureFreshSession(): Promise<Session | null> {
 
   const expiresAt = session.expires_at ?? 0;
   const nowSeconds = Math.floor(Date.now() / 1000);
-  if (expiresAt - nowSeconds >= 60) return session;
+  if (expiresAt - nowSeconds >= 60) {
+    cachedSession = session;
+    cachedSessionAt = Date.now();
+    return session;
+  }
 
   const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
   if (refreshError || !refreshed.session) {
     console.warn('[addTask] aborted reason=refresh-failed', { refreshError });
+    invalidateSessionCache();
     toast.error('Sessão expirada, faça login');
     await supabase.auth.signOut();
     return null;
   }
 
+  cachedSession = refreshed.session;
+  cachedSessionAt = Date.now();
   return refreshed.session;
-}
+
 
 
 function mapDbTaskToTask(t: any): Task | null {
