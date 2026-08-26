@@ -337,8 +337,33 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
-        {projectGrouped ? (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
+        {isVirtual ? (
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualItems.map((vi) => {
+              const row = virtualRows[vi.index];
+              if (!row) return null;
+              return (
+                <div
+                  key={vi.key}
+                  ref={virtualizer.measureElement}
+                  data-index={vi.index}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                  {row.kind === 'header' ? (
+                    <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 sm:px-3 py-2 capitalize">
+                      {row.label}
+                    </h3>
+                  ) : (
+                    <TaskItem task={row.task} enableDrag={false} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : projectGrouped ? (
+
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {/* Tasks without section */}
             <SortableContext items={projectGrouped.noSection.map((t) => t.id)} strategy={verticalListSortingStrategy}>
