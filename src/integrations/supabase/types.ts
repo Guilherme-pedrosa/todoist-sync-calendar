@@ -2996,6 +2996,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      replace_gc_daily_activity: {
+        Args: { p_end: string; p_rows: Json; p_start: string }
+        Returns: number
+      }
       reschedule_single_occurrence: {
         Args: {
           p_new_date: string
