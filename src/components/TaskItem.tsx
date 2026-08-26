@@ -450,7 +450,9 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
                 <Trash2 className="h-4 w-4 mr-2" /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
+            )}
           </DropdownMenu>
+
         </div>
       </motion.div>
 
