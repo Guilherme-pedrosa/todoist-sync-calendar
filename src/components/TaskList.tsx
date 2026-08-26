@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+
 import {
   Inbox,
   CalendarDays,
@@ -259,6 +261,38 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
     );
   };
 
+  // ---- Virtualização (apenas nas views longas: agenda e concluídas) ----
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const isVirtual = view === 'upcoming' || view === 'completed';
+
+  type VirtualRow =
+    | { kind: 'header'; key: string; label: string }
+    | { kind: 'task'; key: string; task: Task };
+
+  const virtualRows = useMemo<VirtualRow[]>(() => {
+    if (!isVirtual) return [];
+    const rows: VirtualRow[] = [];
+    if (groupedTasks) {
+      for (const [group, groupTasks] of Object.entries(groupedTasks)) {
+        rows.push({ kind: 'header', key: `h:${group}`, label: group });
+        for (const task of groupTasks) rows.push({ kind: 'task', key: task.id, task });
+      }
+    } else {
+      for (const task of orderedTasks) rows.push({ kind: 'task', key: task.id, task });
+    }
+    return rows;
+  }, [isVirtual, groupedTasks, orderedTasks]);
+
+  const virtualizer = useVirtualizer({
+    count: isVirtual ? virtualRows.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => (virtualRows[index]?.kind === 'header' ? 36 : 64),
+    overscan: 8,
+    getItemKey: (index) => virtualRows[index]?.key ?? index,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -303,8 +337,33 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
-        {projectGrouped ? (
+      <div ref={scrollRef} className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
+        {isVirtual ? (
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualItems.map((vi) => {
+              const row = virtualRows[vi.index];
+              if (!row) return null;
+              return (
+                <div
+                  key={vi.key}
+                  ref={virtualizer.measureElement}
+                  data-index={vi.index}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                  {row.kind === 'header' ? (
+                    <h3 className="font-display text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2 sm:px-3 py-2 capitalize">
+                      {row.label}
+                    </h3>
+                  ) : (
+                    <TaskItem task={row.task} enableDrag={false} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : projectGrouped ? (
+
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             {/* Tasks without section */}
             <SortableContext items={projectGrouped.noSection.map((t) => t.id)} strategy={verticalListSortingStrategy}>
@@ -341,7 +400,7 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
               );
             })}
 
-            {view !== 'completed' && <AddTaskForm defaultProjectId={projectId} />}
+            <AddTaskForm defaultProjectId={projectId} />
           </DndContext>
         ) : groupedTasks ? (
           Object.entries(groupedTasks).map(([group, groupTasks]) => (
@@ -361,12 +420,11 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
                 <TaskItem key={task.id} task={task} />
               ))}
             </SortableContext>
-            {view !== 'completed' && (
-              <AddTaskForm
-                defaultProjectId={view === 'project' ? projectId : undefined}
-                defaultDate={view === 'today' ? localDateKey() : undefined}
-              />
-            )}
+            <AddTaskForm
+              defaultProjectId={view === 'project' ? projectId : undefined}
+              defaultDate={view === 'today' ? localDateKey() : undefined}
+            />
+
           </DndContext>
         )}
 

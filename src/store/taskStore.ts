@@ -21,6 +21,12 @@ interface TaskState {
   projects: Project[];
   labels: Label[];
   sections: SectionRow[];
+  /** Índice derivado: subtarefas por id do pai (recalculado a cada mudança em `tasks`). */
+  childrenByParentId: Record<string, Task[]>;
+  /** Índice derivado: projeto por id. */
+  projectById: Record<string, Project>;
+  /** Índice derivado: etiqueta por id. */
+  labelById: Record<string, Label>;
   activeView: ViewFilter;
   activeProjectId: string | null;
   activeLabelId: string | null;
@@ -28,6 +34,7 @@ interface TaskState {
   loading: boolean;
   lastFetchAt: string | null;
   fullLoaded: boolean;
+
 
 
   fetchData: (options?: { scope?: 'hot' | 'full' }) => Promise<void>;
@@ -267,12 +274,50 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
   );
 }
 
+function buildChildrenIndex(tasks: Task[]): Record<string, Task[]> {
+  const index: Record<string, Task[]> = {};
+  for (const t of tasks) {
+    if (!t.parentId) continue;
+    (index[t.parentId] ||= []).push(t);
+  }
+  return index;
+}
 
-export const useTaskStore = create<TaskState>()((set, get) => ({
+function buildById<T extends { id: string }>(rows: T[]): Record<string, T> {
+  const index: Record<string, T> = {};
+  for (const r of rows) index[r.id] = r;
+  return index;
+}
+
+export const useTaskStore = create<TaskState>()((rawSet, get) => {
+  // Wrapper de `set` que mantém os índices derivados sempre em sincronia,
+  // inclusive nos applyTask*/applyProject* incrementais.
+  const set: typeof rawSet = ((partial: any, replace?: any) => {
+    rawSet((state: TaskState) => {
+      const next = typeof partial === 'function' ? partial(state) : partial;
+      if (!next) return next;
+      const patch: any = { ...next };
+      if ('tasks' in patch && patch.tasks !== state.tasks) {
+        patch.childrenByParentId = buildChildrenIndex(patch.tasks);
+      }
+      if ('projects' in patch && patch.projects !== state.projects) {
+        patch.projectById = buildById(patch.projects);
+      }
+      if ('labels' in patch && patch.labels !== state.labels) {
+        patch.labelById = buildById(patch.labels);
+      }
+      return patch;
+    }, replace);
+  }) as typeof rawSet;
+
+  return {
   tasks: [],
   projects: [],
   labels: [],
   sections: [],
+  childrenByParentId: {},
+  projectById: {},
+  labelById: {},
   activeView: 'today',
   activeProjectId: null,
   activeLabelId: null,
@@ -280,6 +325,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   loading: true,
   lastFetchAt: null,
   fullLoaded: false,
+
 
 
   fetchData: async (options) => {
@@ -1164,4 +1210,6 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   applyProjectDelete: (id) => {
     set((state) => ({ projects: state.projects.filter((p) => p.id !== id) }));
   },
-}));
+  };
+});
+

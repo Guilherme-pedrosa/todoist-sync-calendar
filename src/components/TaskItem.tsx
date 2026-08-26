@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -72,12 +72,30 @@ function formatDueDate(dateStr: string) {
   return format(date, "d 'de' MMM", { locale: ptBR });
 }
 
-export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) {
+const EMPTY_SUBTASKS: Task[] = [];
+
+/** Media query reativa (sem ler window.innerWidth durante o render). */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState<boolean>(() =>
+    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+}
+
+function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const navigate = useNavigate();
   const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
-  const projects = useTaskStore((s) => s.projects);
-  const allLabels = useTaskStore((s) => s.labels);
-  const tasks = useTaskStore((s) => s.tasks);
+  const project = useTaskStore((s) => (task.projectId ? s.projectById[task.projectId] : undefined));
+  const labelById = useTaskStore((s) => s.labelById);
+  const subtasks = useTaskStore((s) => s.childrenByParentId[task.id]) ?? EMPTY_SUBTASKS;
   const openDetail = useTaskDetailStore((s) => s.open);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
@@ -85,21 +103,26 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const unreadComments = useCommentsStore((s) => s.unreadByTask[task.id] || 0);
 
   const [collapsed, setCollapsed] = useState(true);
+  // Conteúdo dos menus só é instanciado após o primeiro clique no gatilho.
+  const [scheduleMounted, setScheduleMounted] = useState(false);
+  const [menuMounted, setMenuMounted] = useState(false);
 
-  const project = projects.find((p) => p.id === task.projectId);
-  const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
+  const taskLabels = task.labels.map((id) => labelById[id]).filter(Boolean);
   const isOverdue = task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) && !task.completed;
-  const subtasks = tasks.filter((t) => t.parentId === task.id);
   const hasSubtasks = subtasks.length > 0;
   const completedSubs = subtasks.filter((s) => s.completed).length;
 
-  const sortable = useSortable({ id: task.id, disabled: !enableDrag });
+  const isDesktop = useIsDesktop();
+  const dragEnabled = enableDrag && isDesktop;
+
+  const sortable = useSortable({ id: task.id, disabled: !dragEnabled });
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = sortable;
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
 
   const handleClick = (e: React.MouseEvent) => {
     // Don't open detail when clicking on interactive children
@@ -323,7 +346,7 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
           <Popover>
             <PopoverTrigger asChild>
               <button
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setScheduleMounted(true); }}
                 className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Agendar"
                 title="Agendar"
@@ -331,37 +354,41 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                 <CalendarClock className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
-              <DatePickerPopover
-                value={dateValue}
-                onChange={(v) =>
-                  updateWithPrompt(
-                    task.id,
-                    {
-                      dueDate: v.date ?? null as any,
-                      dueTime: v.time ?? null as any,
-                      recurrenceRule: v.recurrenceRule ?? null,
-                      durationMinutes: v.durationMinutes ?? null,
-                    },
-                    { occurrenceDate: task.dueDate ?? undefined, changeLabel: 'data e horário' }
-                  )
-                }
-                trigger={<span />}
-              />
-            </PopoverContent>
+            {scheduleMounted && (
+              <PopoverContent className="w-auto p-0" align="end" onClick={(e) => e.stopPropagation()}>
+                <DatePickerPopover
+                  value={dateValue}
+                  onChange={(v) =>
+                    updateWithPrompt(
+                      task.id,
+                      {
+                        dueDate: v.date ?? null as any,
+                        dueTime: v.time ?? null as any,
+                        recurrenceRule: v.recurrenceRule ?? null,
+                        durationMinutes: v.durationMinutes ?? null,
+                      },
+                      { occurrenceDate: task.dueDate ?? undefined, changeLabel: 'data e horário' }
+                    )
+                  }
+                  trigger={<span />}
+                />
+              </PopoverContent>
+            )}
           </Popover>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setMenuMounted(true); }}
                 className="h-10 w-10 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded-lg sm:rounded hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Mais"
               >
                 <MoreHorizontal className="h-[18px] w-[18px] sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
+            {menuMounted && (
             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+
               <DropdownMenuItem onSelect={() => openDetail(task.id)}>
                 <Edit3 className="h-4 w-4 mr-2" /> Editar
               </DropdownMenuItem>
@@ -423,7 +450,9 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
                 <Trash2 className="h-4 w-4 mr-2" /> Excluir
               </DropdownMenuItem>
             </DropdownMenuContent>
+            )}
           </DropdownMenu>
+
         </div>
       </motion.div>
 
@@ -438,3 +467,32 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
     </div>
   );
 }
+
+function sameLabels(a: string[], b: string[]) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+export const TaskItem = memo(TaskItemBase, (prev, next) => {
+  if (prev.depth !== next.depth || prev.enableDrag !== next.enableDrag) return false;
+  const a = prev.task;
+  const b = next.task;
+  return (
+    a.id === b.id &&
+    a.title === b.title &&
+    a.completed === b.completed &&
+    a.priority === b.priority &&
+    a.dueDate === b.dueDate &&
+    a.dueTime === b.dueTime &&
+    a.durationMinutes === b.durationMinutes &&
+    a.recurrenceRule === b.recurrenceRule &&
+    a.projectId === b.projectId &&
+    a.description === b.description &&
+    a.taskNumber === b.taskNumber &&
+    a.parentId === b.parentId &&
+    sameLabels(a.labels, b.labels)
+  );
+});
+
