@@ -91,6 +91,23 @@ export function QuickAddDialog() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Ancoragem do rodapé ao topo do teclado virtual (iOS/Android).
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const handler = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKeyboardInset(inset > 80 ? inset : 0);
+    };
+    handler();
+    vv.addEventListener('resize', handler);
+    vv.addEventListener('scroll', handler);
+    return () => {
+      vv.removeEventListener('resize', handler);
+      vv.removeEventListener('scroll', handler);
+    };
+  }, []);
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -773,7 +790,10 @@ export function QuickAddDialog() {
       )}
 
       {/* Footer */}
-      <div className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60">
+      <div
+        className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60"
+        style={isMobile && keyboardInset > 0 ? { marginBottom: keyboardInset } : undefined}
+      >
         <Popover>
           <PopoverTrigger asChild>
             <button
