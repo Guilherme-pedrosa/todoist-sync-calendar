@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -43,7 +43,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { toast } from 'sonner';
 
 interface TaskItemProps {
