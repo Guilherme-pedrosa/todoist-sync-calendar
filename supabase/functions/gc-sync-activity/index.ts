@@ -195,7 +195,7 @@ async function runSync(supabase: any) {
           }
         } catch (e) {
           console.error(`Falhou ${s.path}:`, e);
-          throw new Error(`Falha ao baixar ${s.label}`, { cause: e });
+          throw new Error(`Falha ao baixar ${s.label}: ${(e as Error)?.message ?? e}`, { cause: e });
         }
         counts[s.path] = n;
 
