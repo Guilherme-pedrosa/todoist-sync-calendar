@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -15,6 +15,7 @@ import {
   Edit3,
   Plus,
   MessageSquare,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Task, Priority } from '@/types/task';
@@ -42,7 +43,7 @@ import {
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useTransform } from 'framer-motion';
 import { toast } from 'sonner';
 
 interface TaskItemProps {
@@ -124,7 +125,26 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   };
 
 
+  // ---- Swipe: feedback visual + limiares ----
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const x = useMotionValue(0);
+  const dragStartXRef = useRef(0);
+  const movedRef = useRef(0);
+  const hapticFiredRef = useRef(false);
+  const COMPLETE_THRESHOLD = 80;
+  /** Excluir exige 45% da largura da linha (mín. 120px). */
+  const deleteThreshold = () =>
+    Math.max(120, (rowRef.current?.offsetWidth ?? 320) * 0.45);
+
+  const completeOpacity = useTransform(x, [0, COMPLETE_THRESHOLD], [0, 1]);
+  const deleteOpacity = useTransform(x, [-COMPLETE_THRESHOLD, 0], [1, 0]);
+
   const handleClick = (e: React.MouseEvent) => {
+    // Um arrasto (>8px) não deve abrir o detalhe
+    if (movedRef.current > 8) {
+      movedRef.current = 0;
+      return;
+    }
     // Don't open detail when clicking on interactive children
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-detail]')) return;
@@ -157,21 +177,62 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
         depth > 0 && 'ml-3 pl-2 sm:ml-6 sm:pl-4 border-l border-border/60'
       )}
     >
+      {/* Fundo de feedback do swipe */}
+      {enableDrag && (
+        <>
+          <motion.div
+            aria-hidden
+            style={{ opacity: completeOpacity }}
+            className="pointer-events-none absolute inset-0 rounded-xl sm:rounded-lg bg-success/20 flex items-center justify-start px-4 text-success"
+          >
+            <Check className="h-5 w-5" />
+          </motion.div>
+          <motion.div
+            aria-hidden
+            style={{ opacity: deleteOpacity }}
+            className="pointer-events-none absolute inset-0 rounded-xl sm:rounded-lg bg-destructive/20 flex items-center justify-end px-4 text-destructive"
+          >
+            <Trash2 className="h-5 w-5" />
+          </motion.div>
+        </>
+      )}
       <motion.div
+        ref={rowRef}
         drag={!enableDrag ? false : 'x'}
-        dragConstraints={{ left: -120, right: 120 }}
+        dragDirectionLock
+        dragSnapToOrigin
+        dragConstraints={{ left: -160, right: 160 }}
         dragElastic={0.2}
+        style={{ x }}
+        onDragStart={() => {
+          dragStartXRef.current = x.get();
+          movedRef.current = 0;
+          hapticFiredRef.current = false;
+        }}
+        onDrag={(_, info) => {
+          movedRef.current = Math.max(movedRef.current, Math.abs(info.offset.x));
+          const crossed =
+            info.offset.x > COMPLETE_THRESHOLD || info.offset.x < -deleteThreshold();
+          if (crossed && !hapticFiredRef.current) {
+            hapticFiredRef.current = true;
+            if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+              navigator.vibrate(12);
+            }
+          } else if (!crossed) {
+            hapticFiredRef.current = false;
+          }
+        }}
         onDragEnd={(_, info) => {
-          if (info.offset.x > 80) {
+          if (info.offset.x > COMPLETE_THRESHOLD) {
             // swipe direita → concluir
             complete(task.id);
-          } else if (info.offset.x < -80) {
+          } else if (info.offset.x < -deleteThreshold()) {
             // swipe esquerda → excluir (com prompt p/ recorrente)
             const snapshot = { ...task };
             void deleteWithPrompt(task.id, { occurrenceDate: task.dueDate ?? undefined }).then((result) => {
               if (result !== 'deleted') return;
               toast('Tarefa excluída', {
-                duration: 6000,
+                duration: 10000,
                 action: {
                   label: 'Desfazer',
                   onClick: async () => {
@@ -421,7 +482,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
                   });
                   if (result !== 'deleted') return;
                   toast('Tarefa excluída', {
-                    duration: 6000,
+                    duration: 10000,
                     action: {
                       label: 'Desfazer',
                       onClick: async () => {

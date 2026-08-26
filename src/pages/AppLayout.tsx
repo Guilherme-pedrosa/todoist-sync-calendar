@@ -5,7 +5,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
 import { QuickAddDialog } from '@/components/QuickAddDialog';
 import { AIAssistantPanel } from '@/components/AIAssistantPanel';
-import { MobileFab } from '@/components/MobileFab';
+
 import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CompleteSubtasksDialog } from '@/components/CompleteSubtasksDialog';
@@ -176,12 +176,12 @@ export default function AppLayout() {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
+      <div className="flex-1 flex flex-col min-w-0 pb-[calc(56px+env(safe-area-inset-bottom))] lg:pb-0 lg:pr-14">
         <MobileTopBar />
         <Outlet />
       </div>
       <QuickAddDialog />
-      <MobileFab />
+
       <TaskDetailPanel />
       <CommandPalette />
       <MobileBottomNav />
