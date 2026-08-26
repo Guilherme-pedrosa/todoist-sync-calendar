@@ -34,6 +34,10 @@ export interface Task {
   sourceTaskId?: string;
   recurringCompletionId?: string;
   isRecurringCompletion?: boolean;
+  /** Linha otimista ainda não confirmada pelo servidor. */
+  pending?: boolean;
+  /** user_id do criador da tarefa (quando conhecido). */
+  creatorUserId?: string | null;
 }
 
 export interface Project {

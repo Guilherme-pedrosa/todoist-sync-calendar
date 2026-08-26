@@ -189,6 +189,7 @@ function mapDbTaskToTask(t: any): Task | null {
       .map((i: any) => i.invitee_user_id)
       .filter(Boolean),
     createdAt: t.created_at,
+    creatorUserId: t.user_id ?? null,
   };
 }
 
