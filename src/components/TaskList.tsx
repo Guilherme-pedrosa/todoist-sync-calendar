@@ -324,17 +324,8 @@ export function TaskList({ view, projectId, labelId }: TaskListProps) {
           </div>
         )}
       </header>
-      {/* Mobile mini-bar with task count + completed toggle */}
-      <div className="sm:hidden min-h-11 flex items-center justify-between gap-3 px-3 py-2 border-b border-border/50 text-xs text-muted-foreground">
-        <span>{filteredTasks.length} tarefa{filteredTasks.length !== 1 ? 's' : ''}</span>
-        {supportsCompletedToggle && (
-          <ShowCompletedToggle
-            show={showCompleted}
-            onChange={setShowCompleted}
-            count={completedList.length}
-          />
-        )}
-      </div>
+
+
 
       {/* Body */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto mobile-scroll scrollbar-thin px-2 sm:px-4 py-2 sm:py-3">
