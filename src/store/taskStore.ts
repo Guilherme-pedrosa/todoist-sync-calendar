@@ -274,12 +274,50 @@ function recurrenceCoversTask(series: Task, occurrence: Task) {
   );
 }
 
+function buildChildrenIndex(tasks: Task[]): Record<string, Task[]> {
+  const index: Record<string, Task[]> = {};
+  for (const t of tasks) {
+    if (!t.parentId) continue;
+    (index[t.parentId] ||= []).push(t);
+  }
+  return index;
+}
 
-export const useTaskStore = create<TaskState>()((set, get) => ({
+function buildById<T extends { id: string }>(rows: T[]): Record<string, T> {
+  const index: Record<string, T> = {};
+  for (const r of rows) index[r.id] = r;
+  return index;
+}
+
+export const useTaskStore = create<TaskState>()((rawSet, get) => {
+  // Wrapper de `set` que mantém os índices derivados sempre em sincronia,
+  // inclusive nos applyTask*/applyProject* incrementais.
+  const set: typeof rawSet = ((partial: any, replace?: any) => {
+    rawSet((state: TaskState) => {
+      const next = typeof partial === 'function' ? partial(state) : partial;
+      if (!next) return next;
+      const patch: any = { ...next };
+      if ('tasks' in patch && patch.tasks !== state.tasks) {
+        patch.childrenByParentId = buildChildrenIndex(patch.tasks);
+      }
+      if ('projects' in patch && patch.projects !== state.projects) {
+        patch.projectById = buildById(patch.projects);
+      }
+      if ('labels' in patch && patch.labels !== state.labels) {
+        patch.labelById = buildById(patch.labels);
+      }
+      return patch;
+    }, replace);
+  }) as typeof rawSet;
+
+  return {
   tasks: [],
   projects: [],
   labels: [],
   sections: [],
+  childrenByParentId: {},
+  projectById: {},
+  labelById: {},
   activeView: 'today',
   activeProjectId: null,
   activeLabelId: null,
@@ -287,6 +325,7 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   loading: true,
   lastFetchAt: null,
   fullLoaded: false,
+
 
 
   fetchData: async (options) => {
