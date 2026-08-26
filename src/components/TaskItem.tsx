@@ -72,12 +72,30 @@ function formatDueDate(dateStr: string) {
   return format(date, "d 'de' MMM", { locale: ptBR });
 }
 
-export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) {
+const EMPTY_SUBTASKS: Task[] = [];
+
+/** Media query reativa (sem ler window.innerWidth durante o render). */
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState<boolean>(() =>
+    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+}
+
+function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const navigate = useNavigate();
   const updateWithPrompt = useUpdateTaskWithRecurrencePrompt();
-  const projects = useTaskStore((s) => s.projects);
-  const allLabels = useTaskStore((s) => s.labels);
-  const tasks = useTaskStore((s) => s.tasks);
+  const project = useTaskStore((s) => (task.projectId ? s.projectById[task.projectId] : undefined));
+  const labelById = useTaskStore((s) => s.labelById);
+  const subtasks = useTaskStore((s) => s.childrenByParentId[task.id]) ?? EMPTY_SUBTASKS;
   const openDetail = useTaskDetailStore((s) => s.open);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const complete = useCompleteTask();
@@ -85,21 +103,26 @@ export function TaskItem({ task, depth = 0, enableDrag = true }: TaskItemProps) 
   const unreadComments = useCommentsStore((s) => s.unreadByTask[task.id] || 0);
 
   const [collapsed, setCollapsed] = useState(true);
+  // Conteúdo dos menus só é instanciado após o primeiro clique no gatilho.
+  const [scheduleMounted, setScheduleMounted] = useState(false);
+  const [menuMounted, setMenuMounted] = useState(false);
 
-  const project = projects.find((p) => p.id === task.projectId);
-  const taskLabels = allLabels.filter((l) => task.labels.includes(l.id));
+  const taskLabels = task.labels.map((id) => labelById[id]).filter(Boolean);
   const isOverdue = task.dueDate && isPast(parseISO(task.dueDate)) && !isToday(parseISO(task.dueDate)) && !task.completed;
-  const subtasks = tasks.filter((t) => t.parentId === task.id);
   const hasSubtasks = subtasks.length > 0;
   const completedSubs = subtasks.filter((s) => s.completed).length;
 
-  const sortable = useSortable({ id: task.id, disabled: !enableDrag });
+  const isDesktop = useIsDesktop();
+  const dragEnabled = enableDrag && isDesktop;
+
+  const sortable = useSortable({ id: task.id, disabled: !dragEnabled });
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = sortable;
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
 
   const handleClick = (e: React.MouseEvent) => {
     // Don't open detail when clicking on interactive children
