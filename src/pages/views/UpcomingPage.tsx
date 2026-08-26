@@ -121,7 +121,7 @@ export default function UpcomingPage() {
       const now = Date.now();
       if (now - visibleLogTsRef.current > 2000) {
         visibleLogTsRef.current = now;
-        console.info('[UpcomingPage] visible-count', out.length, 'total-count', tasks.length);
+        if (import.meta.env.DEV) console.info('[UpcomingPage] visible-count', out.length, 'total-count', tasks.length);
       }
       return out;
     },
