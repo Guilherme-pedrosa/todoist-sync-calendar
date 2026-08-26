@@ -125,7 +125,26 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   };
 
 
+  // ---- Swipe: feedback visual + limiares ----
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const x = useMotionValue(0);
+  const dragStartXRef = useRef(0);
+  const movedRef = useRef(0);
+  const hapticFiredRef = useRef(false);
+  const COMPLETE_THRESHOLD = 80;
+  /** Excluir exige 45% da largura da linha (mín. 120px). */
+  const deleteThreshold = () =>
+    Math.max(120, (rowRef.current?.offsetWidth ?? 320) * 0.45);
+
+  const completeOpacity = useTransform(x, [0, COMPLETE_THRESHOLD], [0, 1]);
+  const deleteOpacity = useTransform(x, [-COMPLETE_THRESHOLD, 0], [1, 0]);
+
   const handleClick = (e: React.MouseEvent) => {
+    // Um arrasto (>8px) não deve abrir o detalhe
+    if (movedRef.current > 8) {
+      movedRef.current = 0;
+      return;
+    }
     // Don't open detail when clicking on interactive children
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-detail]')) return;
