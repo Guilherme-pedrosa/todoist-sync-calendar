@@ -153,6 +153,8 @@ export async function ensureFreshSession(): Promise<Session | null> {
   cachedSession = refreshed.session;
   cachedSessionAt = Date.now();
   return refreshed.session;
+}
+
 
 
 
