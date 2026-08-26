@@ -185,6 +185,7 @@ export function QuickAddDialog() {
     // O teclado já foi aberto pelo campo "primer" no gesto do usuário;
     // aqui apenas transferimos o foco para o campo real (sem setTimeout).
     inputRef.current?.focus();
+    requestAnimationFrame(() => inputRef.current?.focus());
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
@@ -260,43 +261,71 @@ export function QuickAddDialog() {
     if (lines.length === 0) return;
     console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds, informedIds });
     setSubmitting(true);
+
+    // Snapshot dos campos: o diálogo fecha imediatamente, o resto termina em background.
+    const snapshot = {
+      description,
+      priority,
+      date,
+      projectId,
+      selectedLabels,
+      reminders,
+      assigneeIds,
+      informedIds,
+      pendingFiles,
+    };
+
+    if (closeAfter) {
+      closeQuickAdd();
+    } else {
+      setTitle('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+
     try {
       // Use first relative reminder for the legacy single-reminder column
-      const firstRelative = reminders.find((r) => r.type === 'relative');
-      const createdTasks = [];
-      for (const line of lines) {
-        const lineParsed = parseNlp(line);
-        const finalTitle = (lineParsed.cleanedTitle || line).trim();
-        if (!finalTitle) continue;
-        const matchedLabels = lineParsed.labelTokens.length
-          ? labels
-              .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
-              .map((l) => l.id)
-          : [];
-        const lineProjectId = lineParsed.projectToken
-          ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
-          : undefined;
-        const created = await addTask({
-          title: finalTitle,
-          description: description.trim() || undefined,
-          priority: lineParsed.priority || priority,
-          dueDate: lineParsed.dueDate || date.date,
-          dueTime: lineParsed.dueTime || date.time,
-          durationMinutes: lineParsed.durationMinutes ?? date.durationMinutes ?? null,
-          recurrenceRule: lineParsed.recurrenceRule || date.recurrenceRule || null,
-          projectId: lineProjectId || projectId,
-          parentId: defaultParentId || undefined,
-          labels: Array.from(new Set([...selectedLabels, ...matchedLabels])),
-          reminderMinutes: firstRelative?.relative_minutes ?? null,
-          assigneeIds,
-          informedIds,
-        });
-        if (created) createdTasks.push(created);
-      }
+      const firstRelative = snapshot.reminders.find((r) => r.type === 'relative');
+      const results = await Promise.all(
+        lines.map(async (line) => {
+          const lineParsed = parseNlp(line);
+          const finalTitle = (lineParsed.cleanedTitle || line).trim();
+          if (!finalTitle) return null;
+          const matchedLabels = lineParsed.labelTokens.length
+            ? labels
+                .filter((l) => lineParsed.labelTokens.some((t) => t.toLowerCase() === l.name.toLowerCase()))
+                .map((l) => l.id)
+            : [];
+          const lineProjectId = lineParsed.projectToken
+            ? projects.find((p) => p.name.toLowerCase() === lineParsed.projectToken!.toLowerCase())?.id
+            : undefined;
+          try {
+            return await addTask({
+              title: finalTitle,
+              description: snapshot.description.trim() || undefined,
+              priority: lineParsed.priority || snapshot.priority,
+              dueDate: lineParsed.dueDate || snapshot.date.date,
+              dueTime: lineParsed.dueTime || snapshot.date.time,
+              durationMinutes: lineParsed.durationMinutes ?? snapshot.date.durationMinutes ?? null,
+              recurrenceRule: lineParsed.recurrenceRule || snapshot.date.recurrenceRule || null,
+              projectId: lineProjectId || snapshot.projectId,
+              parentId: defaultParentId || undefined,
+              labels: Array.from(new Set([...snapshot.selectedLabels, ...matchedLabels])),
+              reminderMinutes: firstRelative?.relative_minutes ?? null,
+              assigneeIds: snapshot.assigneeIds,
+              informedIds: snapshot.informedIds,
+            });
+          } catch (e) {
+            console.error('[QuickAdd] line failed', { line, e });
+            toast.error(e instanceof Error ? e.message : `Falha ao criar "${finalTitle}"`);
+            return null;
+          }
+        })
+      );
+      const createdTasks = results.filter((t): t is NonNullable<typeof t> => !!t);
       console.info('[QuickAdd] submit-end', { created: createdTasks.length, ids: createdTasks.map((t) => t.id) });
       // Insert any additional absolute reminders (besides the auto one)
-      if (createdTasks.length > 0 && reminders.length > 0) {
-        const additional = reminders.filter((r) => r.type === 'absolute');
+      if (createdTasks.length > 0 && snapshot.reminders.length > 0) {
+        const additional = snapshot.reminders.filter((r) => r.type === 'absolute');
         if (additional.length > 0) {
           await supabase.from('reminders').insert(
             createdTasks.flatMap((task) =>
@@ -316,10 +345,10 @@ export function QuickAddDialog() {
         return;
       }
       // Upload pending attachments
-      if (pendingFiles.length > 0) {
+      if (snapshot.pendingFiles.length > 0) {
         const { uploadTaskAttachment } = await import('@/lib/attachments');
         for (const created of createdTasks) {
-          for (const file of pendingFiles) {
+          for (const file of snapshot.pendingFiles) {
             try {
               await uploadTaskAttachment(created.id, file);
             } catch (e) {
@@ -342,8 +371,7 @@ export function QuickAddDialog() {
       setPendingFiles([]);
       setLocation_('');
       setShowLocation(false);
-      setTimeout(() => inputRef.current?.focus(), 30);
-      if (closeAfter) closeQuickAdd();
+      if (!closeAfter) setTimeout(() => inputRef.current?.focus(), 30);
     } catch (err) {
       console.error('[QuickAdd] submit-error', err);
       toast.error(err instanceof Error ? err.message : 'Falha ao criar tarefa');
