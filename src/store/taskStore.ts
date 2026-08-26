@@ -442,6 +442,13 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       tasks = Array.from(byId.values());
     }
 
+    // Preserva linhas otimistas ainda não confirmadas pelo servidor.
+    const pendingRows = get().tasks.filter((t) => t.pending);
+    if (pendingRows.length > 0) {
+      const ids = new Set(tasks.map((t) => t.id));
+      tasks = [...pendingRows.filter((t) => !ids.has(t.id)), ...tasks];
+    }
+
     set({
       projects,
       labels,
