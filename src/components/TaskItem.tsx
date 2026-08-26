@@ -157,15 +157,56 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
         depth > 0 && 'ml-3 pl-2 sm:ml-6 sm:pl-4 border-l border-border/60'
       )}
     >
+      {/* Fundo de feedback do swipe */}
+      {enableDrag && (
+        <>
+          <motion.div
+            aria-hidden
+            style={{ opacity: completeOpacity }}
+            className="pointer-events-none absolute inset-0 rounded-xl sm:rounded-lg bg-success/20 flex items-center justify-start px-4 text-success"
+          >
+            <Check className="h-5 w-5" />
+          </motion.div>
+          <motion.div
+            aria-hidden
+            style={{ opacity: deleteOpacity }}
+            className="pointer-events-none absolute inset-0 rounded-xl sm:rounded-lg bg-destructive/20 flex items-center justify-end px-4 text-destructive"
+          >
+            <Trash2 className="h-5 w-5" />
+          </motion.div>
+        </>
+      )}
       <motion.div
+        ref={rowRef}
         drag={!enableDrag ? false : 'x'}
-        dragConstraints={{ left: -120, right: 120 }}
+        dragDirectionLock
+        dragSnapToOrigin
+        dragConstraints={{ left: -160, right: 160 }}
         dragElastic={0.2}
+        style={{ x }}
+        onDragStart={() => {
+          dragStartXRef.current = x.get();
+          movedRef.current = 0;
+          hapticFiredRef.current = false;
+        }}
+        onDrag={(_, info) => {
+          movedRef.current = Math.max(movedRef.current, Math.abs(info.offset.x));
+          const crossed =
+            info.offset.x > COMPLETE_THRESHOLD || info.offset.x < -deleteThreshold();
+          if (crossed && !hapticFiredRef.current) {
+            hapticFiredRef.current = true;
+            if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+              navigator.vibrate(12);
+            }
+          } else if (!crossed) {
+            hapticFiredRef.current = false;
+          }
+        }}
         onDragEnd={(_, info) => {
-          if (info.offset.x > 80) {
+          if (info.offset.x > COMPLETE_THRESHOLD) {
             // swipe direita → concluir
             complete(task.id);
-          } else if (info.offset.x < -80) {
+          } else if (info.offset.x < -deleteThreshold()) {
             // swipe esquerda → excluir (com prompt p/ recorrente)
             const snapshot = { ...task };
             void deleteWithPrompt(task.id, { occurrenceDate: task.dueDate ?? undefined }).then((result) => {
