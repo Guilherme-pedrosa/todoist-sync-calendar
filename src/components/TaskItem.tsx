@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -132,12 +132,39 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
   const movedRef = useRef(0);
   const hapticFiredRef = useRef(false);
   const COMPLETE_THRESHOLD = 80;
-  /** Excluir exige 45% da largura da linha (mín. 120px). */
-  const deleteThreshold = () =>
-    Math.max(120, (rowRef.current?.offsetWidth ?? 320) * 0.45);
+  /**
+   * Excluir exige 45% da largura da linha (mín. 120px, máx. 150px para
+   * continuar alcançável dentro do dragConstraints de 160px).
+   * Fonte de verdade única: medida no mount/resize e usada tanto no
+   * feedback visual quanto na decisão do onDragEnd.
+   */
+  const [deleteThreshold, setDeleteThreshold] = useState(120);
 
-  const completeOpacity = useTransform(x, [0, COMPLETE_THRESHOLD], [0, 1]);
-  const deleteOpacity = useTransform(x, [-COMPLETE_THRESHOLD, 0], [1, 0]);
+  useLayoutEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.offsetWidth || 320;
+      setDeleteThreshold(Math.min(150, Math.max(120, w * 0.45)));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [enableDrag]);
+
+  // Até cruzar o limiar o fundo vai no máximo a 60%; ao cruzar, 100%.
+  const completeOpacity = useTransform(
+    x,
+    [0, COMPLETE_THRESHOLD - 1, COMPLETE_THRESHOLD],
+    [0, 0.6, 1]
+  );
+  const deleteOpacity = useTransform(
+    x,
+    [-deleteThreshold, -(deleteThreshold - 1), 0],
+    [1, 0.6, 0]
+  );
 
   const handleClick = (e: React.MouseEvent) => {
     // Um arrasto (>8px) não deve abrir o detalhe
@@ -212,7 +239,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
         onDrag={(_, info) => {
           movedRef.current = Math.max(movedRef.current, Math.abs(info.offset.x));
           const crossed =
-            info.offset.x > COMPLETE_THRESHOLD || info.offset.x < -deleteThreshold();
+            info.offset.x > COMPLETE_THRESHOLD || info.offset.x < -deleteThreshold;
           if (crossed && !hapticFiredRef.current) {
             hapticFiredRef.current = true;
             if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
@@ -226,7 +253,7 @@ function TaskItemBase({ task, depth = 0, enableDrag = true }: TaskItemProps) {
           if (info.offset.x > COMPLETE_THRESHOLD) {
             // swipe direita → concluir
             complete(task.id);
-          } else if (info.offset.x < -deleteThreshold()) {
+          } else if (info.offset.x < -deleteThreshold) {
             // swipe esquerda → excluir (com prompt p/ recorrente)
             const snapshot = { ...task };
             void deleteWithPrompt(task.id, { occurrenceDate: task.dueDate ?? undefined }).then((result) => {

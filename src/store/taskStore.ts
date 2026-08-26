@@ -514,7 +514,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
     const targetProject = targetProjectId
       ? get().projects.find((p) => p.id === targetProjectId)
       : null;
-    console.info('[addTask] step=resolve-project', { projectId: targetProjectId, hasInbox: !!inboxProject });
+    if (import.meta.env.DEV) console.info('[addTask] step=resolve-project', { projectId: targetProjectId, hasInbox: !!inboxProject });
     // Resolve workspaceId SEMPRE a partir do projeto-alvo.
     // Se não conseguir, aborta — nunca usa workspace pessoal como fallback.
     let workspaceId: string | null = null;
@@ -542,7 +542,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       );
       return null;
     }
-    console.info('[addTask] step=resolve-workspace', { workspaceId, targetProjectId });
+    if (import.meta.env.DEV) console.info('[addTask] step=resolve-workspace', { workspaceId, targetProjectId });
 
     const insertPayload: Record<string, any> = {
       user_id: userId,
@@ -562,7 +562,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       section_id: taskData.sectionId || null,
       parent_id: taskData.parentId || null,
     };
-    console.info('[addTask] step=insert-payload', insertPayload);
+    if (import.meta.env.DEV) console.info('[addTask] step=insert-payload', insertPayload);
 
     // Inserção otimista: a linha aparece na lista antes da resposta do servidor.
     const tempId = crypto.randomUUID();
@@ -601,7 +601,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       p_section_id: insertPayload.section_id,
       p_parent_id: insertPayload.parent_id,
     });
-    console.info('[addTask] step=insert-response', { id: data?.id, error });
+    if (import.meta.env.DEV) console.info('[addTask] step=insert-response', { id: data?.id, error });
 
     if (error || !data) {
       dropOptimistic();
@@ -624,7 +624,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       return null;
     }
 
-    console.info('[addTask] step=local-insert', { id: data.id });
+    if (import.meta.env.DEV) console.info('[addTask] step=local-insert', { id: data.id });
 
     const labelIds = taskData.labels || [];
     const requestedAssignees = taskData.assigneeIds || [];

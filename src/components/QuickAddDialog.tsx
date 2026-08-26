@@ -277,7 +277,7 @@ export function QuickAddDialog() {
     if (submitting) return;
     const lines = taskLines.length > 0 ? taskLines : [title.trim()].filter(Boolean);
     if (lines.length === 0) return;
-    console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds, informedIds });
+    if (import.meta.env.DEV) console.info('[QuickAdd] submit-start', { count: lines.length, date, projectId, assigneeIds, informedIds });
     setSubmitting(true);
 
     // Snapshot dos campos: o diálogo fecha imediatamente, o resto termina em background.
@@ -340,7 +340,7 @@ export function QuickAddDialog() {
         })
       );
       const createdTasks = results.filter((t): t is NonNullable<typeof t> => !!t);
-      console.info('[QuickAdd] submit-end', { created: createdTasks.length, ids: createdTasks.map((t) => t.id) });
+      if (import.meta.env.DEV) console.info('[QuickAdd] submit-end', { created: createdTasks.length, ids: createdTasks.map((t) => t.id) });
       // Insert any additional absolute reminders (besides the auto one)
       if (createdTasks.length > 0 && snapshot.reminders.length > 0) {
         const additional = snapshot.reminders.filter((r) => r.type === 'absolute');
