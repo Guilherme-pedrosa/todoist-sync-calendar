@@ -667,17 +667,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       if (explicit != null) {
         offsets = [explicit];
       } else {
-        const { data: settings } = await supabase
-          .from('user_settings')
-          .select('default_reminder_minutes, reminder_offsets_minutes')
-          .eq('user_id', userId)
-          .maybeSingle();
-        const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
-          ? ((settings as any).reminder_offsets_minutes as number[])
-          : null;
-        offsets = fromArray && fromArray.length > 0
-          ? fromArray
-          : [settings?.default_reminder_minutes ?? 15];
+        offsets = get().reminderOffsets ?? [15];
       }
       const dueAt = new Date(`${data.due_date}T${data.due_time}`);
       const rows = offsets
@@ -828,19 +818,8 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
         await supabase.from('reminders').delete().eq('task_id', id).is('fired_at', null);
 
         if (merged.dueDate && merged.dueTime && !merged.completed) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: settings } = await supabase
-              .from('user_settings')
-              .select('default_reminder_minutes, reminder_offsets_minutes')
-              .eq('user_id', user.id)
-              .maybeSingle();
-            const fromArray = Array.isArray((settings as any)?.reminder_offsets_minutes)
-              ? ((settings as any).reminder_offsets_minutes as number[])
-              : null;
-            const offsets = fromArray && fromArray.length > 0
-              ? fromArray
-              : [settings?.default_reminder_minutes ?? 15];
+          {
+            const offsets = get().reminderOffsets ?? [15];
             const dueAt = new Date(`${merged.dueDate}T${merged.dueTime}:00`);
             const rows = offsets
               .filter((m) => typeof m === 'number' && m >= 0)
