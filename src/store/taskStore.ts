@@ -272,23 +272,30 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
   tasks: [],
   projects: [],
   labels: [],
+  sections: [],
   activeView: 'today',
   activeProjectId: null,
   activeLabelId: null,
   sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   loading: true,
+  lastFetchAt: null,
+  fullLoaded: false,
 
 
-  fetchData: async () => {
+  fetchData: async (options) => {
+    const scope = options?.scope ?? 'hot';
     const userId = await getUserId();
     if (!userId) return;
 
-    const [projectsRes, labelsRes, taskRows] = await Promise.all([
+    const startedAt = new Date().toISOString();
+
+    const [projectsRes, labelsRes, sectionsRes, taskRows] = await Promise.all([
       // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
-      fetchAllTaskRows(),
+      supabase.from('sections').select('id,project_id,name,position,is_collapsed').order('position'),
+      fetchAllTaskRows(scope),
     ]);
 
     const projects: Project[] = (projectsRes.data || [])
@@ -317,12 +324,61 @@ export const useTaskStore = create<TaskState>()((set, get) => ({
       isFavorite: !!l.is_favorite,
     }));
 
+    const sections = (sectionsRes.data || []) as SectionRow[];
+
     const tasks: Task[] = taskRows
       .map(mapDbTaskToTask)
       .filter((t): t is Task => t !== null)
       .map(applyPendingTaskUpdate);
 
-    set({ projects, labels, tasks, loading: false });
+    set({
+      projects,
+      labels,
+      sections,
+      tasks,
+      loading: false,
+      lastFetchAt: startedAt,
+      fullLoaded: scope === 'full' ? true : get().fullLoaded,
+    });
+
+    // Fase 2: completa o store por baixo, uma única vez.
+    if (scope === 'hot' && !get().fullLoaded) {
+      const saveData = (navigator as any)?.connection?.saveData;
+      if (!saveData) {
+        const run = () => {
+          if (get().fullLoaded) return;
+          void get().fetchData({ scope: 'full' });
+        };
+        setTimeout(() => {
+          const ric = (window as any).requestIdleCallback;
+          if (typeof ric === 'function') ric(run, { timeout: 5000 });
+          else setTimeout(run, 0);
+        }, 3000);
+      }
+    }
+  },
+
+  applySectionUpsert: (row) => {
+    if (!row?.id) return;
+    set((state) => {
+      const mapped: SectionRow = {
+        id: row.id,
+        project_id: row.project_id,
+        name: row.name,
+        position: row.position ?? 0,
+        is_collapsed: !!row.is_collapsed,
+      };
+      const exists = state.sections.some((s) => s.id === mapped.id);
+      const sections = exists
+        ? state.sections.map((s) => (s.id === mapped.id ? mapped : s))
+        : [...state.sections, mapped];
+      return { sections: sections.sort((a, b) => (a.position || 0) - (b.position || 0)) };
+    });
+  },
+
+  applySectionDelete: (id) => {
+    set((state) => ({ sections: state.sections.filter((s) => s.id !== id) }));
+
   },
 
   addTask: async (taskData, options) => {
