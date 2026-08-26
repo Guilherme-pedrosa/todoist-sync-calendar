@@ -5,7 +5,7 @@ import { useTaskStore } from '@/store/taskStore';
 import { AppSidebar } from '@/components/AppSidebar';
 import { QuickAddDialog } from '@/components/QuickAddDialog';
 import { AIAssistantPanel } from '@/components/AIAssistantPanel';
-import { MobileFab } from '@/components/MobileFab';
+
 import { TaskDetailPanel } from '@/components/TaskDetailPanel';
 import { RecurringEditDialog } from '@/components/RecurringEditDialog';
 import { CompleteSubtasksDialog } from '@/components/CompleteSubtasksDialog';
