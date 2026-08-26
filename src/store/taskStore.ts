@@ -34,6 +34,9 @@ interface TaskState {
   loading: boolean;
   lastFetchAt: string | null;
   fullLoaded: boolean;
+  /** Cache de preferências de lembrete (user_settings), carregado no arranque. */
+  reminderOffsets: number[] | null;
+  setReminderPrefs: (offsets: number[]) => void;
 
 
 
@@ -351,6 +354,12 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
   loading: true,
   lastFetchAt: null,
   fullLoaded: false,
+  reminderOffsets: null,
+
+  setReminderPrefs: (offsets) => {
+    const safe = (offsets || []).filter((m) => typeof m === 'number' && m >= 0);
+    set({ reminderOffsets: safe.length > 0 ? safe : [15] });
+  },
 
 
 
@@ -361,14 +370,28 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
 
     const startedAt = new Date().toISOString();
 
-    const [projectsRes, labelsRes, sectionsRes, taskRows] = await Promise.all([
+    const [projectsRes, labelsRes, sectionsRes, taskRows, settingsRes] = await Promise.all([
       // RLS já restringe ao que o usuário pode ver (próprios + workspace/team/projetos compartilhados).
       // NÃO filtrar por user_id aqui — isso excluiria projetos compartilhados.
       supabase.from('projects').select('*').order('position'),
       supabase.from('labels').select('*').eq('user_id', userId),
       supabase.from('sections').select('id,project_id,name,position,is_collapsed').order('position'),
       fetchAllTaskRows(scope),
+      supabase
+        .from('user_settings')
+        .select('default_reminder_minutes, reminder_offsets_minutes')
+        .eq('user_id', userId)
+        .maybeSingle(),
     ]);
+
+    const settingsRow: any = settingsRes?.data ?? null;
+    const settingsOffsetsArray = Array.isArray(settingsRow?.reminder_offsets_minutes)
+      ? (settingsRow.reminder_offsets_minutes as number[])
+      : null;
+    const reminderOffsets =
+      settingsOffsetsArray && settingsOffsetsArray.length > 0
+        ? settingsOffsetsArray
+        : [settingsRow?.default_reminder_minutes ?? 15];
 
     const projects: Project[] = (projectsRes.data || [])
       .filter((p: any) => !p.archived_at)
@@ -427,6 +450,7 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       loading: false,
       lastFetchAt: startedAt,
       fullLoaded: scope === 'full' ? true : get().fullLoaded,
+      reminderOffsets,
     });
 
 
