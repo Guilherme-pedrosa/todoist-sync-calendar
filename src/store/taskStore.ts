@@ -309,8 +309,14 @@ async function fetchAllTaskRows(scope: 'hot' | 'full' = 'full') {
 
     if (scope === 'hot') {
       const completedSince = new Date(Date.now() - 14 * 86400000).toISOString();
+      // `recurrence_rule.not.is.null` é OBRIGATÓRIO aqui: a Agenda expande as
+      // ocorrências a partir da série, ancorada em `due_date` — a data de
+      // INÍCIO, que pode ser de meses atrás. E as ocorrências concluídas
+      // (recurring_completions) só são desenhadas se a série-mãe estiver no
+      // store. Sem esta cláusula, séries antigas ou já concluídas ficam de fora
+      // do `hot` e a Agenda perde as repetições até o `full` chegar.
       query = query.or(
-        `completed.eq.false,completed_at.gte.${completedSince},and(due_date.gte.${isoDaysFromNow(-30)},due_date.lte.${isoDaysFromNow(90)})`
+        `completed.eq.false,recurrence_rule.not.is.null,completed_at.gte.${completedSince},and(due_date.gte.${isoDaysFromNow(-30)},due_date.lte.${isoDaysFromNow(90)})`
       );
     }
 
@@ -507,19 +513,25 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
 
 
     // Fase 2: completa o store por baixo, uma única vez.
+    //
+    // Roda SEMPRE. A versão anterior pulava esta fase quando
+    // navigator.connection.saveData estava ligado — e com isso o store nunca
+    // ficava completo no celular em modo de economia de dados. Três coisas
+    // dependem do store completo e falhavam em silêncio: a Agenda (expansão de
+    // recorrências e ocorrências concluídas), o ChatNotifier (descarta a
+    // notificação se não acha a tarefa) e a view Concluídas.
+    // Em saveData apenas adiamos mais, para não competir com a interação.
     if (scope === 'hot' && !get().fullLoaded) {
-      const saveData = (navigator as any)?.connection?.saveData;
-      if (!saveData) {
-        const run = () => {
-          if (get().fullLoaded) return;
-          void get().fetchData({ scope: 'full' });
-        };
-        setTimeout(() => {
-          const ric = (window as any).requestIdleCallback;
-          if (typeof ric === 'function') ric(run, { timeout: 5000 });
-          else setTimeout(run, 0);
-        }, 3000);
-      }
+      const saveData = !!(navigator as any)?.connection?.saveData;
+      const run = () => {
+        if (get().fullLoaded) return;
+        void get().fetchData({ scope: 'full' });
+      };
+      setTimeout(() => {
+        const ric = (window as any).requestIdleCallback;
+        if (typeof ric === 'function') ric(run, { timeout: 5000 });
+        else setTimeout(run, 0);
+      }, saveData ? 10000 : 3000);
     }
   },
 
