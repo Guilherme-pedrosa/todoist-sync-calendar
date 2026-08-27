@@ -27,7 +27,13 @@ export function ChatNotifier() {
     const off = onIncomingChatMessage((e) => {
       if (e.conversationType === 'task' && e.taskId) {
         const task = useTaskStore.getState().tasks.find((t) => t.id === e.taskId);
-        if (!task || task.completed) return;
+        // Silencia APENAS quando sabemos que a tarefa está concluída.
+        // Antes bastava não encontrá-la no store para descartar a notificação —
+        // o que passou a acontecer o tempo todo depois que o store deixou de
+        // carregar tudo de uma vez: tarefa fora da janela inicial, ou mensagem
+        // chegando antes da carga completa, e a notificação sumia calada.
+        // Na dúvida, notificar: perder um aviso é pior que mostrar um a mais.
+        if (task?.completed) return;
       }
       const title =
         e.conversationTitle ||
