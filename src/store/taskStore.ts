@@ -43,6 +43,8 @@ interface TaskState {
   fetchData: (options?: { scope?: 'hot' | 'full' }) => Promise<void>;
   applySectionUpsert: (row: any) => void;
   applySectionDelete: (id: string) => void;
+  /** Descarta linhas otimistas ainda não confirmadas (troca de usuário). */
+  dropPendingTasks: () => void;
 
 
   addTask: (
@@ -122,7 +124,11 @@ export function clearUserScopedTaskState() {
   pendingTaskUpdates.clear();
   inFlightCreations.clear();
   try {
-    useTaskStore.setState((state) => ({ tasks: state.tasks.filter((t) => !t.pending) }));
+    // Precisa passar pela action do store, não por useTaskStore.setState: o
+    // setState do zustand ignora o wrapper de `set` que reconstrói
+    // childrenByParentId/projectById/labelById, e o índice ficaria apontando
+    // para linhas otimistas já removidas (subtarefa fantasma no TaskItem).
+    useTaskStore.getState().dropPendingTasks();
   } catch {
     /* store ainda não inicializado */
   }
@@ -538,6 +544,14 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
   applySectionDelete: (id) => {
     set((state) => ({ sections: state.sections.filter((s) => s.id !== id) }));
 
+  },
+
+  dropPendingTasks: () => {
+    set((state) => {
+      const kept = state.tasks.filter((t) => !t.pending);
+      if (kept.length === state.tasks.length) return {};
+      return { tasks: kept };
+    });
   },
 
   addTask: async (taskData, options) => {
@@ -1241,16 +1255,20 @@ export const useTaskStore = create<TaskState>()((rawSet, get) => {
       // Preserve existing assignees/labels/meeting invitees if not in payload
       let merged = mapDbTaskToTask({
         ...row,
-        task_labels: row.task_labels ?? (existing ? existing.labels.map((id) => ({ label_id: id })) : []),
+        // assigneeIds/informedIds/meetingInviteeIds são opcionais em Task: sem a
+        // guarda, um UPDATE de `tasks` (que não traz as tabelas relacionadas)
+        // sobre uma linha incompleta lança dentro do handler de realtime, cai no
+        // catch de handleTaskEvent e dispara um resync completo.
+        task_labels: row.task_labels ?? (existing ? (existing.labels || []).map((id) => ({ label_id: id })) : []),
         task_assignees: row.task_assignees ?? (existing
           ? [
-              ...existing.assigneeIds.map((id) => ({ user_id: id, role: 'responsible' })),
+              ...(existing.assigneeIds || []).map((id) => ({ user_id: id, role: 'responsible' })),
               ...(existing.informedIds || []).map((id) => ({ user_id: id, role: 'informed' })),
             ]
           : []),
         meeting_invitations:
           row.meeting_invitations ??
-          (existing ? existing.meetingInviteeIds.map((id) => ({ invitee_user_id: id })) : []),
+          (existing ? (existing.meetingInviteeIds || []).map((id) => ({ invitee_user_id: id })) : []),
       });
       // Soft-deleted: comporta-se como remoção.
       if (!merged) {
