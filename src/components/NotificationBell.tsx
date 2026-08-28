@@ -25,7 +25,24 @@ import {
 import { cn } from '@/lib/utils';
 import { returnTaskToAssigner } from '@/lib/returnTask';
 
+/** Notificações "importantes": pessoas interagindo diretamente com você. */
+const IMPORTANT_TYPES = new Set([
+  'chat_mention',
+  'task_comment_mention',
+  'chat_message',
+  'task_assigned',
+  'task_assignment_returned',
+  'task_assignment_declined',
+  'task_assignment_accepted',
+  'project_announcement',
+]);
+
+function isImportant(n: AppNotification): boolean {
+  return IMPORTANT_TYPES.has(n.type);
+}
+
 export function NotificationBell() {
+
   const navigate = useNavigate();
   const openTaskDetail = useTaskDetailStore((s) => s.open);
   const items = useNotificationStore((s) => s.items);
@@ -33,15 +50,24 @@ export function NotificationBell() {
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const [open, setOpen] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [tab, setTab] = useState<'important' | 'system'>('important');
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(
     getNotificationPermission()
   );
 
   const unreadCount = useMemo(() => items.filter((n) => !n.readAt).length, [items]);
-  const visibleItems = useMemo(
-    () => (unreadOnly ? items.filter((n) => !n.readAt) : items),
-    [items, unreadOnly]
+  const importantItems = useMemo(() => items.filter((n) => isImportant(n)), [items]);
+  const systemItems = useMemo(() => items.filter((n) => !isImportant(n)), [items]);
+  const importantUnread = useMemo(
+    () => importantItems.filter((n) => !n.readAt).length,
+    [importantItems]
   );
+  const systemUnread = useMemo(() => systemItems.filter((n) => !n.readAt).length, [systemItems]);
+  const visibleItems = useMemo(() => {
+    const base = tab === 'important' ? importantItems : systemItems;
+    return unreadOnly ? base.filter((n) => !n.readAt) : base;
+  }, [importantItems, systemItems, tab, unreadOnly]);
+
 
   const handleClick = (n: AppNotification) => {
     markRead(n.id);
@@ -111,6 +137,43 @@ export function NotificationBell() {
           )}
         </div>
 
+        <div className="grid grid-cols-2 gap-1 px-3 pt-2">
+          <button
+            type="button"
+            onClick={() => setTab('important')}
+            className={cn(
+              'h-8 px-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
+              tab === 'important'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <AtSign className="h-3.5 w-3.5" />
+            Importantes
+            {importantUnread > 0 && (
+              <Badge className="h-4 px-1 text-[10px]">{importantUnread > 99 ? '99+' : importantUnread}</Badge>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('system')}
+            className={cn(
+              'h-8 px-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
+              tab === 'system'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            Sistema
+            {systemUnread > 0 && (
+              <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                {systemUnread > 99 ? '99+' : systemUnread}
+              </Badge>
+            )}
+          </button>
+        </div>
+
         <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/20">
           <button
             type="button"
@@ -139,6 +202,7 @@ export function NotificationBell() {
           </button>
         </div>
 
+
         {perm === 'default' && (
           <button
             onClick={askPermission}
@@ -166,8 +230,13 @@ export function NotificationBell() {
         <div className="max-h-[380px] overflow-y-auto">
           {visibleItems.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              {unreadOnly ? 'Nenhuma notificação não lida.' : 'Nenhuma notificação ainda.'}
+              {unreadOnly
+                ? 'Nenhuma notificação não lida aqui.'
+                : tab === 'important'
+                  ? 'Nenhuma menção, atribuição ou comentário.'
+                  : 'Nenhum lembrete ou compromisso.'}
             </div>
+
           ) : (
             visibleItems.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
           )}
