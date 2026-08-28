@@ -33,15 +33,24 @@ export function NotificationBell() {
   const markAllRead = useNotificationStore((s) => s.markAllRead);
   const [open, setOpen] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [tab, setTab] = useState<'important' | 'system'>('important');
   const [perm, setPerm] = useState<NotificationPermission | 'unsupported'>(
     getNotificationPermission()
   );
 
   const unreadCount = useMemo(() => items.filter((n) => !n.readAt).length, [items]);
-  const visibleItems = useMemo(
-    () => (unreadOnly ? items.filter((n) => !n.readAt) : items),
-    [items, unreadOnly]
+  const importantItems = useMemo(() => items.filter((n) => isImportant(n)), [items]);
+  const systemItems = useMemo(() => items.filter((n) => !isImportant(n)), [items]);
+  const importantUnread = useMemo(
+    () => importantItems.filter((n) => !n.readAt).length,
+    [importantItems]
   );
+  const systemUnread = useMemo(() => systemItems.filter((n) => !n.readAt).length, [systemItems]);
+  const visibleItems = useMemo(() => {
+    const base = tab === 'important' ? importantItems : systemItems;
+    return unreadOnly ? base.filter((n) => !n.readAt) : base;
+  }, [importantItems, systemItems, tab, unreadOnly]);
+
 
   const handleClick = (n: AppNotification) => {
     markRead(n.id);
