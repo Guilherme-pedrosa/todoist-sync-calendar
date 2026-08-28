@@ -25,7 +25,24 @@ import {
 import { cn } from '@/lib/utils';
 import { returnTaskToAssigner } from '@/lib/returnTask';
 
+/** Notificações "importantes": pessoas interagindo diretamente com você. */
+const IMPORTANT_TYPES = new Set([
+  'chat_mention',
+  'task_comment_mention',
+  'chat_message',
+  'task_assigned',
+  'task_assignment_returned',
+  'task_assignment_declined',
+  'task_assignment_accepted',
+  'project_announcement',
+]);
+
+function isImportant(n: AppNotification): boolean {
+  return IMPORTANT_TYPES.has(n.type);
+}
+
 export function NotificationBell() {
+
   const navigate = useNavigate();
   const openTaskDetail = useTaskDetailStore((s) => s.open);
   const items = useNotificationStore((s) => s.items);
