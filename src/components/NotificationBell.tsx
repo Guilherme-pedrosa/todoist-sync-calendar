@@ -230,8 +230,13 @@ export function NotificationBell() {
         <div className="max-h-[380px] overflow-y-auto">
           {visibleItems.length === 0 ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
-              {unreadOnly ? 'Nenhuma notificação não lida.' : 'Nenhuma notificação ainda.'}
+              {unreadOnly
+                ? 'Nenhuma notificação não lida aqui.'
+                : tab === 'important'
+                  ? 'Nenhuma menção, atribuição ou comentário.'
+                  : 'Nenhum lembrete ou compromisso.'}
             </div>
+
           ) : (
             visibleItems.map((n) => <Item key={n.id} n={n} onClick={() => handleClick(n)} onClose={() => setOpen(false)} />)
           )}
