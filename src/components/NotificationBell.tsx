@@ -120,6 +120,43 @@ export function NotificationBell() {
           )}
         </div>
 
+        <div className="grid grid-cols-2 gap-1 px-3 pt-2">
+          <button
+            type="button"
+            onClick={() => setTab('important')}
+            className={cn(
+              'h-8 px-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
+              tab === 'important'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <AtSign className="h-3.5 w-3.5" />
+            Importantes
+            {importantUnread > 0 && (
+              <Badge className="h-4 px-1 text-[10px]">{importantUnread > 99 ? '99+' : importantUnread}</Badge>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('system')}
+            className={cn(
+              'h-8 px-2 rounded-md text-xs font-semibold transition-colors flex items-center justify-center gap-1.5',
+              tab === 'system'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
+            Sistema
+            {systemUnread > 0 && (
+              <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                {systemUnread > 99 ? '99+' : systemUnread}
+              </Badge>
+            )}
+          </button>
+        </div>
+
         <div className="flex items-center gap-1 px-3 py-2 border-b bg-muted/20">
           <button
             type="button"
@@ -147,6 +184,7 @@ export function NotificationBell() {
             )}
           </button>
         </div>
+
 
         {perm === 'default' && (
           <button
