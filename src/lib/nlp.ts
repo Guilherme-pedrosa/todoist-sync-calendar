@@ -371,7 +371,15 @@ export function recurrenceRuleToLabel(rule: string | null | undefined): string |
     if (/FREQ=WEEKLY/.test(normalized) && /BYDAY=MO,TU,WE,TH,FR/.test(normalized)) {
       return 'Todo dia útil';
     }
-    const r = RRule.fromString(rule.startsWith('RRULE:') ? rule : `RRULE:${rule}`);
+    // Regras editadas viram bloco ICS (DTSTART/RRULE/EXDATE); para o label
+    // interessa só a linha RRULE — fromString lança com EXDATE e o chip
+    // acabava exibindo o bloco ICS cru.
+    const rruleLine =
+      rule
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .find((l) => /^RRULE[:;]/i.test(l) || (/^[A-Z]+=/i.test(l) && !/^(DTSTART|EXDATE)/i.test(l))) ?? rule;
+    const r = RRule.fromString(rruleLine.startsWith('RRULE:') ? rruleLine : `RRULE:${rruleLine}`);
     return r.toText();
   } catch {
     return rule;

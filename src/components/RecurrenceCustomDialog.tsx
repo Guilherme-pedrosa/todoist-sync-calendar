@@ -62,7 +62,11 @@ export function RecurrenceCustomDialog({ open, onOpenChange, initialRule, onSave
           setCount(o.count);
         } else if (o.until) {
           setEndMode('until');
-          setUntil(new Date(o.until).toISOString().slice(0, 10));
+          // UNTIL vive na convenção do rrule (campos UTC = hora de parede);
+          // ler com getUTC* para não deslocar a data um dia no fuso local.
+          const u = new Date(o.until);
+          const p = (n: number) => String(n).padStart(2, '0');
+          setUntil(`${u.getUTCFullYear()}-${p(u.getUTCMonth() + 1)}-${p(u.getUTCDate())}`);
         } else {
           setEndMode('never');
         }
@@ -86,7 +90,12 @@ export function RecurrenceCustomDialog({ open, onOpenChange, initialRule, onSave
       opts.byweekday = byday.map((d) => new Weekday(d));
     }
     if (endMode === 'count') opts.count = Math.max(1, count);
-    if (endMode === 'until' && until) opts.until = new Date(`${until}T23:59:59`);
+    if (endMode === 'until' && until) {
+      const [y, m, d] = until.split('-').map(Number);
+      // Fim do dia de parede na convenção do rrule (Date.UTC), para o UNTIL
+      // serializado cobrir o dia escolhido sem vazar para o dia seguinte.
+      opts.until = new Date(Date.UTC(y, m - 1, d, 23, 59, 59));
+    }
     const rule = new RRule(opts).toString().replace('RRULE:', '');
     onSave(rule);
     onOpenChange(false);
