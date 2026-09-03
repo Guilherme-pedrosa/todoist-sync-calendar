@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { ChatThread } from '@/components/ChatThread';
 import { useChatStore } from '@/store/chatStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 
 interface Props {
   taskId: string;
@@ -23,20 +24,33 @@ export function TaskConversationButton({ taskId }: Props) {
   const ensureTaskConversation = useChatStore((s) => s.ensureTaskConversation);
   const conversations = useChatStore((s) => s.conversations);
   const unread = useChatStore((s) => s.unreadByConversation);
+  const shouldOpenChat = useTaskDetailStore((s) => s.openChat);
   const [conversationId, setConversationId] = useState<string | null>(null);
 
   // Tenta carregar a conversa existente (sem criar) ao montar
   useEffect(() => {
-    let active = true;
     const existing = conversations.find((c) => c.taskId === taskId);
-    if (existing) {
-      setConversationId(existing.id);
-      return;
-    }
-    return () => {
-      active = false;
-    };
+    if (existing) setConversationId(existing.id);
   }, [taskId, conversations]);
+
+  // Abre automaticamente quando o detalhe foi aberto a partir de uma notificação de chat
+  useEffect(() => {
+    if (!shouldOpenChat) return;
+    useTaskDetailStore.setState({ openChat: false });
+    let cancelled = false;
+    (async () => {
+      const existing = useChatStore.getState().conversations.find((c) => c.taskId === taskId);
+      const id = existing?.id ?? (await ensureTaskConversation(taskId));
+      if (!cancelled && id) {
+        setConversationId(id);
+        setOpen(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldOpenChat, taskId, ensureTaskConversation]);
+
 
   const unreadCount = conversationId ? unread[conversationId] || 0 : 0;
 

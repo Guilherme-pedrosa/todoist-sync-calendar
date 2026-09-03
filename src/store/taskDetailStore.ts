@@ -7,6 +7,7 @@ interface TaskDetailState {
   occurrenceDate: string | null;
   rangeStart: string | null;
   rangeEnd: string | null;
+  openChat: boolean;
   open: (
     id: string,
     context?: {
@@ -14,6 +15,7 @@ interface TaskDetailState {
       rangeStart?: string;
       rangeEnd?: string;
       taskSnapshot?: Task;
+      openChat?: boolean;
     }
   ) => void;
   close: () => void;
@@ -25,6 +27,7 @@ export const useTaskDetailStore = create<TaskDetailState>()((set) => ({
   occurrenceDate: null,
   rangeStart: null,
   rangeEnd: null,
+  openChat: false,
   open: (id, context) => set({
     taskId: id,
     taskSnapshot: context?.taskSnapshot
@@ -33,6 +36,7 @@ export const useTaskDetailStore = create<TaskDetailState>()((set) => ({
     occurrenceDate: context?.occurrenceDate ?? null,
     rangeStart: context?.rangeStart ?? null,
     rangeEnd: context?.rangeEnd ?? null,
+    openChat: context?.openChat ?? false,
   }),
   close: () => set({
     taskId: null,
@@ -40,5 +44,6 @@ export const useTaskDetailStore = create<TaskDetailState>()((set) => ({
     occurrenceDate: null,
     rangeStart: null,
     rangeEnd: null,
+    openChat: false,
   }),
 }));

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { onIncomingChatMessage, useChatStore } from '@/store/chatStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   maybeAutoRequestPermission,
   playChime,
@@ -44,11 +45,12 @@ export function ChatNotifier() {
       const open = () => {
         clearTabBlink();
         if (e.conversationType === 'task' && e.taskId) {
-          navigate(`/?task=${e.taskId}`);
+          useTaskDetailStore.getState().open(e.taskId, { openChat: true });
         } else {
           navigate(`/conversations/${e.message.conversationId}`);
         }
       };
+
 
       // Toast in-app
       toast(
