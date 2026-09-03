@@ -12,6 +12,7 @@ import {
 import { ChatThread } from '@/components/ChatThread';
 import { useChatStore } from '@/store/chatStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
+import { toast } from 'sonner';
 
 interface Props {
   taskId: string;
@@ -65,6 +66,12 @@ export function TaskConversationButton({ taskId }: Props) {
       if (id) {
         setConversationId(id);
         setOpen(true);
+      } else {
+        // Nunca falhar em silêncio: sem isso o clique "não faz nada" e o
+        // usuário não tem como saber o motivo.
+        toast.error('Não consegui abrir a conversa desta tarefa', {
+          description: 'Verifique se você tem acesso ao projeto dela e tente de novo.',
+        });
       }
     } finally {
       setLoading(false);

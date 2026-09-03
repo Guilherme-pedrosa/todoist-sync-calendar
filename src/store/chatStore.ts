@@ -116,38 +116,40 @@ function mapMsg(row: any): Message {
 }
 
 async function syncTaskConversationParticipants(conversationId: string, taskId: string, currentUserId: string) {
+  // Vincula como participantes apenas quem deve ser NOTIFICADO da conversa
+  // (criador/dono/responsáveis/informados — getTaskChatRecipientIds). Quem
+  // acessa por estar no projeto abre o chat sem virar participante e sem ser
+  // notificado. Best-effort: a RLS só permite UPDATE da própria linha, então
+  // os upserts usam ignoreDuplicates (DO NOTHING) para nunca virarem UPDATE
+  // de linha alheia — era isso que fazia a abertura falhar na 2ª vez em
+  // diante. Nada aqui pode impedir a abertura da conversa.
   const recipientIds = await getTaskChatRecipientIds(taskId);
-  if (!recipientIds.includes(currentUserId)) {
-    console.warn('[chat] user is not allowed in task conversation', { conversationId, taskId });
-    return false;
-  }
 
-  const selfResult = await supabase
-    .from('conversation_participants')
-    .upsert(
-      { conversation_id: conversationId, user_id: currentUserId } as any,
-      { onConflict: 'conversation_id,user_id' }
-    );
-
-  if (selfResult.error) {
-    console.warn('[chat] failed to join task conversation', selfResult.error);
-    return false;
+  if (recipientIds.includes(currentUserId)) {
+    const selfResult = await supabase
+      .from('conversation_participants')
+      .upsert(
+        { conversation_id: conversationId, user_id: currentUserId } as any,
+        { onConflict: 'conversation_id,user_id', ignoreDuplicates: true }
+      );
+    if (selfResult.error) {
+      console.warn('[chat] failed to join task conversation', selfResult.error);
+    }
   }
 
   const otherIds = Array.from(new Set(recipientIds)).filter((id) => id !== currentUserId);
-  if (otherIds.length === 0) return true;
+  if (otherIds.length === 0) return;
 
   const { error } = await supabase
     .from('conversation_participants')
     .upsert(
       otherIds.map((userId) => ({ conversation_id: conversationId, user_id: userId })) as any,
-      { onConflict: 'conversation_id,user_id' }
+      { onConflict: 'conversation_id,user_id', ignoreDuplicates: true }
     );
 
   if (error) {
     console.warn('[chat] failed to sync task participants', error);
   }
-  return !error;
 }
 
 async function getCurrentUserId(): Promise<string | null> {
@@ -398,16 +400,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const uid = await getCurrentUserId();
     if (!uid) return null;
 
-    const recipientIds = await getTaskChatRecipientIds(taskId);
-    if (!recipientIds.includes(uid)) {
-      console.warn('[chat] blocked task conversation for non-participant task', { taskId });
-      return null;
-    }
-
+    // Acesso ao chat da tarefa = acesso à tarefa (estar no projeto basta);
+    // quem não tem acesso é barrado pela RLS no SELECT/INSERT abaixo. A
+    // sincronização de participantes só define quem é notificado e nunca
+    // impede a abertura.
     const existing = get().conversations.find((c) => c.taskId === taskId);
     if (existing) {
-      const ok = await syncTaskConversationParticipants(existing.id, taskId, uid);
-      return ok ? existing.id : null;
+      await syncTaskConversationParticipants(existing.id, taskId, uid);
+      return existing.id;
     }
 
     // Pode ainda não estar no estado — busca direto
@@ -419,8 +419,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (data) {
       const conv = mapConv(data);
-      const ok = await syncTaskConversationParticipants(conv.id, taskId, uid);
-      if (!ok) return null;
+      await syncTaskConversationParticipants(conv.id, taskId, uid);
       set((state) => ({
         conversations: [conv, ...state.conversations.filter((c) => c.id !== conv.id)],
       }));

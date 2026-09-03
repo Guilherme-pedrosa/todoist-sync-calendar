@@ -208,21 +208,8 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         if (att) uploaded.push(att);
       }
       const mentionedIds = extractMentionedUserIds(text);
-      if (user) {
-        const preflightMeta: ChatMeta | null = conversation ?? (await supabase
-          .from('conversations')
-          .select('type, task_id, workspace_id')
-          .eq('id', conversationId)
-          .maybeSingle()).data;
-        const preflightTaskId = preflightMeta?.taskId ?? preflightMeta?.task_id;
-        if (preflightMeta?.type === 'task' && preflightTaskId) {
-          const recipientIds = await getTaskChatRecipientIds(preflightTaskId);
-          if (!recipientIds.includes(user.id)) {
-            toast.error('Voce nao participa dessa tarefa');
-            return;
-          }
-        }
-      }
+      // Qualquer pessoa com acesso à tarefa (estar no projeto basta) pode
+      // participar do chat; quem não tem acesso é barrado pela RLS no insert.
       await sendMessage(conversationId, text || '(anexo)', uploaded, mentionedIds);
 
       if (user) {
@@ -240,14 +227,21 @@ export function ChatThread({ conversationId, compact, showOpenFull }: Props) {
         const workspaceId = chatMeta?.workspaceId ?? chatMeta?.workspace_id;
         if (chatMeta?.type === 'task' && taskId) {
           recipientIds = await getTaskChatRecipientIds(taskId);
-          const conversationParticipantRows = Array.from(new Set([user.id, ...recipientIds])).map((userId) => ({
+          // Vincula como participantes apenas quem é notificado (criador,
+          // responsáveis, informados) — quem escreve por ter acesso ao
+          // projeto não entra na lista. ignoreDuplicates evita o UPDATE de
+          // linha alheia que a RLS nega (travava o chat na 2ª abertura).
+          const conversationParticipantRows = Array.from(new Set(recipientIds)).map((userId) => ({
             conversation_id: conversationId,
             user_id: userId,
           }));
           if (conversationParticipantRows.length > 0) {
             const { error: participantError } = await supabase
               .from('conversation_participants')
-              .upsert(conversationParticipantRows as any, { onConflict: 'conversation_id,user_id' });
+              .upsert(conversationParticipantRows as any, {
+                onConflict: 'conversation_id,user_id',
+                ignoreDuplicates: true,
+              });
             if (participantError) {
               console.warn('[chat] failed to sync task conversation participants', participantError);
             }
