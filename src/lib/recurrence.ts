@@ -4,6 +4,57 @@ import { getHolidayForDate } from '@/lib/holidays';
 import { parseBusinessDayRule, nextNthBusinessDay, nthBusinessDayOfMonth } from '@/lib/businessDay';
 
 /**
+ * CONVENÇÃO DE DATAS DESTE MÓDULO — leia antes de mexer.
+ *
+ * O rrule.js faz TODA a matemática de recorrência nos campos UTC dos Dates, e
+ * o parser de strings ICS (rrulestr) interpreta datas "naive" tipo
+ * `DTSTART:20260901T130000` como UTC. Se entrarmos com Dates locais
+ * (parseISO/new Date) e formatarmos a saída com date-fns local, cada
+ * conversão desloca o horário pelo offset do fuso (-3h em Brasília) — foi o
+ * bug que fazia o almoço de 13:00 virar 10:00 e depois 07:00.
+ *
+ * Regra deste arquivo: todo Date que ENTRA no rrule é construído com
+ * Date.UTC(...) a partir dos componentes de parede (wall clock), e todo Date
+ * que SAI do rrule é lido com getUTC*(). Nenhum Date local atravessa a
+ * fronteira do rrule, em nenhuma direção. Assim as strings naive gravadas no
+ * banco (T130000 = 13:00 de parede) significam sempre o horário que o
+ * usuário escolheu, em qualquer fuso e sem migração.
+ */
+
+/** Data/hora de parede (yyyy-MM-dd + HH:mm) → Date na convenção do rrule. */
+function wallToRRuleDate(dateStr: string, timeStr?: string | null): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh = 0, mm = 0] = (timeStr || '00:00').split(':').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hh, mm, 0));
+}
+
+/** Date vindo do rrule → strings de parede { date: yyyy-MM-dd, time: HH:mm }. */
+function rruleDateToWall(d: Date): { date: string; time: string } {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    date: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`,
+    time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
+  };
+}
+
+/** Date na convenção do rrule → string ICS naive yyyyMMdd'T'HHmmss. */
+function rruleDateToIcs(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}` +
+    `T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}`
+  );
+}
+
+/** "Agora" da parede local convertido para a convenção do rrule. */
+function nowAsRRuleDate(): Date {
+  const n = new Date();
+  return new Date(
+    Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), n.getHours(), n.getMinutes(), n.getSeconds())
+  );
+}
+
+/**
  * Detects "every weekday" rules (FREQ=WEEKLY with BYDAY=MO,TU,WE,TH,FR).
  * For these, occurrences that fall on a national holiday should be skipped.
  */
@@ -22,14 +73,14 @@ function isWeekdayOnlyRule(recurrenceRule: string): boolean {
 /**
  * Parse a stored recurrence string. Supports a bare RRULE (e.g.
  * "FREQ=WEEKLY;BYDAY=FR") OR a full ICS block with EXDATE lines.
+ * `dtstart` must already be in the rrule convention (wallToRRuleDate).
  */
 function parseRecurrence(recurrenceRule: string, dtstart: Date) {
   const trimmed = recurrenceRule.trim();
   if (/\n/.test(trimmed) || /\bEXDATE[:;]/i.test(trimmed)) {
     let body = trimmed;
     if (!/\bDTSTART[:;]/i.test(body)) {
-      const dt = format(dtstart, "yyyyMMdd'T'HHmmss");
-      body = `DTSTART:${dt}\n${body}`;
+      body = `DTSTART:${rruleDateToIcs(dtstart)}\n${body}`;
     }
     return rrulestr(body, { forceset: true });
   }
@@ -42,6 +93,8 @@ function parseRecurrence(recurrenceRule: string, dtstart: Date) {
  * Expand a recurrence rule between two dates (inclusive), anchored at the
  * task's current due date/time. Returns yyyy-MM-dd strings for each real
  * RRULE occurrence that falls in [rangeStart, rangeEnd].
+ * `rangeStart`/`rangeEnd` are ordinary local Dates (as the pages produce);
+ * only their local calendar day is used.
  */
 export function expandOccurrencesInRange(
   recurrenceRule: string | null | undefined,
@@ -74,13 +127,12 @@ export function expandOccurrencesInRange(
   }
 
   try {
-    const anchor = parseISO(`${anchorDate}T${anchorTime || '00:00'}:00`);
+    const anchor = wallToRRuleDate(anchorDate, anchorTime);
     const rule = parseRecurrence(recurrenceRule, anchor);
 
-    const start = new Date(rangeStart);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(rangeEnd);
-    end.setHours(23, 59, 59, 999);
+    // Limites do dia local convertidos para a convenção do rrule.
+    const start = wallToRRuleDate(format(rangeStart, 'yyyy-MM-dd'), '00:00');
+    const end = new Date(wallToRRuleDate(format(rangeEnd, 'yyyy-MM-dd'), '23:59').getTime() + 59_999);
 
     const lookupStart = anchor < start ? start : anchor;
 
@@ -88,7 +140,7 @@ export function expandOccurrencesInRange(
     const skipHolidays = isWeekdayOnlyRule(recurrenceRule);
     const dates = new Set<string>();
     for (const d of occurrences) {
-      const key = format(d, 'yyyy-MM-dd');
+      const key = rruleDateToWall(d).date;
       if (skipHolidays) {
         const h = getHolidayForDate(key);
         if (h?.type === 'national') continue;
@@ -105,7 +157,7 @@ export function expandOccurrencesInRange(
 /**
  * Add an EXDATE entry to a recurrence string. Returns a normalized
  * multi-line value containing DTSTART + RRULE + EXDATE(s). The exception
- * date must match the anchor's local time so rrule treats it as a real
+ * date must match the anchor's wall-clock time so rrule treats it as a real
  * occurrence to skip.
  */
 export function addExdateToRecurrence(
@@ -137,14 +189,10 @@ export function addExdateToRecurrence(
     if (m) timeHHMM = `${m[1]}:${m[2]}`;
   }
 
-  const dtstartLocal = parseISO(`${anchorDate}T${timeHHMM}:00`);
-  const exLocal = parseISO(`${exceptionDate}T${timeHHMM}:00`);
-  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
-
-  if (!dtstart) dtstart = `DTSTART:${fmt(dtstartLocal)}`;
+  if (!dtstart) dtstart = `DTSTART:${rruleDateToIcs(wallToRRuleDate(anchorDate, timeHHMM))}`;
   if (!rrule) rrule = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
 
-  exdates.push(`EXDATE:${fmt(exLocal)}`);
+  exdates.push(`EXDATE:${rruleDateToIcs(wallToRRuleDate(exceptionDate, timeHHMM))}`);
 
   return [dtstart, rrule, ...exdates].join('\n');
 }
@@ -230,10 +278,9 @@ export function rewriteRecurrenceAnchor(
   if (!/\bDTSTART[:;]/i.test(trimmed) && !/\bEXDATE[:;]/i.test(trimmed)) {
     return trimmed;
   }
-  const time = newAnchorTime || '00:00';
-  const newAnchorLocal = parseISO(`${newAnchorDate}T${time}:00`);
-  const fmt = (d: Date) => format(d, "yyyyMMdd'T'HHmmss");
-  const newTimeStr = format(newAnchorLocal, "'T'HHmmss");
+  const newAnchor = wallToRRuleDate(newAnchorDate, newAnchorTime);
+  const newAnchorIcs = rruleDateToIcs(newAnchor);
+  const newTimeStr = `T${newAnchorIcs.slice(9)}`;
 
   const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   let dtstartLine: string | null = null;
@@ -241,7 +288,7 @@ export function rewriteRecurrenceAnchor(
   const exdates: string[] = [];
 
   for (const line of lines) {
-    if (/^DTSTART[:;]/i.test(line)) dtstartLine = `DTSTART:${fmt(newAnchorLocal)}`;
+    if (/^DTSTART[:;]/i.test(line)) dtstartLine = `DTSTART:${newAnchorIcs}`;
     else if (/^EXDATE[:;]/i.test(line)) {
       // Replace the time portion of each EXDATE date with the new time,
       // preserving the original date so the exception still applies.
@@ -251,7 +298,7 @@ export function rewriteRecurrenceAnchor(
     else if (/^[A-Z]+=/i.test(line)) rruleLine = `RRULE:${line}`;
   }
 
-  if (!dtstartLine) dtstartLine = `DTSTART:${fmt(newAnchorLocal)}`;
+  if (!dtstartLine) dtstartLine = `DTSTART:${newAnchorIcs}`;
   if (!rruleLine) rruleLine = trimmed.startsWith('RRULE:') ? trimmed : `RRULE:${trimmed}`;
 
   return [dtstartLine, rruleLine, ...exdates].join('\n');
@@ -282,19 +329,17 @@ export function nextOccurrence(
   }
 
   try {
-    let anchor: Date;
-    if (currentDate) {
-      anchor = parseISO(`${currentDate}T${currentTime || '00:00'}:00`);
-    } else {
-      anchor = new Date();
-    }
+    const anchor = currentDate
+      ? wallToRRuleDate(currentDate, currentTime)
+      : nowAsRRuleDate();
     const rule = parseRecurrence(recurrenceRule, anchor);
     const next = rule.after(anchor, false);
     if (!next) return null;
 
+    const wall = rruleDateToWall(next);
     return {
-      dueDate: format(next, 'yyyy-MM-dd'),
-      dueTime: currentTime ? format(next, 'HH:mm') : undefined,
+      dueDate: wall.date,
+      dueTime: currentTime ? wall.time : undefined,
     };
   } catch (e) {
     console.error('nextOccurrence error', e);
