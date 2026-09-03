@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { onIncomingChatMessage, useChatStore } from '@/store/chatStore';
 import { useTaskStore } from '@/store/taskStore';
+import { useTaskDetailStore } from '@/store/taskDetailStore';
 import {
   maybeAutoRequestPermission,
   playChime,
