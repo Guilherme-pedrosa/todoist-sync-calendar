@@ -1,4 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
+import { createGcFetch } from '../_shared/gc-user.ts';
+
+const fetchGc = createGcFetch(globalThis.fetch.bind(globalThis));
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +44,7 @@ async function gcFetch(path: string, params: Record<string, string | number>) {
   const qs = new URLSearchParams(params as any).toString();
   const url = `${GC_BASE}${path}?${qs}`;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const r = await fetch(url, {
+    const r = await fetchGc(url, {
       headers: {
         'access-token': ACCESS_TOKEN,
         'secret-access-token': SECRET_TOKEN,
