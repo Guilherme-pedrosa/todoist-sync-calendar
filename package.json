@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test:gc-attribution": "node --test tests/gc-api-user.test.mjs",
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
