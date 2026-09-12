@@ -26,7 +26,8 @@
   }
   /* Impede zoom automático do iOS ao focar inputs (font-size >= 16px é o gatilho). */
   @media (max-width: 767px) {
-    input, textarea, select {
+    /* Especificidade maior que text-sm/text-xs, inclusive nos seletores em portais. */
+    :root input, :root textarea, :root select {
       font-size: 16px;
     }
 

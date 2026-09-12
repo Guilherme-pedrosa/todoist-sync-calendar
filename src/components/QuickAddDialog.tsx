@@ -91,23 +91,6 @@ export function QuickAddDialog() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  // Ancoragem do rodapé ao topo do teclado virtual (iOS/Android).
-  const [keyboardInset, setKeyboardInset] = useState(0);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.visualViewport) return;
-    const vv = window.visualViewport;
-    const handler = () => {
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      setKeyboardInset(inset > 80 ? inset : 0);
-    };
-    handler();
-    vv.addEventListener('resize', handler);
-    vv.addEventListener('scroll', handler);
-    return () => {
-      vv.removeEventListener('resize', handler);
-      vv.removeEventListener('scroll', handler);
-    };
-  }, []);
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -200,10 +183,7 @@ export function QuickAddDialog() {
     setShowLocation(false);
     setProjectId(defaultProjectId || routeContext.projectId || inboxProject?.id);
     nlpSetRef.current = {};
-    // O teclado já foi aberto pelo campo "primer" no gesto do usuário;
-    // aqui apenas transferimos o foco para o campo real (sem setTimeout).
-    inputRef.current?.focus();
-    requestAnimationFrame(() => inputRef.current?.focus());
+    // O foco é aplicado por onOpenAutoFocus, quando o campo já está montado no portal.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultProjectId, defaultDueDate, defaultDueTime, defaultDurationMinutes, inboxProject?.id]);
 
@@ -722,7 +702,9 @@ export function QuickAddDialog() {
         </div>
       )}
 
-      <div className="px-4 pt-4 pb-2">
+      {/* Vaul ajusta a altura ao teclado; só os campos rolam, mantendo as ações acessíveis. */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="min-w-0 px-4 pt-4 pb-2">
         <textarea
           ref={inputRef}
           rows={1}
@@ -733,7 +715,7 @@ export function QuickAddDialog() {
             e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
           }}
           placeholder="Nome da tarefa"
-          className="w-full min-h-9 resize-none overflow-hidden border-0 bg-transparent px-0 py-1 text-base font-semibold leading-snug outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
+          className="block w-full min-w-0 min-h-9 resize-none overflow-hidden border-0 bg-transparent px-0 py-1 text-base font-semibold leading-snug outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -789,24 +771,26 @@ export function QuickAddDialog() {
         </div>
       )}
 
-      {/* Footer */}
+      </div>
+
+      {/* Projeto em uma linha própria no celular; ações fora da área rolável. */}
       <div
-        className="px-4 py-3 flex items-center justify-between gap-2 bg-background sticky bottom-0 z-10 border-t border-border/60"
-        style={isMobile && keyboardInset > 0 ? { marginBottom: keyboardInset } : undefined}
+        className="flex shrink-0 min-w-0 flex-col gap-2 border-t border-border/60 bg-background px-4 py-3 md:flex-row md:items-center md:justify-between"
       >
         <Popover>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex min-h-10 items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors sm:min-h-0 sm:text-xs sm:rounded-md"
+              aria-label={`Projeto: ${project?.name || 'Caixa de Entrada'}`}
+              className="inline-flex min-h-11 w-full min-w-0 items-center gap-1.5 text-sm px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors md:min-h-0 md:w-auto md:text-xs md:rounded-md"
             >
               {project?.isInbox ? (
-                <Inbox className="h-3.5 w-3.5 text-muted-foreground" />
+                <Inbox className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               ) : (
-                <Hash className="h-3.5 w-3.5" style={{ color: project?.color }} />
+                <Hash className="h-3.5 w-3.5 shrink-0" style={{ color: project?.color }} />
               )}
-              <span>{project?.name || 'Caixa de Entrada'}</span>
-              <ChevronDown className="h-3 w-3 opacity-60" />
+              <span className="min-w-0 truncate">{project?.name || 'Caixa de Entrada'}</span>
+              <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" align="start">
@@ -827,21 +811,21 @@ export function QuickAddDialog() {
                   ) : (
                     <Hash className="h-3 w-3" style={{ color: p.color }} />
                   )}
-                  {p.name}
+                  <span className="min-w-0 break-words">{p.name}</span>
                 </button>
               ))}
           </PopoverContent>
         </Popover>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={requestClose} className="h-11 text-sm sm:h-8 sm:text-xs">
+        <div className="flex w-full shrink-0 items-center justify-end gap-2 md:w-auto">
+          <Button variant="ghost" size="sm" onClick={requestClose} className="h-11 shrink-0 text-sm md:h-8 md:text-xs">
             Cancelar
           </Button>
           <Button
             size="sm"
             onClick={() => submit(true)}
             disabled={submitting || taskLines.length === 0}
-            className="h-11 text-sm gap-1.5 px-4 sm:h-8 sm:text-xs sm:px-3"
+            className="h-11 flex-1 text-sm gap-1.5 px-4 md:h-8 md:flex-none md:text-xs md:px-3"
           >
             {submitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {submitting ? 'Adicionando...' : 'Adicionar tarefa'}
@@ -873,14 +857,20 @@ export function QuickAddDialog() {
     return (
       <>
       {primerEl}
-      <Drawer open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
-        <DrawerContent className="p-0 z-[80]">
+      <Drawer open={open} autoFocus onOpenChange={(o) => { if (!o) requestClose(); }}>
+        <DrawerContent
+          className="mt-0 w-full max-w-full overflow-hidden p-0 pb-safe z-[80]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            inputRef.current?.focus({ preventScroll: true });
+          }}
+        >
 
           <DrawerTitle className="sr-only">Adicionar tarefa</DrawerTitle>
           <DrawerDescription className="sr-only">
             Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
           </DrawerDescription>
-          <div className="relative min-h-0 overflow-y-auto overscroll-contain">{body}</div>
+          <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
         </DrawerContent>
       </Drawer>
       </>
@@ -891,12 +881,18 @@ export function QuickAddDialog() {
     <>
     {primerEl}
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
-      <DialogContent className="max-w-xl p-0 gap-0 overflow-hidden">
+      <DialogContent
+        className="max-w-xl p-0 gap-0 overflow-hidden"
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          inputRef.current?.focus({ preventScroll: true });
+        }}
+      >
         <DialogTitle className="sr-only">Adicionar tarefa</DialogTitle>
         <DialogDescription className="sr-only">
           Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
         </DialogDescription>
-        <div className="relative">{body}</div>
+        <div className="relative flex min-h-0 min-w-0 flex-col">{body}</div>
       </DialogContent>
     </Dialog>
     </>
