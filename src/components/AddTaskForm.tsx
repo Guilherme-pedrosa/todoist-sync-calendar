@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/popover';
 import { parseNlp } from '@/lib/nlp';
 import { DatePickerPopover, DateValue } from '@/components/DatePickerPopover';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useQuickAddStore } from '@/store/quickAddStore';
 
 interface AddTaskFormProps {
   defaultProjectId?: string;
@@ -20,6 +22,8 @@ interface AddTaskFormProps {
 }
 
 export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: AddTaskFormProps) {
+  const isMobile = useIsMobile();
+  const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const projects = useTaskStore((s) => s.projects);
   const allLabels = useTaskStore((s) => s.labels);
   const addTask = useTaskStore((s) => s.addTask);
@@ -150,7 +154,17 @@ export function AddTaskForm({ defaultProjectId, defaultDate, defaultParentId }: 
     return (
       <button
         data-add-task-form
-        onClick={() => setIsOpen(true)}
+        onClick={() => {
+          if (isMobile) {
+            openQuickAdd({
+              defaultProjectId,
+              defaultDueDate: defaultDate,
+              defaultParentId,
+            });
+          } else {
+            setIsOpen(true);
+          }
+        }}
         className="w-full flex items-center gap-3 px-3 py-3 text-sm text-muted-foreground hover:text-primary transition-colors group"
       >
         <span className="h-[18px] w-[18px] rounded-full border-2 border-dashed border-muted-foreground/30 group-hover:border-primary group-hover:bg-primary/10 flex items-center justify-center transition-colors">

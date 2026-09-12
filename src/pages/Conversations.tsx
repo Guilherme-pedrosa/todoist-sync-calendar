@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Hash, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
+import { Hash, MessageSquare, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/store/chatStore';
 import { useWorkspaceStore } from '@/store/workspaceStore';
 import { useTaskStore } from '@/store/taskStore';
 import { ChatThread } from '@/components/ChatThread';
 import { Badge } from '@/components/ui/badge';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useVisibleViewport } from '@/hooks/useVisibleViewport';
 
 export default function ConversationsPage() {
+  const isMobile = useIsMobile();
   const { id: routeId } = useParams<{ id?: string }>();
+  const mobileConversationOpen = isMobile && !!routeId;
+  const viewport = useVisibleViewport(mobileConversationOpen);
   const navigate = useNavigate();
   const conversations = useChatStore((s) => s.conversations);
   const unread = useChatStore((s) => s.unreadByConversation);
@@ -20,6 +25,16 @@ export default function ConversationsPage() {
 
   const [activeId, setActiveId] = useState<string | null>(routeId || null);
   const [showCompleted, setShowCompleted] = useState(false);
+  // On mobile the URL distinguishes the list from a selected conversation.
+  // Returning to /conversations must not immediately reopen the first channel.
+  const selectedId = isMobile ? routeId ?? null : activeId;
+  const selectedConversation = conversations.find((conversation) => conversation.id === selectedId);
+
+  const openConversation = (id: string) => navigate(`/conversations/${id}`);
+  const backToList = () => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    navigate('/conversations');
+  };
 
   useEffect(() => {
     if (currentWorkspaceId) {
@@ -77,11 +92,12 @@ export default function ConversationsPage() {
 
   // Auto-select first conversation
   useEffect(() => {
+    if (isMobile) return;
     if (!activeId && workspaceConvs[0]) setActiveId(workspaceConvs[0].id);
-  }, [activeId, workspaceConvs]);
+  }, [activeId, workspaceConvs, isMobile]);
 
   useEffect(() => {
-    if (!activeId) return;
+    if (isMobile || !activeId) return;
     const visibleIds = new Set([
       ...workspaceConvs.map((c) => c.id),
       ...activeTaskConvs.map((c) => c.id),
@@ -93,11 +109,22 @@ export default function ConversationsPage() {
       if (next) navigate(`/conversations/${next}`, { replace: true });
       else navigate('/conversations', { replace: true });
     }
-  }, [activeId, workspaceConvs, activeTaskConvs, completedTaskConvs, navigate]);
+  }, [activeId, workspaceConvs, activeTaskConvs, completedTaskConvs, navigate, isMobile]);
+
+  const conversationTitle = selectedConversation?.taskId
+    ? taskById.get(selectedConversation.taskId)?.title || selectedConversation.title || 'Conversa da tarefa'
+    : selectedConversation?.title || 'Conversa';
 
   return (
-    <div className="flex h-full">
-      <aside className="w-72 border-r flex flex-col bg-card/40">
+    <div
+      className={cn(
+        'flex min-h-0 min-w-0 overflow-hidden',
+        mobileConversationOpen ? 'fixed inset-x-0 z-[35] flex-col bg-background pt-safe pb-safe' : 'h-full flex-1'
+      )}
+      style={mobileConversationOpen ? { top: viewport.top, height: viewport.height } : undefined}
+      aria-label={mobileConversationOpen ? 'Conversa aberta' : 'Conversas'}
+    >
+      {(!isMobile || !selectedId) && <aside className={cn('min-h-0 min-w-0 flex flex-col bg-card/40', isMobile ? 'w-full' : 'w-72 shrink-0 border-r')} aria-label="Lista de conversas">
         <div className="px-4 py-3 border-b">
           <h2 className="font-display text-base font-semibold">Conversas</h2>
         </div>
@@ -110,9 +137,9 @@ export default function ConversationsPage() {
               {workspaceConvs.map((c) => (
                 <ConvLink
                   key={c.id}
-                  active={activeId === c.id}
+                  active={selectedId === c.id}
                   unread={unread[c.id] || 0}
-                  onClick={() => navigate(`/conversations/${c.id}`)}
+                  onClick={() => openConversation(c.id)}
                   icon={<Hash className="h-3.5 w-3.5" />}
                   label={c.title || 'Geral'}
                 />
@@ -136,9 +163,9 @@ export default function ConversationsPage() {
                   return (
                     <ConvLink
                       key={c.id}
-                      active={activeId === c.id}
+                      active={selectedId === c.id}
                       unread={unread[c.id] || 0}
-                      onClick={() => navigate(`/conversations/${c.id}`)}
+                      onClick={() => openConversation(c.id)}
                       icon={<MessageSquare className="h-3.5 w-3.5" />}
                       label={label}
                       prefix={t?.number != null ? `#${t.number}` : undefined}
@@ -170,9 +197,9 @@ export default function ConversationsPage() {
                     return (
                       <ConvLink
                         key={c.id}
-                        active={activeId === c.id}
+                        active={selectedId === c.id}
                         unread={unread[c.id] || 0}
-                        onClick={() => navigate(`/conversations/${c.id}`)}
+                        onClick={() => openConversation(c.id)}
                         icon={<MessageSquare className="h-3.5 w-3.5 opacity-60" />}
                         label={label}
                         prefix={t?.number != null ? `#${t.number}` : undefined}
@@ -185,17 +212,27 @@ export default function ConversationsPage() {
             </div>
           )}
         </div>
-      </aside>
+      </aside>}
 
-      <main className="flex-1 flex flex-col">
-        {activeId ? (
-          <ChatThread conversationId={activeId} />
+      {(!isMobile || selectedId) && <main className="min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden">
+        {mobileConversationOpen && (
+          <header className="flex min-h-14 shrink-0 items-center gap-2 border-b px-2 py-1">
+            <button type="button" onClick={backToList} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl active:bg-muted" aria-label="Voltar às conversas">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <h2 className="min-w-0 flex-1 truncate pr-3 text-base font-semibold">{conversationTitle}</h2>
+          </header>
+        )}
+        {selectedId ? (
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden [&>div]:min-h-0 [&>div]:min-w-0">
+            <ChatThread key={isMobile ? selectedId : 'desktop'} conversationId={selectedId} />
+          </div>
         ) : (
           <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
             Selecione uma conversa
           </div>
         )}
-      </main>
+      </main>}
     </div>
   );
 }
@@ -221,17 +258,17 @@ function ConvLink({
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left',
+        'w-full min-h-14 md:min-h-0 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left',
         active ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50 text-foreground/80',
         unread > 0 && !active && 'font-semibold',
         muted && !active && 'text-foreground/55'
       )}
     >
-      <span className="text-muted-foreground">{icon}</span>
+      <span className="shrink-0 text-muted-foreground">{icon}</span>
       {prefix && (
         <span className="text-muted-foreground/70 font-mono text-xs tabular-nums">{prefix}</span>
       )}
-      <span className="flex-1 truncate">{label}</span>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
       {unread > 0 && (
         <Badge
           className={cn(

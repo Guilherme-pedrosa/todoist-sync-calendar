@@ -41,6 +41,7 @@ import { useUpdateTaskWithRecurrencePrompt } from '@/hooks/useUpdateTaskWithRecu
 import { useDeleteTaskWithRecurrencePrompt } from '@/hooks/useDeleteTaskWithRecurrencePrompt';
 import { Task, Priority } from '@/types/task';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useVisibleViewport } from '@/hooks/useVisibleViewport';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -156,6 +157,7 @@ export function TaskDetailPanel() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const taskId = useTaskDetailStore((s) => s.taskId);
+  const viewport = useVisibleViewport(isMobile && !!taskId);
   const taskSnapshot = useTaskDetailStore((s) => s.taskSnapshot);
   const occurrenceDate = useTaskDetailStore((s) => s.occurrenceDate);
   const rangeStart = useTaskDetailStore((s) => s.rangeStart);
@@ -248,6 +250,14 @@ export function TaskDetailPanel() {
   const unreadByConversation = useChatStore((s) => s.unreadByConversation);
   const [creator, setCreator] = useState<{ display_name: string | null; email: string | null } | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const assignmentSavingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isMobile || !taskId) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [isMobile, taskId]);
 
   // Sync drafts when task changes
   useEffect(() => {
@@ -392,13 +402,16 @@ export function TaskDetailPanel() {
       setAssignedByMap({});
       return;
     }
+    // Show the task's cached selection immediately while the server refreshes it.
+    setAssigneeIds(task.assigneeIds ?? []);
+    setInformedIds(task.informedIds ?? []);
     let active = true;
     const refresh = async () => {
       const { data } = await supabase
         .from('task_assignees')
         .select('user_id, assigned_by, assigned_at, role')
         .eq('task_id', task.id);
-      if (!active || !data) return;
+      if (!active || !data || assignmentSavingRef.current) return;
       const responsibles: string[] = [];
       const informed: string[] = [];
       const map: Record<string, { byUserId: string | null; at: string | null }> = {};
@@ -442,8 +455,10 @@ export function TaskDetailPanel() {
   }, [task?.id]);
 
   const handleAssigneesChange = async (next: string[]) => {
-    if (!task) return;
+    if (!task || assignmentSavingRef.current) return;
+    assignmentSavingRef.current = true;
     const prev = assigneeIds;
+    const previousTasks = useTaskStore.getState().tasks;
     setAssigneeIds(next);
 
     // Coleta tarefa + subtarefas recursivas
@@ -472,11 +487,12 @@ export function TaskDetailPanel() {
     const toRemove = prev.filter((id) => !next.includes(id));
     try {
       if (toRemove.length > 0) {
-        await supabase
+        const { error } = await supabase
           .from('task_assignees')
           .delete()
           .in('task_id', ids)
           .in('user_id', toRemove);
+        if (error) throw error;
       }
       if (toAdd.length > 0) {
         const rows: any[] = [];
@@ -485,22 +501,26 @@ export function TaskDetailPanel() {
             rows.push({ task_id: tid, user_id: uid, assigned_by: user?.id, role: 'responsible' });
           }
         }
-        await supabase
+        const { error } = await supabase
           .from('task_assignees')
           .upsert(rows, { onConflict: 'task_id,user_id' });
+        if (error) throw error;
       }
     } catch (err) {
       console.error('Failed to update assignees', err);
       toast.error('Falha ao atualizar responsáveis');
-      setAssigneeIds(prev);
+      if (useTaskDetailStore.getState().taskId === task.id) setAssigneeIds(prev);
       useTaskStore.setState((state) => ({
-        tasks: state.tasks.map((t) => (ids.includes(t.id) ? { ...t, assigneeIds: prev } : t)),
+        tasks: state.tasks.map((t) => (ids.includes(t.id) ? { ...t, assigneeIds: previousTasks.find((previous) => previous.id === t.id)?.assigneeIds } : t)),
       }));
+    } finally {
+      assignmentSavingRef.current = false;
     }
   };
 
   const handleInformedChange = async (next: string[]) => {
-    if (!task) return;
+    if (!task || assignmentSavingRef.current) return;
+    assignmentSavingRef.current = true;
     const prev = informedIds;
     setInformedIds(next);
     useTaskStore.setState((state) => ({
@@ -510,12 +530,13 @@ export function TaskDetailPanel() {
     const toRemove = prev.filter((id) => !next.includes(id));
     try {
       if (toRemove.length > 0) {
-        await supabase
+        const { error } = await supabase
           .from('task_assignees')
           .delete()
           .eq('task_id', task.id)
           .in('user_id', toRemove)
           .eq('role', 'informed');
+        if (error) throw error;
       }
       if (toAdd.length > 0) {
         const rows = toAdd.map((uid) => ({
@@ -525,17 +546,20 @@ export function TaskDetailPanel() {
           role: 'informed',
           assignment_status: 'accepted',
         }));
-        await supabase
+        const { error } = await supabase
           .from('task_assignees')
           .upsert(rows as any, { onConflict: 'task_id,user_id' });
+        if (error) throw error;
       }
     } catch (err) {
       console.error('Failed to update informed', err);
       toast.error('Falha ao atualizar informados');
-      setInformedIds(prev);
+      if (useTaskDetailStore.getState().taskId === task.id) setInformedIds(prev);
       useTaskStore.setState((state) => ({
         tasks: state.tasks.map((t) => (t.id === task.id ? { ...t, informedIds: prev } : t)),
       }));
+    } finally {
+      assignmentSavingRef.current = false;
     }
   };
 
@@ -570,6 +594,7 @@ export function TaskDetailPanel() {
   useEffect(() => {
     if (!task) return;
     const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const target = e.target as HTMLElement | null;
       const typing =
         target?.tagName === 'INPUT' ||
@@ -634,7 +659,7 @@ export function TaskDetailPanel() {
 
     return createPortal(
       <AnimatePresence>
-        <div className="fixed inset-0 z-50 flex">
+        <div className="fixed inset-0 z-50 flex" style={isMobile ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : undefined}>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -651,7 +676,7 @@ export function TaskDetailPanel() {
             transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           className={cn(
             'bg-background shadow-2xl border-l border-border flex flex-col',
-            isMobile ? 'w-full h-[100dvh] border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
+            isMobile ? 'w-full h-full min-h-0 border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
           )}
           >
             {loadingContent}
@@ -781,11 +806,11 @@ export function TaskDetailPanel() {
   const content = (
     <div className="h-full min-h-0 flex flex-col bg-background">
       {/* Header */}
-      <div className="min-h-14 flex items-center gap-1 px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
+      <div className="min-h-14 shrink-0 flex items-center gap-1 px-3 py-2 border-b border-border pt-[max(0.5rem,env(safe-area-inset-top))]">
         {isMobile && (
           <button
             onClick={close}
-            className="-ml-1 mr-1 h-9 w-9 flex items-center justify-center rounded-md hover:bg-muted active:bg-muted text-foreground"
+            className="-ml-1 mr-1 h-11 w-11 shrink-0 flex items-center justify-center rounded-md hover:bg-muted active:bg-muted text-foreground"
             aria-label="Voltar"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -829,7 +854,7 @@ export function TaskDetailPanel() {
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="h-9 w-9 sm:h-7 sm:w-7 inline-flex items-center justify-center hover:bg-muted rounded text-muted-foreground" aria-label="Mais">
+              <button className="h-11 w-11 md:h-7 md:w-7 inline-flex items-center justify-center hover:bg-muted rounded text-muted-foreground" aria-label="Mais">
                 <MoreHorizontal className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
               </button>
             </DropdownMenuTrigger>
@@ -891,28 +916,25 @@ export function TaskDetailPanel() {
           {/* Main */}
           <div className="flex-1 px-4 sm:px-6 lg:px-10 py-4 sm:py-6 space-y-5 min-w-0">
             <div className="flex items-start gap-3">
-              <div className="mt-1 flex items-center gap-1 shrink-0">
+              <div className="-ml-3 -mt-2 md:ml-0 md:mt-1 flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => complete(task.id)}
-                  className={cn(
-                    'h-5 w-5 rounded-full border-2 flex items-center justify-center',
-                    task.completed
-                      ? 'bg-primary border-primary'
-                      : 'border-muted-foreground/30 hover:border-primary'
-                  )}
+                  className="flex h-11 w-11 items-center justify-center md:h-5 md:w-5"
                   aria-label="Concluir"
                 >
+                  <span className={cn('h-5 w-5 rounded-full border-2 flex items-center justify-center', task.completed ? 'bg-primary border-primary' : 'border-muted-foreground/30 hover:border-primary')}>
                   {task.completed && (
                     <svg className="h-2.5 w-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
                       <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   )}
+                  </span>
                 </button>
                 {task.recurrenceRule && !task.completed && (
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="h-5 w-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
+                        className="h-11 w-11 md:h-5 md:w-5 rounded hover:bg-muted flex items-center justify-center text-muted-foreground"
                         aria-label="Opções de conclusão"
                       >
                         <ChevronDown className="h-3.5 w-3.5" />
@@ -932,6 +954,7 @@ export function TaskDetailPanel() {
                   </DropdownMenu>
                 )}
               </div>
+              <div className="min-w-0 flex-1 md:contents">
               {parentTask && (
                 <button
                   type="button"
@@ -968,15 +991,37 @@ export function TaskDetailPanel() {
                   task.completed && 'line-through text-muted-foreground'
                 )}
               />
+              </div>
             </div>
 
-            <div className="pl-8 space-y-3">
+            {isMobile && (
+              <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-3">
+                <DetailRow icon={Users} label="Responsável">
+                  <AssigneeChip projectId={task.projectId ?? null} value={assigneeIds} onChange={handleAssigneesChange} />
+                </DetailRow>
+                <DetailRow icon={CalendarIcon} label="Data e horário">
+                  <DatePickerPopover
+                    commitOnClose
+                    value={dateValue}
+                    onChange={(value) => updateWithPrompt(task.id, {
+                      dueDate: value.date ?? null as any,
+                      dueTime: value.time ?? null as any,
+                      recurrenceRule: value.recurrenceRule ?? null,
+                      durationMinutes: value.durationMinutes ?? null,
+                    }, { occurrenceDate: selectedOccurrenceDate ?? undefined, changeLabel: 'data e horário' })}
+                    trigger={<button type="button" className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 text-left text-sm"><CalendarIcon className="h-4 w-4 shrink-0 text-primary" /><span className="min-w-0 flex-1">{summaryLine || 'Adicionar data e horário'}</span><ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" /></button>}
+                  />
+                </DetailRow>
+              </div>
+            )}
+
+            <div className="space-y-3 md:pl-8">
               <Textarea
                 value={descDraft}
                 onChange={(e) => setDescDraft(e.target.value)}
                 onBlur={persistDesc}
                 placeholder="≡ Descrição"
-                className="border-0 px-0 text-sm resize-none focus-visible:ring-0 min-h-[120px] leading-relaxed"
+                className="border-0 px-0 text-base md:text-sm resize-none focus-visible:ring-0 min-h-[80px] md:min-h-[120px] leading-relaxed"
               />
 
               <button
@@ -986,7 +1031,7 @@ export function TaskDetailPanel() {
                     defaultProjectId: task.projectId ?? null,
                   })
                 }
-                className="text-sm text-muted-foreground hover:text-primary flex items-center gap-2"
+                className="min-h-11 md:min-h-0 text-sm text-muted-foreground hover:text-primary flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" /> Adicionar subtarefa
               </button>
@@ -1212,7 +1257,7 @@ export function TaskDetailPanel() {
 
           {/* Sidebar */}
           <aside className="w-auto mx-3 mb-4 rounded-2xl border border-border bg-muted/20 px-4 py-4 space-y-4 lg:mx-0 lg:mb-0 lg:w-[300px] lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-l lg:px-5 lg:py-5 lg:shrink-0">
-            <DetailRow icon={CalendarIcon} label="Data">
+            <DetailRow icon={CalendarIcon} label="Data" className="hidden md:block">
               <DatePickerPopover
                 commitOnClose
                 value={dateValue}
@@ -1323,13 +1368,13 @@ export function TaskDetailPanel() {
               </DetailRow>
             )}
 
-            <DetailRow icon={Users} label="Responsável">
+            <DetailRow icon={Users} label={isMobile ? 'Delegação' : 'Responsável'} className={isMobile && !(user && (assigneeIds.includes(user.id) || (assignedByMap[user.id]?.byUserId && assignedByMap[user.id]?.byUserId !== user.id))) && !returnOpen ? 'hidden' : undefined}>
               <div className="space-y-2">
-                <AssigneeChip
+                {!isMobile && <AssigneeChip
                   projectId={task.projectId ?? null}
                   value={assigneeIds}
                   onChange={handleAssigneesChange}
-                />
+                />}
                 {user && assignedByMap[user.id]?.byUserId && assignedByMap[user.id]?.byUserId !== user.id && (
                   <p className="text-[11px] text-muted-foreground">
                     Delegado por{' '}
@@ -1530,7 +1575,7 @@ export function TaskDetailPanel() {
       </div>
 
       {/* Footer: compact comment + summary */}
-      <div className="border-t border-border px-3 sm:px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center gap-2 sm:gap-3">
+      <div className="shrink-0 border-t border-border px-3 sm:px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] flex items-center gap-2 sm:gap-3">
         <div className="hidden sm:flex text-[11px] text-muted-foreground items-center gap-3 flex-1 min-w-0 truncate">
           {subtasks.length > 0 && (
             <span className="shrink-0">
@@ -1550,14 +1595,14 @@ export function TaskDetailPanel() {
               }
             }}
             placeholder="Comentar rápido…"
-            className="h-10 sm:h-7 text-sm sm:text-xs w-full sm:w-64 min-w-0"
+            className="h-11 md:h-7 text-base md:text-xs w-full sm:w-64 min-w-0"
           />
           <Button
             size="sm"
             variant="ghost"
             onClick={sendComment}
             disabled={!commentText.trim()}
-            className="h-10 w-10 sm:h-7 sm:w-7 p-0 shrink-0"
+            className="h-11 w-11 md:h-7 md:w-7 p-0 shrink-0"
             aria-label="Enviar comentário"
           >
             <Send className="h-3.5 w-3.5" />
@@ -1588,7 +1633,7 @@ export function TaskDetailPanel() {
   // Portal: side panel (desktop) or fullscreen (mobile)
   return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex">
+      <div className="fixed inset-0 z-50 flex" style={isMobile ? { top: viewport.top, height: viewport.height, bottom: 'auto' } : undefined}>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1605,7 +1650,7 @@ export function TaskDetailPanel() {
           transition={{ type: 'spring', damping: 28, stiffness: 260 }}
           className={cn(
             'bg-background shadow-2xl border-l border-border flex flex-col',
-            isMobile ? 'w-full h-[100dvh] border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
+            isMobile ? 'w-full h-full min-h-0 border-l-0' : 'w-full max-w-[1080px] lg:min-w-[860px]'
           )}
         >
           {content}
@@ -1620,17 +1665,19 @@ function DetailRow({
   icon: Icon,
   label,
   children,
+  className,
 }: {
   icon: any;
   label: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className={cn('min-w-0 space-y-1.5', className)}>
       <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold">
         <Icon className="h-3.5 w-3.5 sm:h-3 sm:w-3" /> {label}
       </div>
-      <div className="[&_button]:min-h-9 sm:[&_button]:min-h-0">{children}</div>
+      <div className="[&_button]:min-h-11 md:[&_button]:min-h-0">{children}</div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label as UiLabel } from '@/components/ui/label';
@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useVisibleViewport } from '@/hooks/useVisibleViewport';
 
 export interface ReminderItem {
   id?: string;
@@ -45,6 +47,8 @@ export function RemindersDialog({
   defaultChannel = 'push',
   defaultMinutes = 30,
 }: Props) {
+  const isMobile = useIsMobile();
+  const viewport = useVisibleViewport(isMobile && open);
   const [items, setItems] = useState<ReminderItem[]>([]);
   const [adding, setAdding] = useState<'relative' | 'absolute' | null>(null);
   const [newMinutes, setNewMinutes] = useState<number>(defaultMinutes);
@@ -125,14 +129,19 @@ export function RemindersDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="z-[110] max-w-md">
+      <DialogContent
+        overlayClassName="z-[105]"
+        className={cn('z-[110] max-w-md', isMobile && 'grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden [&_button]:min-h-11')}
+        style={isMobile ? { top: viewport.top + viewport.height / 2, maxHeight: Math.max(0, viewport.height - 16) } : undefined}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bell className="h-4 w-4" /> Lembretes
           </DialogTitle>
+          <DialogDescription className="sr-only">Configure quando deseja receber os lembretes da tarefa.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2 py-2">
+        <div className={cn('space-y-2 py-2', isMobile && 'min-h-0 overflow-y-auto overscroll-contain')}>
           {items.length === 0 && !adding && (
             <p className="text-xs text-muted-foreground text-center py-4">
               Nenhum lembrete adicionado
@@ -249,7 +258,7 @@ export function RemindersDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className={isMobile ? 'flex-row justify-end gap-2' : undefined}>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>

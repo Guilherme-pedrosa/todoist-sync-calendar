@@ -22,12 +22,10 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   addDays,
-  addWeeks,
   format,
   isSameDay,
   parseISO,
   startOfWeek,
-  differenceInCalendarDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -40,6 +38,7 @@ import { getHolidayForDate } from '@/lib/holidays';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { localDateKey } from '@/lib/localDate';
+import { useAgendaTouchGesture } from '@/hooks/useAgendaTouchGesture';
 
 type Mode = 'list' | 'week' | 'day' | 'kanban';
 type RecurringCompletionRow = {
@@ -90,7 +89,8 @@ export default function UpcomingPage() {
   );
   // No mobile, forçamos sempre 'day' ou 'list' — 'week' e 'kanban' não cabem no celular.
   const mode: Mode = isNarrow && (modeRaw === 'week' || modeRaw === 'kanban') ? 'day' : modeRaw;
-  const [weekOffset, setWeekOffset] = useState(0);
+  // A date remains a date when switching between day/week or rotating a phone.
+  const [focusedDate, setFocusedDate] = useState(() => new Date());
 
   // Responde a rotação/resize — se virar mobile, cai para 'day' automaticamente.
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function UpcomingPage() {
     const target = parseISO(`${dateParam}T12:00:00`);
     if (Number.isNaN(target.getTime())) return;
     setMode('day');
-    setWeekOffset(differenceInCalendarDays(target, new Date()));
+    setFocusedDate(target);
   }, []);
 
   // Agenda deve mostrar tudo que o usuário pode ver e tem data:
@@ -138,15 +138,15 @@ export default function UpcomingPage() {
 
 
   const weekStart = useMemo(
-    () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
-    [weekOffset]
+    () => startOfWeek(focusedDate, { weekStartsOn: 1 }),
+    [focusedDate]
   );
   const weekDays = useMemo(
     () =>
       mode === 'day'
-        ? [addDays(new Date(), weekOffset)]
+        ? [focusedDate]
         : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
-    [weekStart, mode, weekOffset]
+    [weekStart, mode, focusedDate]
   );
   const hours = useMemo(
     () => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => i + DAY_START_HOUR),
@@ -336,7 +336,61 @@ export default function UpcomingPage() {
   }, [visibleTasks, tasksByDay, anchorCompletionKeys]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden">
+    <div className="flex-1 flex min-h-0 min-w-0 flex-col h-full overflow-hidden">
+      {isNarrow ? (
+        <header className="shrink-0 border-b border-border/50 bg-background px-3 pb-2 pt-2">
+          <div className="flex items-center gap-2">
+            <div className="relative min-h-11 min-w-0 flex-1">
+              <h2 className="font-display text-lg font-bold tracking-tight">Agenda</h2>
+              <label className="block w-fit max-w-full cursor-pointer overflow-hidden text-xs capitalize text-muted-foreground">
+                {format(focusedDate, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                <input
+                  aria-label="Escolher data da agenda"
+                  type="date"
+                  value={format(focusedDate, 'yyyy-MM-dd')}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  onChange={(event) => {
+                    const date = parseISO(`${event.target.value}T12:00:00`);
+                    if (Number.isNaN(date.getTime())) return;
+                    setFocusedDate(date);
+                    setMode('day');
+                  }}
+                />
+              </label>
+            </div>
+            <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0" aria-label="Agendar reunião" onClick={() => setMeetingOpen(true)}>
+              <CalendarPlus className="h-5 w-5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-11 w-11 shrink-0 text-primary" aria-label="Assistente da agenda" onClick={() => useAIAssistantStore.getState().open('analyze')}>
+              <Sparkles className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-1">
+            <div className="flex shrink-0 overflow-hidden rounded-xl border border-border bg-muted/30" aria-label="Visualização da agenda">
+              {(['day', 'list'] as const).map((view) => (
+                <button key={view} type="button" aria-pressed={mode === view} onClick={() => setMode(view)} className={cn('h-11 px-3 text-sm font-medium', mode === view ? 'bg-primary text-primary-foreground' : 'text-muted-foreground')}>
+                  {view === 'day' ? 'Dia' : 'Lista'}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center">
+              <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Dia anterior" onClick={() => { setMode('day'); setFocusedDate((date) => addDays(date, -1)); }}><ChevronLeft className="h-5 w-5" /></Button>
+              <Button variant="ghost" className="h-11 px-2 text-sm" onClick={() => { setMode('day'); setFocusedDate(new Date()); }}>Hoje</Button>
+              <Button size="icon" variant="ghost" className="h-11 w-11" aria-label="Próximo dia" onClick={() => { setMode('day'); setFocusedDate((date) => addDays(date, 1)); }}><ChevronRight className="h-5 w-5" /></Button>
+            </div>
+          </div>
+          {mode === 'day' && (
+            <div className="mt-2 grid grid-cols-7 gap-0.5" aria-label="Dias da semana">
+              {Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)).map((date) => (
+                <button key={format(date, 'yyyy-MM-dd')} type="button" aria-label={format(date, "EEEE, d 'de' MMMM", { locale: ptBR })} aria-pressed={isSameDay(date, focusedDate)} onClick={() => setFocusedDate(date)} className={cn('flex min-h-11 min-w-0 flex-col items-center justify-center rounded-xl text-sm', isSameDay(date, focusedDate) ? 'bg-primary text-primary-foreground' : isSameDay(date, new Date()) ? 'bg-primary/10 text-primary' : 'hover:bg-muted')}>
+                  <span className="text-[10px] capitalize">{format(date, 'EEEEE', { locale: ptBR })}</span>
+                  <span className="font-semibold">{format(date, 'd')}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </header>
+      ) : (
       <header className="flex flex-wrap items-center gap-2 px-3 sm:px-6 py-3 sm:py-4 border-b border-border/50">
         <button
           onClick={toggleSidebar}
@@ -348,18 +402,18 @@ export default function UpcomingPage() {
         <CalendarRange className="h-5 w-5 shrink-0" />
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight">
-            {mode === 'day' ? 'Hoje' : 'Agenda'}
+            {mode === 'day' && isSameDay(focusedDate, new Date()) ? 'Hoje' : 'Agenda'}
           </h2>
           <p className="text-[11px] sm:text-xs text-muted-foreground capitalize truncate">
             {mode === 'day'
-              ? format(addDays(new Date(), weekOffset), "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
+              ? format(focusedDate, "EEEE, d 'de' MMM, yyyy", { locale: ptBR })
               : `${format(weekStart, "d 'de' MMM", { locale: ptBR })} — ${format(addDays(weekStart, 6), "d 'de' MMM, yyyy", { locale: ptBR })}`}
           </p>
         </div>
         <div className="flex items-center gap-2 ml-auto w-full sm:w-auto justify-between sm:justify-end overflow-x-auto mobile-scroll pb-0.5 sm:pb-0">
           <div className="flex items-center rounded-md border border-border bg-card overflow-hidden shrink-0">
             <button
-              onClick={() => { setMode('day'); setWeekOffset(0); }}
+              onClick={() => setMode('day')}
               className={cn(
                 'px-3 sm:px-2.5 h-9 sm:h-8 text-xs flex items-center gap-1.5',
                 mode === 'day' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'
@@ -397,18 +451,18 @@ export default function UpcomingPage() {
           </div>
           {mode !== 'kanban' && (
             <div className="flex items-center gap-1 shrink-0">
-              <Button size="icon" variant="ghost" className="h-9 w-9 sm:h-8 sm:w-8" onClick={() => setWeekOffset((w) => w - 1)} aria-label={mode === 'day' ? 'Dia anterior' : 'Semana anterior'}>
+              <Button size="icon" variant="ghost" className="h-9 w-9 sm:h-8 sm:w-8" onClick={() => setFocusedDate((date) => addDays(date, mode === 'day' ? -1 : -7))} aria-label={mode === 'day' ? 'Dia anterior' : 'Semana anterior'}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 className="h-9 sm:h-8 text-xs px-2"
-                onClick={() => setWeekOffset(0)}
+                onClick={() => setFocusedDate(new Date())}
               >
                 Hoje
               </Button>
-              <Button size="icon" variant="ghost" className="h-9 w-9 sm:h-8 sm:w-8" onClick={() => setWeekOffset((w) => w + 1)} aria-label={mode === 'day' ? 'Próximo dia' : 'Próxima semana'}>
+              <Button size="icon" variant="ghost" className="h-9 w-9 sm:h-8 sm:w-8" onClick={() => setFocusedDate((date) => addDays(date, mode === 'day' ? 1 : 7))} aria-label={mode === 'day' ? 'Próximo dia' : 'Próxima semana'}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -433,6 +487,7 @@ export default function UpcomingPage() {
           </Button>
         </div>
       </header>
+      )}
 
       <ScheduleMeetingDialog open={meetingOpen} onOpenChange={setMeetingOpen} />
 
@@ -444,6 +499,7 @@ export default function UpcomingPage() {
           hours={hours}
           tasksByDay={tasksByDay}
           overdueTasks={overdueTasks}
+          isMobile={isNarrow}
         />
       ) : (
         <ListView tasks={upcoming} />
@@ -502,11 +558,13 @@ function WeekGrid({
   hours,
   tasksByDay,
   overdueTasks = [],
+  isMobile,
 }: {
   weekDays: Date[];
   hours: number[];
   tasksByDay: Map<string, Task[]>;
   overdueTasks?: Task[];
+  isMobile: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const updateTask = useTaskStore((s) => s.updateTask);
@@ -668,19 +726,19 @@ function WeekGrid({
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('pointercancel', cancelDrag);
     window.addEventListener('touchmove', onTouchMove, { passive: false });
     window.addEventListener('touchend', onTouchEnd, { passive: false });
-    window.addEventListener('touchcancel', onTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', cancelDrag);
     window.addEventListener('blur', cancelDrag);
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
+      window.removeEventListener('pointercancel', cancelDrag);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
-      window.removeEventListener('touchcancel', onTouchEnd);
+      window.removeEventListener('touchcancel', cancelDrag);
       window.removeEventListener('blur', cancelDrag);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
@@ -706,16 +764,16 @@ function WeekGrid({
 
   const numDays = weekDays.length;
   const isDayMode = numDays === 1;
-  const gridCols = isDayMode ? 'grid-cols-[60px_1fr]' : 'grid-cols-[60px_repeat(7,1fr)]';
+  const gridCols = isDayMode ? (isMobile ? 'grid-cols-[48px_minmax(0,1fr)]' : 'grid-cols-[60px_1fr]') : 'grid-cols-[60px_repeat(7,1fr)]';
   const minWidth = isDayMode ? '' : 'min-w-[900px]';
   const visibleRangeStart = format(weekDays[0] ?? new Date(), 'yyyy-MM-dd');
   const visibleRangeEnd = format(weekDays[weekDays.length - 1] ?? new Date(), 'yyyy-MM-dd');
 
   return (
-    <div ref={scrollRef} className="flex-1 overflow-auto scrollbar-thin select-none">
+    <div ref={scrollRef} className="flex-1 min-h-0 overflow-auto overscroll-contain scrollbar-thin select-none" aria-label="Horários da agenda">
       <div className={minWidth}>
         {/* Day header */}
-        <div className={cn('sticky top-0 z-20 grid bg-background border-b border-border', gridCols)}>
+        {!isMobile && <div className={cn('sticky top-0 z-20 grid bg-background border-b border-border', gridCols)}>
           <div />
           {weekDays.map((day) => {
             const isToday = isSameDay(day, new Date());
@@ -757,10 +815,10 @@ function WeekGrid({
               </div>
             );
           })}
-        </div>
+        </div>}
 
         {/* All-day row */}
-        <div className={cn('grid border-b border-border bg-muted/20 sticky top-[60px] z-[15] bg-background/95 backdrop-blur', gridCols)}>
+        <div className={cn('grid border-b border-border bg-muted/20 sticky z-[15] bg-background/95 backdrop-blur', isMobile ? 'top-0' : 'top-[60px]', gridCols)}>
           <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
             Dia todo
           </div>
@@ -786,6 +844,7 @@ function WeekGrid({
                     key={`overdue-${t.id}`}
                     task={t}
                     occurrenceDate={t.dueDate!}
+                    isMobile={isMobile}
                     onOpen={() => openTaskDetail(t.id, { taskSnapshot: t })}
                     onStartDrag={(pointerOffsetMin) => {
                       const durationMin = Math.max(MIN_TASK_MINUTES, t.durationMinutes ?? DEFAULT_DURATION);
@@ -809,6 +868,7 @@ function WeekGrid({
                     key={t.id}
                     task={t}
                     occurrenceDate={k}
+                    isMobile={isMobile}
                     onOpen={() => openTaskDetail(t.sourceTaskId ?? t.id, {
                       occurrenceDate: k,
                       rangeStart: visibleRangeStart,
@@ -871,6 +931,7 @@ function WeekGrid({
               <DayColumn
                 key={k}
                 dayKey={k}
+                isMobile={isMobile}
                 isToday={isToday}
                 hoursLen={hours.length}
                 events={events}
@@ -941,6 +1002,7 @@ function tasksFromAny(byDay: Map<string, Task[]>, id: string): Task | null {
 
 function DayColumn({
   dayKey,
+  isMobile,
   isToday,
   hoursLen,
   events,
@@ -955,6 +1017,7 @@ function DayColumn({
   onOpenTask,
 }: {
   dayKey: string;
+  isMobile: boolean;
   isToday: boolean;
   hoursLen: number;
   events: Task[];
@@ -986,15 +1049,15 @@ function DayColumn({
     moved: boolean;
     startMin: number;
   } | null>(null);
-  const touchCreateRef = useRef<{
-    x: number;
-    y: number;
-    moved: boolean;
-    started: boolean;
-    startMin: number;
-    longPressTimer: number | null;
-    longPressFired: boolean;
-  } | null>(null);
+  const touchMinutes = (clientY: number) => {
+    const rect = localRef.current!.getBoundingClientRect();
+    return Math.max(DAY_START_MIN, Math.min(DAY_END_MIN - SNAP_MINUTES, snap(DAY_START_MIN + ((clientY - rect.top) / HOUR_HEIGHT) * 60)));
+  };
+  useAgendaTouchGesture(localRef, {
+    onlyEmpty: true,
+    onTap: (point) => onClickEmpty(touchMinutes(point.clientY)),
+    onStartDrag: (point) => onStartCreate(touchMinutes(point.clientY)),
+  });
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'touch') return;
@@ -1004,7 +1067,7 @@ function DayColumn({
     const el = localRef.current!;
     const rect = el.getBoundingClientRect();
     const y = e.clientY - rect.top;
-    const min = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
+    const min = touchMinutes(e.clientY);
     downStateRef.current = { y, moved: false, startMin: min };
   };
 
@@ -1033,66 +1096,10 @@ function DayColumn({
     downStateRef.current = null;
   };
 
-  const clearTouchCreate = () => {
-    const s = touchCreateRef.current;
-    if (s?.longPressTimer != null) clearTimeout(s.longPressTimer);
-    touchCreateRef.current = null;
-  };
-
-  const onTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length !== 1 || e.target !== e.currentTarget) return;
-    const touch = e.touches[0];
-    const el = localRef.current!;
-    const rect = el.getBoundingClientRect();
-    const y = touch.clientY - rect.top;
-    const startMin = snap(DAY_START_MIN + (y / HOUR_HEIGHT) * 60);
-    touchCreateRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-      moved: false,
-      started: false,
-      startMin,
-      longPressFired: false,
-      longPressTimer: window.setTimeout(() => {
-        const current = touchCreateRef.current;
-        if (!current || current.moved) return;
-        current.longPressFired = true;
-        try { (navigator as any).vibrate?.(15); } catch {}
-      }, 360) as unknown as number,
-    };
-  };
-
-  const onTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const s = touchCreateRef.current;
-    const touch = e.touches[0];
-    if (!s || !touch) return;
-    const dx = Math.abs(touch.clientX - s.x);
-    const dy = Math.abs(touch.clientY - s.y);
-
-    if (!s.longPressFired) {
-      if (dx > 12 || dy > 12) clearTouchCreate();
-      return;
-    }
-
-    e.preventDefault();
-    if (!s.started) {
-      s.started = true;
-      s.moved = true;
-      if (s.longPressTimer != null) {
-        clearTimeout(s.longPressTimer);
-        s.longPressTimer = null;
-      }
-      onStartCreate(s.startMin);
-    }
-  };
-
-  const onTouchEnd = () => {
-    clearTouchCreate();
-  };
-
   return (
     <div
       ref={setRef}
+      data-agenda-day={dayKey}
       className={cn(
         'relative border-l border-border cursor-cell',
         isToday && 'bg-primary/[0.03]'
@@ -1102,10 +1109,6 @@ function DayColumn({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      onTouchCancel={onTouchEnd}
     >
       {/* Hour lines com sub-divisões de 15 min */}
       {Array.from({ length: hoursLen }, (_, h) => (
@@ -1135,7 +1138,7 @@ function DayColumn({
       {/* Now indicator */}
       {nowMin !== null && nowMin >= DAY_START_MIN && nowMin <= DAY_END_MIN && (
         <div
-          className="absolute left-0 right-0 z-50 pointer-events-none"
+          className="absolute left-0 right-0 z-[12] pointer-events-none"
           style={{ top: ((nowMin - DAY_START_MIN) / 60) * HOUR_HEIGHT }}
         >
           <div className="h-0.5 bg-destructive shadow-[0_0_4px_hsl(var(--destructive))]" />
@@ -1189,7 +1192,8 @@ function DayColumn({
             <EventBlock
               key={task.id}
               task={task}
-                dayKey={dayKey}
+              dayKey={dayKey}
+              isMobile={isMobile}
               top={top}
               height={height}
               startMin={startMin}
@@ -1199,12 +1203,10 @@ function DayColumn({
               isDragging={isDragging}
               onStartMoveAt={(e) => {
                 if (task.isRecurringCompletion) return;
-                const point = 'touches' in e ? e.touches[0] : e;
-                if (!point) return;
-                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                const offsetY = point.clientY - rect.top;
+                const rect = e.currentTarget.getBoundingClientRect();
+                const offsetY = (e.startClientY ?? e.clientY) - rect.top;
                 const offsetMin = (offsetY / HOUR_HEIGHT) * 60;
-                onStartMove(task.id, offsetMin, durationMin, startMin, point.clientX, point.clientY);
+                onStartMove(task.id, offsetMin, durationMin, startMin, e.clientX, e.clientY);
               }}
               onPointerDownResize={() => {
                 if (task.isRecurringCompletion) return;
@@ -1240,6 +1242,7 @@ function DayColumn({
 function EventBlock({
   task,
   dayKey,
+  isMobile,
   top,
   height,
   startMin,
@@ -1253,6 +1256,7 @@ function EventBlock({
 }: {
   task: Task;
   dayKey: string;
+  isMobile: boolean;
   top: number;
   height: number;
   startMin: number;
@@ -1260,7 +1264,7 @@ function EventBlock({
   col: number;
   cols: number;
   isDragging: boolean;
-  onStartMoveAt: (e: React.PointerEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => void;
+  onStartMoveAt: (e: { currentTarget: HTMLDivElement; clientX: number; clientY: number; startClientY?: number }) => void;
   onPointerDownResize: (e: React.PointerEvent<HTMLDivElement>) => void;
   onClick: () => void;
 }) {
@@ -1293,14 +1297,13 @@ function EventBlock({
     started: boolean;
     longPressTimer: number | null;
   } | null>(null);
-  const touchMoveRef = useRef<{
-    x: number;
-    y: number;
-    moved: boolean;
-    started: boolean;
-    longPressTimer: number | null;
-    longPressFired: boolean;
-  } | null>(null);
+  const eventRef = useRef<HTMLDivElement>(null);
+  useAgendaTouchGesture(eventRef, {
+    onTap: onClick,
+    onStartDrag: isHistoricalCompletion ? undefined : (start, current) => {
+      if (eventRef.current) onStartMoveAt({ currentTarget: eventRef.current, ...current, startClientY: start.clientY });
+    },
+  });
   const endInteraction = (el: HTMLDivElement, pointerId: number) => {
     try {
       if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
@@ -1312,6 +1315,14 @@ function EventBlock({
   const leftPct = col * widthPct;
   return (
     <div
+      ref={eventRef}
+      role="button"
+      tabIndex={0}
+      aria-label={`${minutesToTime(startMin)}, ${task.title}`}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onClick(); }
+      }}
       className={cn(
         'absolute rounded-md border-l-[3px] shadow-sm overflow-hidden group',
         variantClasses,
@@ -1386,72 +1397,11 @@ function EventBlock({
         }
         if (d) endInteraction(e.currentTarget, d.pointerId);
       }}
-      onTouchStart={(e) => {
-        if (isHistoricalCompletion || e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        touchMoveRef.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          moved: false,
-          started: false,
-          longPressFired: false,
-          longPressTimer: window.setTimeout(() => {
-            const d = touchMoveRef.current;
-            if (!d || d.moved || d.started) return;
-            d.longPressFired = true;
-            try { (navigator as any).vibrate?.(15); } catch {}
-          }, 320) as unknown as number,
-        };
-      }}
-      onTouchMove={(e) => {
-        const d = touchMoveRef.current;
-        const touch = e.touches[0];
-        if (!d || !touch) return;
-        const dx = Math.abs(touch.clientX - d.x);
-        const dy = Math.abs(touch.clientY - d.y);
-
-        if (!d.longPressFired) {
-          if (dx > 12 || dy > 12) {
-            if (d.longPressTimer != null) clearTimeout(d.longPressTimer);
-            touchMoveRef.current = null;
-          }
-          return;
-        }
-
-        e.preventDefault();
-        if (!d.started) {
-          d.started = true;
-          d.moved = true;
-          if (d.longPressTimer != null) {
-            clearTimeout(d.longPressTimer);
-            d.longPressTimer = null;
-          }
-          onStartMoveAt(e);
-        }
-      }}
-      onTouchEnd={(e) => {
-        const d = touchMoveRef.current;
-        touchMoveRef.current = null;
-        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
-        if (d && d.longPressFired && !d.moved) {
-          // Long-press sem movimento: trata como tap único (não abre)
-          return;
-        }
-        if (d && !d.longPressFired && !d.moved) {
-          // Tap curto: abre imediatamente. Arrastar continua protegido por pressão longa.
-          e.stopPropagation();
-          onClick();
-        }
-      }}
-      onTouchCancel={() => {
-        const d = touchMoveRef.current;
-        touchMoveRef.current = null;
-        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
-      }}
     >
-      <div className="px-1.5 py-1 text-[11px] font-medium leading-tight break-words whitespace-normal flex items-start gap-1.5">
-        <button
+      <div className={cn('px-1.5 font-medium leading-tight break-words whitespace-normal flex items-start gap-1.5', isMobile ? 'py-0.5 text-xs' : 'py-1 text-[11px]')}>
+        {(!isMobile || height >= 48) && <button
           type="button"
+          data-agenda-control
           aria-label={isDone ? 'Marcar como pendente' : 'Marcar como concluída'}
           onPointerDown={(e) => { e.stopPropagation(); }}
           onPointerUp={(e) => { e.stopPropagation(); }}
@@ -1461,17 +1411,19 @@ function EventBlock({
             completeTask(task.id, { occurrenceDate: dayKey });
           }}
           className={cn(
-            'mt-[1px] h-[18px] w-[18px] shrink-0 rounded-full border-2 flex items-center justify-center transition-colors hover:scale-110',
+            'shrink-0 flex items-center justify-center transition-colors',
+            isMobile ? 'h-11 w-11 rounded-lg' : 'mt-[1px] h-[18px] w-[18px] rounded-full border-2 hover:scale-110',
+            !isMobile && (
             isDone
               ? 'bg-success border-success text-success-foreground'
               : isRecurring
               ? 'border-recurring hover:bg-recurring/20'
-              : 'border-muted-foreground/60 hover:bg-muted'
+              : 'border-muted-foreground/60 hover:bg-muted')
           )}
         >
-          {isDone && <Check className="h-3 w-3" strokeWidth={3} />}
-        </button>
-        <span className={cn('min-w-0 flex-1', isDone && 'line-through text-muted-foreground')}>
+          {isMobile ? <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border-2', isDone ? 'bg-success border-success text-success-foreground' : isRecurring ? 'border-recurring' : 'border-muted-foreground/60')}>{isDone && <Check className="h-3 w-3" strokeWidth={3} />}</span> : isDone && <Check className="h-3 w-3" strokeWidth={3} />}
+        </button>}
+        <span className={cn('min-w-0 flex-1', isMobile && height >= 48 && 'py-1', isDone && 'line-through text-muted-foreground')}>
           {task.dueTime && (
             <span className={cn('mr-1', isDragging ? 'text-primary font-semibold' : 'text-muted-foreground')}>
               {`${minutesToTime(startMin)}–${minutesToTime(startMin + durationMin)}`}
@@ -1490,20 +1442,20 @@ function EventBlock({
           </div>
         </div>
       )}
-      {project && !project.isInbox && height > 32 && (
+      {project && !project.isInbox && height > (isMobile ? 64 : 32) && (
         <div className="px-1.5 flex items-center gap-1 text-[10px] text-muted-foreground truncate">
           <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: project.color }} />
           {project.name}
         </div>
       )}
       {/* Resize handle */}
-      <div
+      {!isMobile && <div
         className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 bg-primary/30"
         onPointerDown={(e) => {
           e.stopPropagation();
           onPointerDownResize(e);
         }}
-      />
+      />}
     </div>
   );
 }
@@ -1513,81 +1465,66 @@ function EventBlock({
 function AllDayChip({
   task,
   occurrenceDate,
+  isMobile,
   onOpen,
   onStartDrag,
 }: {
   task: Task;
   occurrenceDate: string;
+  isMobile: boolean;
   onOpen: () => void;
   onStartDrag: (pointerOffsetMin: number) => void;
 }) {
+  const chipRef = useRef<HTMLDivElement>(null);
+  useAgendaTouchGesture(chipRef, {
+    onTap: onOpen,
+    onStartDrag: task.isRecurringCompletion ? undefined : () => onStartDrag(0),
+  });
   const downRef = useRef<{
     x: number;
     y: number;
     moved: boolean;
-    pointerType: string;
-    longPressTimer: number | null;
-    longPressFired: boolean;
   } | null>(null);
   return (
     <div
+      ref={chipRef}
       role="button"
       tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); }
+      }}
       onPointerDown={(e) => {
+        if (e.pointerType === 'touch') return;
         if (e.button !== 0) return;
-        const isTouch = e.pointerType === 'touch';
-        const state = {
+        downRef.current = {
           x: e.clientX,
           y: e.clientY,
           moved: false,
-          pointerType: e.pointerType,
-          longPressTimer: null as number | null,
-          longPressFired: false,
         };
-        if (isTouch) {
-          state.longPressTimer = window.setTimeout(() => {
-            const current = downRef.current;
-            if (!current || current.moved) return;
-            current.longPressFired = true;
-            try { (navigator as any).vibrate?.(15); } catch {}
-          }, 420) as unknown as number;
-        }
-        downRef.current = state;
       }}
       onPointerMove={(e) => {
         const d = downRef.current;
         if (!d || d.moved) return;
-        const isTouch = d.pointerType === 'touch';
-        const threshold = isTouch ? 12 : 4;
+        const threshold = 4;
         if (Math.abs(e.clientX - d.x) > threshold || Math.abs(e.clientY - d.y) > threshold) {
           d.moved = true;
-          if (d.longPressTimer != null) {
-            clearTimeout(d.longPressTimer);
-            d.longPressTimer = null;
-          }
-          if (isTouch && !d.longPressFired) {
-            downRef.current = null;
-            return;
-          }
           onStartDrag(0);
         }
       }}
       onPointerUp={(e) => {
         const d = downRef.current;
         downRef.current = null;
-        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
-        if (d && !d.moved && !d.longPressFired) {
+        if (d && !d.moved) {
           e.stopPropagation();
           onOpen();
         }
       }}
       onPointerCancel={() => {
-        const d = downRef.current;
         downRef.current = null;
-        if (d?.longPressTimer != null) clearTimeout(d.longPressTimer);
       }}
       className={cn(
-        'w-full text-left border-l-[3px] rounded-r px-1.5 py-1 text-[11px] truncate cursor-grab active:cursor-grabbing select-none',
+        'w-full text-left border-l-[3px] rounded-r px-1.5 cursor-grab active:cursor-grabbing select-none',
+        isMobile ? 'flex min-h-11 items-center py-2 text-xs line-clamp-2' : 'py-1 text-[11px] truncate',
         task.completed
           ? 'bg-success/15 border-l-success text-success hover:bg-success/20'
           : isTaskOverdue(task, occurrenceDate)

@@ -25,12 +25,7 @@ export const useQuickAddStore = create<QuickAddState>()((set) => ({
   defaultDueTime: null,
   defaultDurationMinutes: null,
   openQuickAdd: (opts) => {
-    // iOS/Safari só abre o teclado se o focus() acontecer no mesmo tick do gesto.
-    // Focamos um campo "primer" já montado; o QuickAdd transfere o foco ao montar.
-    if (typeof document !== 'undefined') {
-      const primer = document.getElementById('quickadd-focus-primer') as HTMLInputElement | null;
-      primer?.focus();
-    }
+    // O editor aplica o foco quando o campo real monta no portal.
     set({
       open: true,
       defaultProjectId: opts?.defaultProjectId ?? null,

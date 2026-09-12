@@ -42,7 +42,7 @@ export function MobileTopBar() {
 
   return (
     <header
-      className="lg:hidden sticky top-0 z-30 bg-background/95 backdrop-blur-xl border-b border-border/70 pt-safe transition-transform duration-200 ease-out"
+      className="lg:hidden shrink-0 sticky top-0 z-30 bg-background/95 backdrop-blur-xl border-b border-border/70 pt-safe transition-transform duration-200 ease-out"
       style={{
         willChange: 'transform',
         transform: headerHidden ? 'translateY(-100%)' : 'translateY(0)',

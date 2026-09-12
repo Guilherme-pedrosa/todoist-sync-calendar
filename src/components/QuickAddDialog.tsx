@@ -17,8 +17,8 @@ import {
 } from 'lucide-react';
 import { suggestSlot } from '@/lib/aiAssistant';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from '@/components/ui/drawer';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,6 +39,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { AssigneeChip } from '@/components/AssigneeChip';
+import { useVisibleViewport } from '@/hooks/useVisibleViewport';
 
 const PRIORITY_LABELS: Record<Priority, string> = {
   1: 'Prioridade 1',
@@ -76,6 +77,7 @@ export function QuickAddDialog() {
     defaultDurationMinutes,
     closeQuickAdd,
   } = useQuickAddStore();
+  const viewport = useVisibleViewport(isMobile && open);
   const projects = useTaskStore((s) => s.projects);
   const labels = useTaskStore((s) => s.labels);
   const addTask = useTaskStore((s) => s.addTask);
@@ -91,6 +93,8 @@ export function QuickAddDialog() {
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
   const [location_, setLocation_] = useState('');
   const [showLocation, setShowLocation] = useState(false);
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
@@ -178,6 +182,10 @@ export function QuickAddDialog() {
     setSelectedLabels([]);
     setReminders([]);
     setAssigneeIds([]);
+    setInformedIds([]);
+    setMoreOpen(false);
+    setProjectOpen(false);
+    setPriorityOpen(false);
     setPendingFiles([]);
     setLocation_('');
     setShowLocation(false);
@@ -402,7 +410,8 @@ export function QuickAddDialog() {
               'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
               dateChipFilled
                 ? 'border-success/40 text-success bg-success/5'
-                : 'border-border text-muted-foreground hover:border-success/40'
+                : 'border-border text-muted-foreground hover:border-success/40',
+              isMobile && 'min-h-11 rounded-xl px-3 text-sm'
             )}
           >
             <CalendarIcon className="h-3.5 w-3.5" />
@@ -485,7 +494,7 @@ export function QuickAddDialog() {
   );
 
   const priorityChipEl = (
-    <Popover>
+    <Popover open={priorityOpen} onOpenChange={setPriorityOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -493,20 +502,22 @@ export function QuickAddDialog() {
             'inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors',
             priority < 4
               ? 'border-primary/30 text-primary bg-primary/5'
-              : 'border-border text-muted-foreground hover:border-primary/30'
+              : 'border-border text-muted-foreground hover:border-primary/30',
+            isMobile && 'min-h-11 rounded-xl px-3 text-sm'
           )}
         >
           <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[priority])} /> {PRIORITY_LABELS[priority]}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-44 p-1 z-[100]" align="start">
+      <PopoverContent className="w-44 max-h-[var(--radix-popover-content-available-height)] overflow-y-auto p-1 z-[100]" align="start">
         {([1, 2, 3, 4] as Priority[]).map((p) => (
           <button
             key={p}
-            onClick={() => setPriority(p)}
+            onClick={() => { setPriority(p); if (isMobile) setPriorityOpen(false); }}
             className={cn(
               'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-              priority === p ? 'bg-muted' : 'hover:bg-muted'
+              priority === p ? 'bg-muted' : 'hover:bg-muted',
+              isMobile && 'min-h-11 text-sm'
             )}
           >
             <Flag className={cn('h-3.5 w-3.5', PRIORITY_COLOR[p])} />
@@ -606,14 +617,14 @@ export function QuickAddDialog() {
   );
 
   const toolbarEl = isMobile ? (
-    <div className="px-4 pb-3 flex flex-wrap items-center gap-1.5 border-b border-border">
+    <div className="px-4 py-4 flex flex-wrap items-center gap-2 border-t border-border/60">
       {dateChipEl}
       {assigneeChipEl}
       {priorityChipEl}
       <button
         type="button"
         onClick={() => setMoreOpen(true)}
-        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border border-border text-muted-foreground"
+        className="inline-flex min-h-11 items-center gap-1.5 text-sm px-3 py-2 rounded-xl border border-border text-muted-foreground"
         aria-label="Mais opções"
       >
         <MoreHorizontal className="h-3.5 w-3.5" />
@@ -636,9 +647,15 @@ export function QuickAddDialog() {
 
   const moreSheetEl = (
     <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
-      <SheetContent side="bottom" className="z-[95] max-h-[80vh] overflow-y-auto">
+      <SheetContent
+        side="bottom"
+        overlayClassName="z-[90]"
+        className="z-[95] max-h-[80vh] overflow-y-auto overscroll-contain rounded-t-2xl [&_button]:min-h-11 [&_button]:text-sm"
+        style={isMobile ? { bottom: Math.max(0, window.innerHeight - viewport.top - viewport.height), maxHeight: Math.max(0, viewport.height - 16) } : undefined}
+      >
         <SheetHeader>
           <SheetTitle>Mais opções</SheetTitle>
+          <SheetDescription className="sr-only">Informados, anexos, lembretes e etiquetas da tarefa.</SheetDescription>
         </SheetHeader>
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -702,7 +719,7 @@ export function QuickAddDialog() {
         </div>
       )}
 
-      {/* Vaul ajusta a altura ao teclado; só os campos rolam, mantendo as ações acessíveis. */}
+      {/* O editor mobile acompanha a área visível; somente os campos rolam. */}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain">
       <div className="min-w-0 px-4 pt-4 pb-2">
         <textarea
@@ -715,6 +732,8 @@ export function QuickAddDialog() {
             e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
           }}
           placeholder="Nome da tarefa"
+          aria-label="Nome da tarefa"
+          style={isMobile ? { fontSize: 20 } : undefined}
           className="block w-full min-w-0 min-h-9 resize-none overflow-hidden border-0 bg-transparent px-0 py-1 text-base font-semibold leading-snug outline-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -732,12 +751,21 @@ export function QuickAddDialog() {
             {taskLines.length} tarefas serão criadas, uma por linha
           </p>
         )}
-        <Input
+        {isMobile ? (
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Descrição"
+            aria-label="Descrição"
+            rows={3}
+            className="mt-3 block w-full resize-none border-0 bg-transparent py-2 text-base text-muted-foreground outline-none"
+          />
+        ) : <Input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Descrição"
           className="border-0 px-0 text-sm text-muted-foreground focus-visible:ring-0 h-7"
-        />
+        />}
       </div>
 
       {/* NLP highlight pill */}
@@ -777,7 +805,7 @@ export function QuickAddDialog() {
       <div
         className="flex shrink-0 min-w-0 flex-col gap-2 border-t border-border/60 bg-background px-4 py-3 md:flex-row md:items-center md:justify-between"
       >
-        <Popover>
+        <Popover open={projectOpen} onOpenChange={setProjectOpen}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -793,17 +821,18 @@ export function QuickAddDialog() {
               <ChevronDown className="h-3 w-3 shrink-0 opacity-60" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-56 p-1 max-h-72 overflow-y-auto" align="start">
+          <PopoverContent className="w-56 p-1 max-h-[min(18rem,var(--radix-popover-content-available-height))] overflow-y-auto" align="start">
             {projects
               .slice()
               .sort((a, b) => (a.isInbox ? -1 : b.isInbox ? 1 : (a.position ?? 0) - (b.position ?? 0)))
               .map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setProjectId(p.id)}
+                  onClick={() => { setProjectId(p.id); if (isMobile) setProjectOpen(false); }}
                   className={cn(
                     'w-full flex items-center gap-2 text-xs px-2 py-1.5 rounded-md transition-colors text-left',
-                    projectId === p.id ? 'bg-muted' : 'hover:bg-muted'
+                    projectId === p.id ? 'bg-muted' : 'hover:bg-muted',
+                    isMobile && 'min-h-11 text-sm'
                   )}
                 >
                   {p.isInbox ? (
@@ -842,44 +871,37 @@ export function QuickAddDialog() {
     </>
   );
 
-  const primerEl = (
-    <input
-      id="quickadd-focus-primer"
-      type="text"
-      aria-hidden="true"
-      tabIndex={-1}
-      readOnly
-      className="fixed opacity-0 pointer-events-none h-px w-px -top-px left-0"
-    />
-  );
-
   if (isMobile) {
     return (
-      <>
-      {primerEl}
-      <Drawer open={open} autoFocus onOpenChange={(o) => { if (!o) requestClose(); }}>
-        <DrawerContent
-          className="mt-0 w-full max-w-full overflow-hidden p-0 pb-safe z-[80]"
+      <DialogPrimitive.Root open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
+        <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/50" />
+        <DialogPrimitive.Content
+          className="fixed inset-x-0 top-0 z-[80] flex h-[100dvh] max-w-full flex-col overflow-hidden bg-background pt-safe pb-safe outline-none"
+          style={viewport ? { top: viewport.top, height: viewport.height } : undefined}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
             inputRef.current?.focus({ preventScroll: true });
           }}
         >
-
-          <DrawerTitle className="sr-only">Adicionar tarefa</DrawerTitle>
-          <DrawerDescription className="sr-only">
+          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/60 px-4">
+            <DialogPrimitive.Title className="font-display text-lg font-semibold">Nova tarefa</DialogPrimitive.Title>
+            <button type="button" onClick={requestClose} aria-label="Fechar nova tarefa" className="flex h-11 w-11 items-center justify-center rounded-full bg-muted/70 text-muted-foreground">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <DialogPrimitive.Description className="sr-only">
             Crie uma tarefa com data, projeto, responsáveis, lembretes e anexos.
-          </DrawerDescription>
+          </DialogPrimitive.Description>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">{body}</div>
-        </DrawerContent>
-      </Drawer>
-      </>
+        </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     );
   }
 
   return (
     <>
-    {primerEl}
     <Dialog open={open} onOpenChange={(o) => { if (!o) requestClose(); }}>
       <DialogContent
         className="max-w-xl p-0 gap-0 overflow-hidden"

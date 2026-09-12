@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { CalendarDays, CalendarRange, Search, Menu, Plus } from 'lucide-react';
+import { CalendarDays, CalendarRange, Search, MessageSquare, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useTaskStore } from '@/store/taskStore';
+import { useChatStore } from '@/store/chatStore';
 import { useTaskDetailStore } from '@/store/taskDetailStore';
 import { useQuickAddStore } from '@/store/quickAddStore';
 import { useCommandPaletteStore } from '@/store/commandPaletteStore';
@@ -11,11 +11,13 @@ import { useCommandPaletteStore } from '@/store/commandPaletteStore';
 const HIDDEN_ROUTES = ['/settings', '/team', '/profile', '/auth', '/login'];
 
 export function MobileBottomNav() {
-  const toggleSidebar = useTaskStore((s) => s.toggleSidebar);
+  const unreadByConversation = useChatStore((s) => s.unreadByConversation);
+  const unreadCount = Object.values(unreadByConversation).reduce((total, count) => total + count, 0);
   const taskDetailOpen = useTaskDetailStore((s) => !!s.taskId);
   const quickAddOpen = useQuickAddStore((s) => s.open);
   const openQuickAdd = useQuickAddStore((s) => s.openQuickAdd);
   const openPalette = useCommandPaletteStore((s) => s.setOpen);
+  const paletteOpen = useCommandPaletteStore((s) => s.open);
   const { pathname } = useLocation();
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
@@ -23,16 +25,22 @@ export function MobileBottomNav() {
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
     const vv = window.visualViewport;
-    const baseline = vv.height;
     const handler = () => {
-      // 150px threshold = keyboard likely open
-      setKeyboardOpen(baseline - vv.height > 150);
+      // Mede a área realmente coberta: uma altura inicial fixa confunde rotação com teclado.
+      setKeyboardOpen(window.innerHeight - vv.height - vv.offsetTop > 150);
     };
+    handler();
     vv.addEventListener('resize', handler);
-    return () => vv.removeEventListener('resize', handler);
+    vv.addEventListener('scroll', handler);
+    window.addEventListener('resize', handler);
+    return () => {
+      vv.removeEventListener('resize', handler);
+      vv.removeEventListener('scroll', handler);
+      window.removeEventListener('resize', handler);
+    };
   }, []);
 
-  if (taskDetailOpen || quickAddOpen || keyboardOpen) return null;
+  if (taskDetailOpen || quickAddOpen || paletteOpen || keyboardOpen) return null;
 
   const showFab = !HIDDEN_ROUTES.some((r) => pathname.startsWith(r));
 
@@ -45,7 +53,7 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-xl border-t border-border/70 pb-safe px-1"
+      className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-xl border-t border-border/70 pb-safe px-1 shadow-[0_-4px_20px_-12px_rgba(0,0,0,0.18)]"
       aria-label="Navegação principal"
     >
       <div className="h-14 flex items-stretch justify-around">
@@ -73,10 +81,13 @@ export function MobileBottomNav() {
           <Search className="h-5 w-5" />
           <span>Buscar</span>
         </button>
-        <button className={itemClass(false)} onClick={toggleSidebar}>
-          <Menu className="h-5 w-5" />
-          <span>Menu</span>
-        </button>
+        <NavLink to="/conversations" className={({ isActive }) => itemClass(isActive)} aria-label={unreadCount > 0 ? `Conversas, ${unreadCount} não lidas` : 'Conversas'}>
+          <span className="relative">
+            <MessageSquare className="h-5 w-5" />
+            {unreadCount > 0 && <span className="absolute -right-2 -top-1 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />}
+          </span>
+          <span>Conversas</span>
+        </NavLink>
       </div>
     </nav>
   );
