@@ -178,7 +178,10 @@ export function ProjectAnnouncementsFeed({
         { event: '*', schema: 'public', table: 'project_announcements', filter: `project_id=eq.${projectId}` },
         () => load(),
       )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcement_reactions' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcement_comments' }, () => load())
       .subscribe();
+
     return () => {
       supabase.removeChannel(ch);
     };
