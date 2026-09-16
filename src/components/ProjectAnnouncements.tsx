@@ -14,7 +14,10 @@ import {
   Megaphone,
   Search,
   UserCircle2,
+  Heart,
+  MessageCircle,
   X,
+
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { userDisplayName } from '@/lib/userDisplay';
@@ -32,6 +35,14 @@ type Attachment = {
   size: number;
 };
 
+type AnnouncementComment = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author?: { display_name: string | null; email: string | null; avatar_url: string | null };
+};
+
 type Announcement = {
   id: string;
   project_id: string;
@@ -41,29 +52,68 @@ type Announcement = {
   attachments: Attachment[];
   created_at: string;
   project_name?: string;
+  likedBy?: string[];
+  comments?: AnnouncementComment[];
   author?: { display_name: string | null; email: string | null; avatar_url: string | null };
 };
+
 
 function sanitize(name: string) {
   return name.replace(/[^\w.\-]+/g, '_').slice(0, 120);
 }
 
+async function fetchProfiles(userIds: string[]): Promise<Record<string, any>> {
+  const ids = Array.from(new Set(userIds)).filter(Boolean);
+  const map: Record<string, any> = {};
+  if (!ids.length) return map;
+  const { data } = await supabase
+    .from('profiles')
+    .select('user_id, display_name, email, avatar_url')
+    .in('user_id', ids);
+  (data ?? []).forEach((p: any) => (map[p.user_id] = p));
+  return map;
+}
+
 async function attachAuthors(rows: any[]): Promise<Announcement[]> {
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-  let profiles: Record<string, any> = {};
-  if (userIds.length) {
-    const { data: profs } = await supabase
-      .from('profiles')
-      .select('user_id, display_name, email, avatar_url')
-      .in('user_id', userIds);
-    (profs ?? []).forEach((p: any) => (profiles[p.user_id] = p));
-  }
+  const ids = rows.map((r) => r.id);
+  const [reactionsRes, commentsRes] = await Promise.all([
+    ids.length
+      ? supabase.from('announcement_reactions').select('announcement_id, user_id').in('announcement_id', ids)
+      : Promise.resolve({ data: [] as any[] }),
+    ids.length
+      ? supabase
+          .from('announcement_comments')
+          .select('id, announcement_id, user_id, content, created_at')
+          .in('announcement_id', ids)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const reactions = (reactionsRes as any).data ?? [];
+  const comments = (commentsRes as any).data ?? [];
+
+  const profiles = await fetchProfiles([
+    ...rows.map((r) => r.user_id),
+    ...comments.map((c: any) => c.user_id),
+  ]);
+
+  const likesBy: Record<string, string[]> = {};
+  reactions.forEach((r: any) => {
+    (likesBy[r.announcement_id] ||= []).push(r.user_id);
+  });
+  const commentsBy: Record<string, AnnouncementComment[]> = {};
+  comments.forEach((c: any) => {
+    (commentsBy[c.announcement_id] ||= []).push({ ...c, author: profiles[c.user_id] });
+  });
+
   return rows.map((r) => ({
     ...r,
     attachments: Array.isArray(r.attachments) ? r.attachments : [],
     author: profiles[r.user_id],
+    likedBy: likesBy[r.id] ?? [],
+    comments: commentsBy[r.id] ?? [],
   }));
 }
+
 
 export function ProjectAnnouncementsFeed({
   projectId,
@@ -128,7 +178,10 @@ export function ProjectAnnouncementsFeed({
         { event: '*', schema: 'public', table: 'project_announcements', filter: `project_id=eq.${projectId}` },
         () => load(),
       )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcement_reactions' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcement_comments' }, () => load())
       .subscribe();
+
     return () => {
       supabase.removeChannel(ch);
     };
@@ -322,7 +375,9 @@ export function ProjectAnnouncementsFeed({
           <AnnouncementCard
             key={a.id}
             a={a}
+            meId={me}
             isMine={me === a.user_id}
+
             onDelete={() => handleDelete(a)}
             onAuthorClick={() => setAuthorViewId(a.user_id)}
           />
@@ -414,12 +469,14 @@ export function ProjectAnnouncementsBoard({
 function AnnouncementCard({
   a,
   isMine,
+  meId,
   onDelete,
   onAuthorClick,
   showProject,
 }: {
   a: Announcement;
   isMine: boolean;
+  meId?: string | null;
   onDelete: () => void;
   onAuthorClick?: () => void;
   showProject?: boolean;
@@ -473,9 +530,153 @@ function AnnouncementCard({
       {a.content_below && (
         <p className="text-sm whitespace-pre-wrap text-foreground/90">{a.content_below}</p>
       )}
+      <AnnouncementSocial a={a} meId={meId ?? null} />
     </div>
   );
 }
+
+function AnnouncementSocial({ a, meId }: { a: Announcement; meId: string | null }) {
+  const [likes, setLikes] = useState<string[]>(a.likedBy ?? []);
+  const [comments, setComments] = useState<AnnouncementComment[]>(a.comments ?? []);
+  const [showComments, setShowComments] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => setLikes(a.likedBy ?? []), [a.likedBy]);
+  useEffect(() => setComments(a.comments ?? []), [a.comments]);
+
+  const liked = !!meId && likes.includes(meId);
+
+  const toggleLike = async () => {
+    if (!meId) {
+      toast.error('Sessão expirada');
+      return;
+    }
+    const wasLiked = liked;
+    setLikes((cur) => (wasLiked ? cur.filter((u) => u !== meId) : [...cur, meId]));
+    const { error } = wasLiked
+      ? await supabase
+          .from('announcement_reactions')
+          .delete()
+          .eq('announcement_id', a.id)
+          .eq('user_id', meId)
+      : await supabase
+          .from('announcement_reactions')
+          .insert({ announcement_id: a.id, user_id: meId } as any);
+    if (error) {
+      setLikes((cur) => (wasLiked ? [...cur, meId] : cur.filter((u) => u !== meId)));
+      toast.error('Não foi possível registrar a curtida');
+    }
+  };
+
+  const sendComment = async () => {
+    const text = draft.trim();
+    if (!text || !meId) return;
+    setSending(true);
+    const { data, error } = await supabase
+      .from('announcement_comments')
+      .insert({ announcement_id: a.id, user_id: meId, content: text } as any)
+      .select('id, user_id, content, created_at')
+      .single();
+    setSending(false);
+    if (error || !data) {
+      toast.error('Erro ao comentar');
+      return;
+    }
+    setComments((cur) => [...cur, data as any]);
+    setDraft('');
+  };
+
+  const removeComment = async (id: string) => {
+    const backup = comments;
+    setComments((cur) => cur.filter((c) => c.id !== id));
+    const { error } = await supabase.from('announcement_comments').delete().eq('id', id);
+    if (error) {
+      setComments(backup);
+      toast.error('Erro ao excluir comentário');
+    }
+  };
+
+  return (
+    <div className="mt-2 pt-2 border-t">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={toggleLike}
+          className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
+            liked ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+          }`}
+          aria-pressed={liked}
+        >
+          <Heart className={`h-4 w-4 ${liked ? 'fill-current' : ''}`} />
+          {likes.length > 0 ? likes.length : ''} Curtir
+        </button>
+        <button
+          onClick={() => setShowComments((v) => !v)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <MessageCircle className="h-4 w-4" />
+          {comments.length > 0 ? `${comments.length} ` : ''}Comentar
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="mt-2 space-y-2">
+          {comments.map((c) => {
+            const cname = userDisplayName(c.author?.display_name, c.author?.email);
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                {c.author?.avatar_url ? (
+                  <img src={c.author.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover mt-0.5" />
+                ) : (
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold mt-0.5">
+                    {cname.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 rounded-lg bg-muted/50 px-2.5 py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium">{cname}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}
+                    </span>
+                  </div>
+                  <p className="text-xs whitespace-pre-wrap">{c.content}</p>
+                </div>
+                {meId === c.user_id && (
+                  <button
+                    onClick={() => removeComment(c.id)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Excluir comentário"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <div className="flex items-center gap-2">
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendComment();
+                }
+              }}
+              placeholder="Escreva um comentário..."
+              className="h-8 text-sm"
+            />
+            <Button size="sm" onClick={sendComment} disabled={sending || !draft.trim()} className="h-8">
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function AttachmentTile({ att }: { att: Attachment }) {
   const isImg = (att.mime || '').startsWith('image/');
@@ -640,6 +841,8 @@ export function AuthorAnnouncementsDialog({
               key={a.id}
               a={a}
               isMine={me === a.user_id}
+              meId={me}
+
               showProject
               onDelete={async () => {
                 if (!confirm('Excluir este aviso?')) return;
