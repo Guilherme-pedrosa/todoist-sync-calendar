@@ -62,22 +62,58 @@ function sanitize(name: string) {
   return name.replace(/[^\w.\-]+/g, '_').slice(0, 120);
 }
 
+async function fetchProfiles(userIds: string[]): Promise<Record<string, any>> {
+  const ids = Array.from(new Set(userIds)).filter(Boolean);
+  const map: Record<string, any> = {};
+  if (!ids.length) return map;
+  const { data } = await supabase
+    .from('profiles')
+    .select('user_id, display_name, email, avatar_url')
+    .in('user_id', ids);
+  (data ?? []).forEach((p: any) => (map[p.user_id] = p));
+  return map;
+}
+
 async function attachAuthors(rows: any[]): Promise<Announcement[]> {
-  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-  let profiles: Record<string, any> = {};
-  if (userIds.length) {
-    const { data: profs } = await supabase
-      .from('profiles')
-      .select('user_id, display_name, email, avatar_url')
-      .in('user_id', userIds);
-    (profs ?? []).forEach((p: any) => (profiles[p.user_id] = p));
-  }
+  const ids = rows.map((r) => r.id);
+  const [reactionsRes, commentsRes] = await Promise.all([
+    ids.length
+      ? supabase.from('announcement_reactions').select('announcement_id, user_id').in('announcement_id', ids)
+      : Promise.resolve({ data: [] as any[] }),
+    ids.length
+      ? supabase
+          .from('announcement_comments')
+          .select('id, announcement_id, user_id, content, created_at')
+          .in('announcement_id', ids)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const reactions = (reactionsRes as any).data ?? [];
+  const comments = (commentsRes as any).data ?? [];
+
+  const profiles = await fetchProfiles([
+    ...rows.map((r) => r.user_id),
+    ...comments.map((c: any) => c.user_id),
+  ]);
+
+  const likesBy: Record<string, string[]> = {};
+  reactions.forEach((r: any) => {
+    (likesBy[r.announcement_id] ||= []).push(r.user_id);
+  });
+  const commentsBy: Record<string, AnnouncementComment[]> = {};
+  comments.forEach((c: any) => {
+    (commentsBy[c.announcement_id] ||= []).push({ ...c, author: profiles[c.user_id] });
+  });
+
   return rows.map((r) => ({
     ...r,
     attachments: Array.isArray(r.attachments) ? r.attachments : [],
     author: profiles[r.user_id],
+    likedBy: likesBy[r.id] ?? [],
+    comments: commentsBy[r.id] ?? [],
   }));
 }
+
 
 export function ProjectAnnouncementsFeed({
   projectId,
