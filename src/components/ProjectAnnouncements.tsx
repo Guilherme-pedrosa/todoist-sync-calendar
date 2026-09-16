@@ -375,7 +375,9 @@ export function ProjectAnnouncementsFeed({
           <AnnouncementCard
             key={a.id}
             a={a}
+            meId={me}
             isMine={me === a.user_id}
+
             onDelete={() => handleDelete(a)}
             onAuthorClick={() => setAuthorViewId(a.user_id)}
           />
