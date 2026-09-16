@@ -841,6 +841,8 @@ export function AuthorAnnouncementsDialog({
               key={a.id}
               a={a}
               isMine={me === a.user_id}
+              meId={me}
+
               showProject
               onDelete={async () => {
                 if (!confirm('Excluir este aviso?')) return;
