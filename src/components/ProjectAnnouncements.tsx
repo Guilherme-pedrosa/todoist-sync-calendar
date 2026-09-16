@@ -14,7 +14,10 @@ import {
   Megaphone,
   Search,
   UserCircle2,
+  Heart,
+  MessageCircle,
   X,
+
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { userDisplayName } from '@/lib/userDisplay';
