@@ -203,6 +203,73 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_comments: {
+        Row: {
+          announcement_id: string
+          content: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          content: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_comments_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "project_announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcement_reactions: {
+        Row: {
+          announcement_id: string
+          created_at: string
+          emoji: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          created_at?: string
+          emoji?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_reactions_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "project_announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automations: {
         Row: {
           actions: Json
