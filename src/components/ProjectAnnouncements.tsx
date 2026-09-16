@@ -467,12 +467,14 @@ export function ProjectAnnouncementsBoard({
 function AnnouncementCard({
   a,
   isMine,
+  meId,
   onDelete,
   onAuthorClick,
   showProject,
 }: {
   a: Announcement;
   isMine: boolean;
+  meId?: string | null;
   onDelete: () => void;
   onAuthorClick?: () => void;
   showProject?: boolean;
@@ -526,9 +528,153 @@ function AnnouncementCard({
       {a.content_below && (
         <p className="text-sm whitespace-pre-wrap text-foreground/90">{a.content_below}</p>
       )}
+      <AnnouncementSocial a={a} meId={meId ?? null} />
     </div>
   );
 }
+
+function AnnouncementSocial({ a, meId }: { a: Announcement; meId: string | null }) {
+  const [likes, setLikes] = useState<string[]>(a.likedBy ?? []);
+  const [comments, setComments] = useState<AnnouncementComment[]>(a.comments ?? []);
+  const [showComments, setShowComments] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => setLikes(a.likedBy ?? []), [a.likedBy]);
+  useEffect(() => setComments(a.comments ?? []), [a.comments]);
+
+  const liked = !!meId && likes.includes(meId);
+
+  const toggleLike = async () => {
+    if (!meId) {
+      toast.error('Sessão expirada');
+      return;
+    }
+    const wasLiked = liked;
+    setLikes((cur) => (wasLiked ? cur.filter((u) => u !== meId) : [...cur, meId]));
+    const { error } = wasLiked
+      ? await supabase
+          .from('announcement_reactions')
+          .delete()
+          .eq('announcement_id', a.id)
+          .eq('user_id', meId)
+      : await supabase
+          .from('announcement_reactions')
+          .insert({ announcement_id: a.id, user_id: meId } as any);
+    if (error) {
+      setLikes((cur) => (wasLiked ? [...cur, meId] : cur.filter((u) => u !== meId)));
+      toast.error('Não foi possível registrar a curtida');
+    }
+  };
+
+  const sendComment = async () => {
+    const text = draft.trim();
+    if (!text || !meId) return;
+    setSending(true);
+    const { data, error } = await supabase
+      .from('announcement_comments')
+      .insert({ announcement_id: a.id, user_id: meId, content: text } as any)
+      .select('id, user_id, content, created_at')
+      .single();
+    setSending(false);
+    if (error || !data) {
+      toast.error('Erro ao comentar');
+      return;
+    }
+    setComments((cur) => [...cur, data as any]);
+    setDraft('');
+  };
+
+  const removeComment = async (id: string) => {
+    const backup = comments;
+    setComments((cur) => cur.filter((c) => c.id !== id));
+    const { error } = await supabase.from('announcement_comments').delete().eq('id', id);
+    if (error) {
+      setComments(backup);
+      toast.error('Erro ao excluir comentário');
+    }
+  };
+
+  return (
+    <div className="mt-2 pt-2 border-t">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={toggleLike}
+          className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
+            liked ? 'text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
+          }`}
+          aria-pressed={liked}
+        >
+          <Heart className={`h-4 w-4 ${liked ? 'fill-current' : ''}`} />
+          {likes.length > 0 ? likes.length : ''} Curtir
+        </button>
+        <button
+          onClick={() => setShowComments((v) => !v)}
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <MessageCircle className="h-4 w-4" />
+          {comments.length > 0 ? `${comments.length} ` : ''}Comentar
+        </button>
+      </div>
+
+      {showComments && (
+        <div className="mt-2 space-y-2">
+          {comments.map((c) => {
+            const cname = userDisplayName(c.author?.display_name, c.author?.email);
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                {c.author?.avatar_url ? (
+                  <img src={c.author.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover mt-0.5" />
+                ) : (
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center text-[10px] font-semibold mt-0.5">
+                    {cname.slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 rounded-lg bg-muted/50 px-2.5 py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium">{cname}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatDistanceToNow(new Date(c.created_at), { addSuffix: true, locale: ptBR })}
+                    </span>
+                  </div>
+                  <p className="text-xs whitespace-pre-wrap">{c.content}</p>
+                </div>
+                {meId === c.user_id && (
+                  <button
+                    onClick={() => removeComment(c.id)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Excluir comentário"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <div className="flex items-center gap-2">
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void sendComment();
+                }
+              }}
+              placeholder="Escreva um comentário..."
+              className="h-8 text-sm"
+            />
+            <Button size="sm" onClick={sendComment} disabled={sending || !draft.trim()} className="h-8">
+              <Send className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 
 function AttachmentTile({ att }: { att: Attachment }) {
   const isImg = (att.mime || '').startsWith('image/');
