@@ -32,6 +32,14 @@ type Attachment = {
   size: number;
 };
 
+type AnnouncementComment = {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author?: { display_name: string | null; email: string | null; avatar_url: string | null };
+};
+
 type Announcement = {
   id: string;
   project_id: string;
@@ -41,8 +49,11 @@ type Announcement = {
   attachments: Attachment[];
   created_at: string;
   project_name?: string;
+  likedBy?: string[];
+  comments?: AnnouncementComment[];
   author?: { display_name: string | null; email: string | null; avatar_url: string | null };
 };
+
 
 function sanitize(name: string) {
   return name.replace(/[^\w.\-]+/g, '_').slice(0, 120);
