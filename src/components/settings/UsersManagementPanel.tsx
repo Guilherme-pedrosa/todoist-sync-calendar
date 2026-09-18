@@ -80,6 +80,30 @@ export function UsersManagementPanel() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSuper, setIsSuper] = useState(false);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const toggleActive = async (u: AdminUser) => {
+    const nextActive = isInactive(u);
+    setTogglingId(u.user_id);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'set_active', user_id: u.user_id, active: nextActive },
+    });
+    setTogglingId(null);
+    if (error) {
+      toast.error(error.message || 'Falha ao alterar status');
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((x) =>
+        x.user_id === u.user_id
+          ? { ...x, banned_until: nextActive ? null : new Date(Date.now() + 8760e7).toISOString() }
+          : x,
+      ),
+    );
+    toast.success(nextActive ? 'Usuário reativado' : 'Usuário inativado');
+  };
 
   // gate by productivity_admins
   useEffect(() => {
