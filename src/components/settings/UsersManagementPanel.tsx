@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon, Plus, X } from 'lucide-react';
+import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon, Plus, X, UserCheck, UserX } from 'lucide-react';
 import {
   Select,
   SelectContent,
