@@ -1653,6 +1653,21 @@ export function TaskDetailPanel() {
           <Button
             size="sm"
             variant="ghost"
+            onClick={() => void handleImproveComment()}
+            disabled={!commentText.trim() || improving}
+            className="h-11 w-11 md:h-7 md:w-7 p-0 shrink-0 text-primary"
+            aria-label="Revisar com IA"
+            title="Revisar com IA"
+          >
+            {improving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={sendComment}
             disabled={!commentText.trim()}
             className="h-11 w-11 md:h-7 md:w-7 p-0 shrink-0"
