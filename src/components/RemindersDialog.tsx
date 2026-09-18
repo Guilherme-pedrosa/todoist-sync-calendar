@@ -103,7 +103,11 @@ export function RemindersDialog({
   const persist = async () => {
     if (taskId) {
       // diff: delete all and re-insert (keeps it simple + correct)
-      await supabase.from('reminders').delete().eq('task_id', taskId);
+      const { error: deleteError } = await supabase.from('reminders').delete().eq('task_id', taskId);
+      if (deleteError) {
+        toast.error('Falha ao salvar lembretes');
+        return;
+      }
       if (items.length > 0) {
         const rows = items.map((r) => ({
           task_id: taskId,
