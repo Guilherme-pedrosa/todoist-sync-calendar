@@ -30,7 +30,9 @@ import {
   ChevronRight,
   Eye,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
+import { improveText } from '@/lib/aiAssistant';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useCommentsStore } from '@/store/commentsStore';
@@ -234,6 +236,28 @@ export function TaskDetailPanel() {
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [commentAuthors, setCommentAuthors] = useState<Record<string, CommentAuthor>>({});
   const [commentText, setCommentText] = useState('');
+  const [improving, setImproving] = useState(false);
+  const [preImproveText, setPreImproveText] = useState<string | null>(null);
+
+  const handleImproveComment = async () => {
+    const original = commentText.trim();
+    if (!original || improving) return;
+    setImproving(true);
+    try {
+      const improved = await improveText(original);
+      if (improved && improved !== original) {
+        setPreImproveText(original);
+        setCommentText(improved);
+        toast.success('Texto revisado pela IA');
+      } else {
+        toast.info('O texto já está bem escrito');
+      }
+    } catch (e: any) {
+      toast.error('Falha ao revisar com IA', { description: e?.message });
+    } finally {
+      setImproving(false);
+    }
+  };
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
@@ -1227,7 +1251,36 @@ export function TaskDetailPanel() {
                     className="text-sm min-h-[60px]"
                     rows={2}
                   />
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-end gap-2">
+                    {preImproveText !== null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCommentText(preImproveText);
+                          setPreImproveText(null);
+                        }}
+                        className="h-7 text-xs text-muted-foreground gap-1"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                        Desfazer
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleImproveComment()}
+                      disabled={!commentText.trim() || improving}
+                      className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                      title="Revisar com IA: mais coeso, técnico e organizado"
+                    >
+                      {improving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      Revisar com IA
+                    </Button>
                     <Button
                       size="sm"
                       onClick={() => void sendComment()}
@@ -1597,6 +1650,21 @@ export function TaskDetailPanel() {
             placeholder="Comentar rápido…"
             className="h-11 md:h-7 text-base md:text-xs w-full sm:w-64 min-w-0"
           />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void handleImproveComment()}
+            disabled={!commentText.trim() || improving}
+            className="h-11 w-11 md:h-7 md:w-7 p-0 shrink-0 text-primary"
+            aria-label="Revisar com IA"
+            title="Revisar com IA"
+          >
+            {improving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+          </Button>
           <Button
             size="sm"
             variant="ghost"

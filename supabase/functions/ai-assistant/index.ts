@@ -41,7 +41,10 @@ type RecentlyCompletedTask = {
 };
 
 interface BasePayload {
-  action: "suggest-slot" | "organize-day" | "analyze-day" | "chat";
+  action: "suggest-slot" | "organize-day" | "analyze-day" | "chat" | "improve-text";
+  // improve-text
+  text?: string;
+  tone?: string;
   // Comum
   today: string; // YYYY-MM-DD
   targetDate?: string; // YYYY-MM-DD
@@ -361,6 +364,43 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ---------- improve-text ----------
+    if (payload.action === "improve-text") {
+      const original = (payload.text ?? "").trim();
+      if (!original) {
+        return new Response(JSON.stringify({ error: "text é obrigatório" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const improveSystem = [
+        "Você é um editor profissional de comunicação corporativa em português do Brasil.",
+        "Reescreva o texto do usuário deixando-o mais coeso, técnico, claro e organizado.",
+        "REGRAS OBRIGATÓRIAS:",
+        "- NUNCA mude o foco, a intenção ou o significado da mensagem.",
+        "- Não invente fatos, números, prazos, nomes ou informações que não estejam no original.",
+        "- Preserve menções (@nome), links, códigos, valores e nomes próprios exatamente como estão.",
+        "- Mantenha aproximadamente o mesmo tamanho (no máximo ~30% maior).",
+        "- Use parágrafos curtos; use lista com hífens apenas se o original já enumerar itens.",
+        "- Mantenha o idioma do original.",
+        "RESPONDA APENAS COM O TEXTO REVISADO, sem aspas, sem comentários, sem títulos.",
+      ].join("\n");
+
+      const aiResp = await callAI({
+        messages: [
+          { role: "system", content: improveSystem },
+          { role: "user", content: original },
+        ],
+      });
+      if (!aiResp.ok) return aiResp;
+      const data = await aiResp.json();
+      const improved = (data?.choices?.[0]?.message?.content ?? "").trim();
+      return new Response(
+        JSON.stringify({ result: { text: improved || original } }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const system = buildSystemPrompt(payload);
