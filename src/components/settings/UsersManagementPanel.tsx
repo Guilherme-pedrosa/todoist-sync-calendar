@@ -222,6 +222,16 @@ export function UsersManagementPanel() {
           onClose={() => setResetting(null)}
         />
       )}
+      {deleting && (
+        <DeleteUserDialog
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setUsers((prev) => prev.filter((x) => x.user_id !== deleting.user_id));
+            setDeleting(null);
+          }}
+        />
+      )}
     </div>
   );
 }
