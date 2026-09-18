@@ -41,7 +41,10 @@ type RecentlyCompletedTask = {
 };
 
 interface BasePayload {
-  action: "suggest-slot" | "organize-day" | "analyze-day" | "chat";
+  action: "suggest-slot" | "organize-day" | "analyze-day" | "chat" | "improve-text";
+  // improve-text
+  text?: string;
+  tone?: string;
   // Comum
   today: string; // YYYY-MM-DD
   targetDate?: string; // YYYY-MM-DD
