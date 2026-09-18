@@ -133,6 +133,7 @@ export function UsersManagementPanel() {
         setUsers([]);
       } else {
         setUsers((data as any)?.users || []);
+        setIsSuper(!!(data as any)?.caller?.is_super);
       }
       setLoading(false);
     })();
