@@ -167,6 +167,14 @@ export async function analyzeDay(opts: {
   });
 }
 
+/** Revisa um texto livre (comentário, descrição) deixando-o mais coeso e técnico. */
+export async function improveText(text: string): Promise<string> {
+  const res = await invoke<{ text: string }>({ action: 'improve-text', text });
+  return res.text;
+}
+
+
+
 export type AssistantAction =
   | {
       type: 'create_task';
