@@ -601,3 +601,56 @@ function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () =
     </Dialog>
   );
 }
+
+function DeleteUserDialog({
+  user,
+  onClose,
+  onDeleted,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const target = (user.email || user.display_name || '').trim();
+
+  const submit = async () => {
+    setBusy(true);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'delete_user', user_id: user.user_id },
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message || 'Falha ao excluir usuário');
+      return;
+    }
+    toast.success('Usuário excluído');
+    onDeleted();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Excluir usuário</DialogTitle>
+          <DialogDescription>
+            Esta ação é permanente e remove o acesso de <b>{user.display_name || user.email}</b>.
+            Se quiser apenas bloquear o acesso, use "Inativar".
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label>Digite <b>{target}</b> para confirmar</Label>
+          <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={target} />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button variant="destructive" onClick={submit} disabled={busy || confirm.trim() !== target}>
+            {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            Excluir definitivamente
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
