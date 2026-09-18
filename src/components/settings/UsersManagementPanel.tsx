@@ -198,6 +198,9 @@ export function UsersManagementPanel() {
               u={u}
               onEdit={() => setEditing(u)}
               onReset={() => setResetting(u)}
+              onToggleActive={() => toggleActive(u)}
+              onDelete={isSuper ? () => setDeleting(u) : undefined}
+              toggling={togglingId === u.user_id}
             />
           ))}
           {filtered.length === 0 && !loading && (
