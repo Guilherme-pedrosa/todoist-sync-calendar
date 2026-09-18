@@ -273,6 +273,9 @@ function UserRow({
             {!u.email_confirmed_at && (
               <Badge variant="outline" className="text-[10px]">e-mail não confirmado</Badge>
             )}
+            {inactive && (
+              <Badge variant="destructive" className="text-[10px]">Inativo</Badge>
+            )}
           </div>
           <div className="text-xs text-muted-foreground truncate">{u.email}</div>
           <div className="text-[11px] text-muted-foreground mt-1">
