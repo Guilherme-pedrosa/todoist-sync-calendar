@@ -30,7 +30,9 @@ import {
   ChevronRight,
   Eye,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
+import { improveText } from '@/lib/aiAssistant';
 import { cn } from '@/lib/utils';
 import { useTaskStore } from '@/store/taskStore';
 import { useCommentsStore } from '@/store/commentsStore';
