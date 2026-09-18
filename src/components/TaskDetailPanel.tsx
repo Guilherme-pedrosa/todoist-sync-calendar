@@ -236,6 +236,28 @@ export function TaskDetailPanel() {
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [commentAuthors, setCommentAuthors] = useState<Record<string, CommentAuthor>>({});
   const [commentText, setCommentText] = useState('');
+  const [improving, setImproving] = useState(false);
+  const [preImproveText, setPreImproveText] = useState<string | null>(null);
+
+  const handleImproveComment = async () => {
+    const original = commentText.trim();
+    if (!original || improving) return;
+    setImproving(true);
+    try {
+      const improved = await improveText(original);
+      if (improved && improved !== original) {
+        setPreImproveText(original);
+        setCommentText(improved);
+        toast.success('Texto revisado pela IA');
+      } else {
+        toast.info('O texto já está bem escrito');
+      }
+    } catch (e: any) {
+      toast.error('Falha ao revisar com IA', { description: e?.message });
+    } finally {
+      setImproving(false);
+    }
+  };
   const [editingComment, setEditingComment] = useState<{ id: string; text: string } | null>(null);
   const [remindersOpen, setRemindersOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
