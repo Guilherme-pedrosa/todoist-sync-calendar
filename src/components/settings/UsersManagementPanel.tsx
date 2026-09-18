@@ -49,8 +49,15 @@ interface AdminUser {
   last_sign_in_at: string | null;
   last_seen_at: string | null;
   email_confirmed_at: string | null;
+  banned_until: string | null;
   workspaces: WorkspaceLite[];
   today: TodayStats | null;
+}
+
+function isInactive(u: AdminUser) {
+  if (!u.banned_until) return false;
+  const t = Date.parse(u.banned_until);
+  return Number.isNaN(t) ? true : t > Date.now();
 }
 
 function fmtSeconds(s: number) {
