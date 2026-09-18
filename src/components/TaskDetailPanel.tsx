@@ -1251,7 +1251,36 @@ export function TaskDetailPanel() {
                     className="text-sm min-h-[60px]"
                     rows={2}
                   />
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-end gap-2">
+                    {preImproveText !== null && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCommentText(preImproveText);
+                          setPreImproveText(null);
+                        }}
+                        className="h-7 text-xs text-muted-foreground gap-1"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                        Desfazer
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void handleImproveComment()}
+                      disabled={!commentText.trim() || improving}
+                      className="h-7 text-xs gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                      title="Revisar com IA: mais coeso, técnico e organizado"
+                    >
+                      {improving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      Revisar com IA
+                    </Button>
                     <Button
                       size="sm"
                       onClick={() => void sendComment()}
