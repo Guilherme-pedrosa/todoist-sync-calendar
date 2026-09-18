@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon, Plus, X } from 'lucide-react';
+import { Loader2, Search, RefreshCw, KeyRound, UserCog, Trash2, Shield, Activity, Users as UsersIcon, Plus, X, UserCheck, UserX } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -49,8 +49,15 @@ interface AdminUser {
   last_sign_in_at: string | null;
   last_seen_at: string | null;
   email_confirmed_at: string | null;
+  banned_until: string | null;
   workspaces: WorkspaceLite[];
   today: TodayStats | null;
+}
+
+function isInactive(u: AdminUser) {
+  if (!u.banned_until) return false;
+  const t = Date.parse(u.banned_until);
+  return Number.isNaN(t) ? true : t > Date.now();
 }
 
 function fmtSeconds(s: number) {
@@ -73,6 +80,30 @@ export function UsersManagementPanel() {
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isSuper, setIsSuper] = useState(false);
+  const [deleting, setDeleting] = useState<AdminUser | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const toggleActive = async (u: AdminUser) => {
+    const nextActive = isInactive(u);
+    setTogglingId(u.user_id);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'set_active', user_id: u.user_id, active: nextActive },
+    });
+    setTogglingId(null);
+    if (error) {
+      toast.error(error.message || 'Falha ao alterar status');
+      return;
+    }
+    setUsers((prev) =>
+      prev.map((x) =>
+        x.user_id === u.user_id
+          ? { ...x, banned_until: nextActive ? null : new Date(Date.now() + 8760e7).toISOString() }
+          : x,
+      ),
+    );
+    toast.success(nextActive ? 'Usuário reativado' : 'Usuário inativado');
+  };
 
   // gate by productivity_admins
   useEffect(() => {
@@ -102,6 +133,7 @@ export function UsersManagementPanel() {
         setUsers([]);
       } else {
         setUsers((data as any)?.users || []);
+        setIsSuper(!!(data as any)?.caller?.is_super);
       }
       setLoading(false);
     })();
@@ -166,6 +198,9 @@ export function UsersManagementPanel() {
               u={u}
               onEdit={() => setEditing(u)}
               onReset={() => setResetting(u)}
+              onToggleActive={() => toggleActive(u)}
+              onDelete={isSuper ? () => setDeleting(u) : undefined}
+              toggling={togglingId === u.user_id}
             />
           ))}
           {filtered.length === 0 && !loading && (
@@ -187,15 +222,40 @@ export function UsersManagementPanel() {
           onClose={() => setResetting(null)}
         />
       )}
+      {deleting && (
+        <DeleteUserDialog
+          user={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setUsers((prev) => prev.filter((x) => x.user_id !== deleting.user_id));
+            setDeleting(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function UserRow({ u, onEdit, onReset }: { u: AdminUser; onEdit: () => void; onReset: () => void }) {
+function UserRow({
+  u,
+  onEdit,
+  onReset,
+  onToggleActive,
+  onDelete,
+  toggling,
+}: {
+  u: AdminUser;
+  onEdit: () => void;
+  onReset: () => void;
+  onToggleActive: () => void;
+  onDelete?: () => void;
+  toggling: boolean;
+}) {
   const initials = (u.display_name || u.email || '?').slice(0, 2).toUpperCase();
   const isOnlineToday = !!u.today && u.today.online_seconds > 0;
+  const inactive = isInactive(u);
   return (
-    <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3">
+    <div className={cn('rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3', inactive && 'opacity-60')}>
       <div className="flex items-start gap-3">
         <Avatar className="h-10 w-10">
           {u.avatar_url && <AvatarImage src={u.avatar_url} />}
@@ -213,6 +273,9 @@ function UserRow({ u, onEdit, onReset }: { u: AdminUser; onEdit: () => void; onR
             {!u.email_confirmed_at && (
               <Badge variant="outline" className="text-[10px]">e-mail não confirmado</Badge>
             )}
+            {inactive && (
+              <Badge variant="destructive" className="text-[10px]">Inativo</Badge>
+            )}
           </div>
           <div className="text-xs text-muted-foreground truncate">{u.email}</div>
           <div className="text-[11px] text-muted-foreground mt-1">
@@ -226,6 +289,21 @@ function UserRow({ u, onEdit, onReset }: { u: AdminUser; onEdit: () => void; onR
           <Button size="sm" variant="outline" onClick={onReset}>
             <KeyRound className="h-3.5 w-3.5 mr-1" /> Senha
           </Button>
+          <Button size="sm" variant="outline" onClick={onToggleActive} disabled={toggling}>
+            {toggling ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : inactive ? (
+              <UserCheck className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <UserX className="h-3.5 w-3.5 mr-1" />
+            )}
+            {inactive ? 'Reativar' : 'Inativar'}
+          </Button>
+          {onDelete && (
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+            </Button>
+          )}
         </div>
       </div>
 
@@ -517,6 +595,59 @@ function ResetPasswordDialog({ user, onClose }: { user: AdminUser; onClose: () =
           <Button onClick={submit} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
             Redefinir
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteUserDialog({
+  user,
+  onClose,
+  onDeleted,
+}: {
+  user: AdminUser;
+  onClose: () => void;
+  onDeleted: () => void;
+}) {
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const target = (user.email || user.display_name || '').trim();
+
+  const submit = async () => {
+    setBusy(true);
+    const { error } = await supabase.functions.invoke('admin-users', {
+      body: { action: 'delete_user', user_id: user.user_id },
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(error.message || 'Falha ao excluir usuário');
+      return;
+    }
+    toast.success('Usuário excluído');
+    onDeleted();
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Excluir usuário</DialogTitle>
+          <DialogDescription>
+            Esta ação é permanente e remove o acesso de <b>{user.display_name || user.email}</b>.
+            Se quiser apenas bloquear o acesso, use "Inativar".
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label>Digite <b>{target}</b> para confirmar</Label>
+          <Input value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder={target} />
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancelar</Button>
+          <Button variant="destructive" onClick={submit} disabled={busy || confirm.trim() !== target}>
+            {busy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+            Excluir definitivamente
           </Button>
         </DialogFooter>
       </DialogContent>

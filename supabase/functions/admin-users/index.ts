@@ -171,7 +171,23 @@ Deno.serve(async (req) => {
         return tb.localeCompare(ta);
       });
 
-      return json({ users });
+      return json({ users, caller: { user_id: callerId, is_super: isSuper } });
+    }
+
+    // ───── ACTIVATE / DEACTIVATE (ban) ─────
+    if (action === 'set_active') {
+      const { user_id, active } = body;
+      if (!user_id || typeof active !== 'boolean') {
+        return json({ error: 'user_id and active required' }, 400);
+      }
+      if (user_id === callerId && !active) {
+        return json({ error: 'Cannot deactivate yourself' }, 400);
+      }
+      const { error } = await admin.auth.admin.updateUserById(user_id, {
+        ban_duration: active ? 'none' : '876000h',
+      } as any);
+      if (error) return json({ error: error.message }, 400);
+      return json({ ok: true });
     }
 
     // ───── UPDATE PROFILE / EMAIL / PASSWORD ─────
