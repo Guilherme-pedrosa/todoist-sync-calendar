@@ -289,6 +289,21 @@ function UserRow({
           <Button size="sm" variant="outline" onClick={onReset}>
             <KeyRound className="h-3.5 w-3.5 mr-1" /> Senha
           </Button>
+          <Button size="sm" variant="outline" onClick={onToggleActive} disabled={toggling}>
+            {toggling ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+            ) : inactive ? (
+              <UserCheck className="h-3.5 w-3.5 mr-1" />
+            ) : (
+              <UserX className="h-3.5 w-3.5 mr-1" />
+            )}
+            {inactive ? 'Reativar' : 'Inativar'}
+          </Button>
+          {onDelete && (
+            <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir
+            </Button>
+          )}
         </div>
       </div>
 
