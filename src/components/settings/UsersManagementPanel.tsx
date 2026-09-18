@@ -236,11 +236,26 @@ export function UsersManagementPanel() {
   );
 }
 
-function UserRow({ u, onEdit, onReset }: { u: AdminUser; onEdit: () => void; onReset: () => void }) {
+function UserRow({
+  u,
+  onEdit,
+  onReset,
+  onToggleActive,
+  onDelete,
+  toggling,
+}: {
+  u: AdminUser;
+  onEdit: () => void;
+  onReset: () => void;
+  onToggleActive: () => void;
+  onDelete?: () => void;
+  toggling: boolean;
+}) {
   const initials = (u.display_name || u.email || '?').slice(0, 2).toUpperCase();
   const isOnlineToday = !!u.today && u.today.online_seconds > 0;
+  const inactive = isInactive(u);
   return (
-    <div className="rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3">
+    <div className={cn('rounded-xl border border-border bg-card p-3 sm:p-4 space-y-3', inactive && 'opacity-60')}>
       <div className="flex items-start gap-3">
         <Avatar className="h-10 w-10">
           {u.avatar_url && <AvatarImage src={u.avatar_url} />}
